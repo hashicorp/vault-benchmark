@@ -1,0 +1,10 @@
+{
+  "root_key_type": "ec",
+  "root_key_bits": 521,
+  "int_key_type": "ec",
+  "int_key_bits": 521,
+  "leaf_key_type": "ec",
+  "leaf_key_bits": 521,
+  "leaf_store": false,
+  "leaf_lease": false
+}

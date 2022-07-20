@@ -1,0 +1,6 @@
+{
+  "ca_key_type": "rsa",
+  "ca_key_bits": 2048,
+  "leaf_key_type": "rsa",
+  "leaf_key_bits": 2048
+}

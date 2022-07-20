@@ -1,0 +1,10 @@
+{
+  "root_key_type": "rsa",
+  "root_key_bits": 2048,
+  "int_key_type": "rsa",
+  "int_key_bits": 2048,
+  "leaf_key_type": "rsa",
+  "leaf_key_bits": 2048,
+  "leaf_store": false,
+  "leaf_lease": false
+}
