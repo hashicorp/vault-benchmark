@@ -128,7 +128,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string) (*Ta
 	var tm TargetMulti
 
 	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
-		kvv1, err := SetupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
+		kvv1, err := setupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
 		if err != nil {
 			return nil, err
 		}
