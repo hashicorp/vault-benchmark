@@ -294,7 +294,7 @@ func main() {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	tm, err := vegeta.BuildTargets(spec, clients[0], caPEM, clientCert, *duration)
+	tm, err := vegeta.BuildTargets(spec, clients[0], caPEM, clientCert)
 	if err != nil {
 		log.Fatalf("target setup failed, did you specify -pct arguments? error: %v", err)
 	}

@@ -124,7 +124,7 @@ type TestSpecification struct {
 	TransitDecryptConfig transitTestConfig
 }
 
-func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string, testDuration time.Duration) (*TargetMulti, error) {
+func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
 	var tm TargetMulti
 
 	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
