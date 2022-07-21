@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -203,13 +204,33 @@ func main() {
 
 	// Create vault clients
 	var clients []*vaultapi.Client
+	var clientCert, clientKey string
 	for _, addr := range cluster.VaultAddrs {
+		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
 		if *caPEMFile != "" {
-			err := cfg.ConfigureTLS(&vaultapi.TLSConfig{CACert: *caPEMFile})
+			tlsCfg.CACert = *caPEMFile
+		}
+		err := cfg.ConfigureTLS(&vaultapi.TLSConfig{CACert: *caPEMFile})
+		if err != nil {
+			log.Fatalf("error creating vault client: %v", err)
+		}
+		if spec.PctCertLogin > 0 {
+			benchCA, err := vegeta.GenerateCA()
 			if err != nil {
-				log.Fatalf("error creating vault client: %v", err)
+				log.Fatalf("error generating benchmark CA: %v", err)
 			}
+
+			clientCert, clientKey, err = vegeta.GenerateCert(benchCA.CertTemplate, benchCA.Signer, *duration)
+			if err != nil {
+				log.Fatalf("error generating client cert: %v", err)
+			}
+			keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
+			if err != nil {
+				log.Fatalf("error creating vault client: error setting client cert: %v", err)
+			}
+
+			cfg.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
 		}
 		cfg.Address = addr
 		client, err := vaultapi.NewClient(cfg)
@@ -270,7 +291,7 @@ func main() {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	tm, err := vegeta.BuildTargets(spec, clients[0], caPEM)
+	tm, err := vegeta.BuildTargets(spec, clients[0], caPEM, clientCert, *duration)
 	if err != nil {
 		log.Fatalf("target setup failed, did you specify -pct arguments? error: %v", err)
 	}
