@@ -23,20 +23,19 @@ import (
 )
 
 type certTest struct {
-	pathPrefix    string
-	header        http.Header
-	clientCertPEM string
-	clientKeyPEM  string
+	pathPrefix string
+	header     http.Header
 }
 
 type CaCert struct {
-	CertPEM      string
-	CertTemplate *x509.Certificate
-	Signer       crypto.Signer
+	PEM      string
+	Template *x509.Certificate
+	Signer   crypto.Signer
 }
 
-func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer, testDur time.Duration) (string, string, error) {
-	// Create the private key we'll use for this leaf cert.
+// GenerateCert creates a new leaf cert from provided CA template and signer
+func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer) (string, string, error) {
+	// Create the private key
 	signer, keyPEM, err := privateKey()
 	if err != nil {
 		return "", "", err
@@ -55,7 +54,7 @@ func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer, test
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		NotAfter:              time.Now().Add(testDur),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
 		NotBefore:             time.Now().Add(-1 * time.Minute),
 	}
 
@@ -73,6 +72,9 @@ func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer, test
 	return buf.String(), keyPEM, nil
 }
 
+// GenerateCA generates a new self-signed CA cert and returns a
+// CaCert struct containing the PEM encoded cert,
+// X509 Certificate Template, and crypto.Signer
 func GenerateCA() (*CaCert, error) {
 	// Create the private key we'll use for this CA cert.
 	signer, _, err := privateKey()
@@ -117,9 +119,9 @@ func GenerateCA() (*CaCert, error) {
 		return nil, err
 	}
 	return &CaCert{
-		CertPEM:      buf.String(),
-		CertTemplate: &template,
-		Signer:       signer,
+		PEM:      buf.String(),
+		Template: &template,
+		Signer:   signer,
 	}, nil
 }
 
@@ -172,7 +174,7 @@ func keyId(raw interface{}) ([]byte, error) {
 	return []byte(strings.Replace(fmt.Sprintf("% x", kID), " ", ":", -1)), nil
 }
 
-func setupCert(client *api.Client, randomMounts bool, ttl time.Duration, testDuration time.Duration, caPem string) (*certTest, error) {
+func setupCert(client *api.Client, randomMounts bool, ttl time.Duration, clientCAPem string) (*certTest, error) {
 	authPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -193,7 +195,7 @@ func setupCert(client *api.Client, randomMounts bool, ttl time.Duration, testDur
 	_, err = client.Logical().Write(rolePath, map[string]interface{}{
 		"token_ttl":     int(ttl.Seconds()),
 		"token_max_ttl": int(ttl.Seconds()),
-		"certificate":   caPem,
+		"certificate":   clientCAPem,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating cert role %q: %v", role, err)

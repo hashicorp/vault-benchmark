@@ -211,26 +211,29 @@ func main() {
 		if *caPEMFile != "" {
 			tlsCfg.CACert = *caPEMFile
 		}
-		err := cfg.ConfigureTLS(&vaultapi.TLSConfig{CACert: *caPEMFile})
-		if err != nil {
-			log.Fatalf("error creating vault client: %v", err)
-		}
 		if spec.PctCertLogin > 0 {
+			// Create self-signed CA
 			benchCA, err := vegeta.GenerateCA()
 			if err != nil {
 				log.Fatalf("error generating benchmark CA: %v", err)
 			}
 
-			clientCert, clientKey, err = vegeta.GenerateCert(benchCA.CertTemplate, benchCA.Signer, *duration)
+			// Generate Client cert for Cert Auth
+			clientCert, clientKey, err = vegeta.GenerateCert(benchCA.Template, benchCA.Signer)
 			if err != nil {
 				log.Fatalf("error generating client cert: %v", err)
 			}
+
+			// Create X509 Key Pair
 			keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
 			if err != nil {
-				log.Fatalf("error creating vault client: error setting client cert: %v", err)
+				log.Fatalf("error generating client key pair: %v", err)
 			}
-
 			cfg.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
+		}
+		err := cfg.ConfigureTLS(tlsCfg)
+		if err != nil {
+			log.Fatalf("error creating vault client: %v", err)
 		}
 		cfg.Address = addr
 		client, err := vaultapi.NewClient(cfg)

@@ -182,7 +182,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctCertLogin > 0 {
-		cert, err := setupCert(client, spec.RandomMounts, spec.TokenTTL, testDuration, clientCAPem)
+		cert, err := setupCert(client, spec.RandomMounts, spec.TokenTTL, clientCAPem)
 		if err != nil {
 			return nil, err
 		}
