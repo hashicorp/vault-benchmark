@@ -6,7 +6,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -16,7 +15,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-uuid"
@@ -108,7 +106,7 @@ func GenerateCA() (*CaCert, error) {
 		return nil, fmt.Errorf("error generating serial number: %v", err)
 	}
 
-	signerKeyId, err := keyId(signer.Public())
+	signerKeyId, err := certutil.GetSubjKeyID(signer)
 	if err != nil {
 		return nil, fmt.Errorf("error getting subject key id from key: %v", err)
 	}
@@ -171,28 +169,6 @@ func privateKey() (crypto.Signer, string, error) {
 // serialNumber generates a new random serial number.
 func serialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
-}
-
-// keyId returns a x509 KeyId from the given signing key. The key must be
-// an *ecdsa.PublicKey currently, but may support more types in the future.
-func keyId(raw interface{}) ([]byte, error) {
-	switch raw.(type) {
-	case *ecdsa.PublicKey:
-	default:
-		return nil, fmt.Errorf("invalid key type: %T", raw)
-	}
-
-	// This is not standard; RFC allows any unique identifier as long as they
-	// match in subject/authority chains but suggests specific hashing of DER
-	// bytes of public key including DER tags.
-	bs, err := x509.MarshalPKIXPublicKey(raw)
-	if err != nil {
-		return nil, err
-	}
-
-	// String formatted
-	kID := sha256.Sum256(bs)
-	return []byte(strings.Replace(fmt.Sprintf("% x", kID), " ", ":", -1)), nil
 }
 
 func setupCert(client *api.Client, randomMounts bool, ttl time.Duration, clientCAPem string) (*certTest, error) {
