@@ -31,7 +31,7 @@ func (tm TargetMulti) validate() error {
 		total += fraction.percent
 	}
 	if total != 100 {
-		return fmt.Errorf("total comes to %d, should be 100", total)
+		return fmt.Errorf("test percentage total comes to %d, should be 100", total)
 	}
 	return nil
 }
@@ -97,31 +97,34 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 }
 
 type TestSpecification struct {
-	NumKVs               int
-	KVSize               int
-	RandomMounts         bool
-	TokenTTL             time.Duration
-	PctKvv1Read          int
-	PctKvv1Write         int
-	PctKvv2Read          int
-	PctKvv2Write         int
-	PctPkiIssue          int
-	PkiConfig            PkiTestConfig
-	PctApproleLogin      int
-	PctCertLogin         int
-	PctSshCaIssue        int
-	SshCaConfig          SshCaTestConfig
-	PctHAStatus          int
-	PctSealStatus        int
-	PctMetrics           int
-	PctTransitSign       int
-	TransitSignConfig    transitTestConfig
-	PctTransitVerify     int
-	TransitVerifyConfig  transitTestConfig
-	PctTransitEncrypt    int
-	TransitEncryptConfig transitTestConfig
-	PctTransitDecrypt    int
-	TransitDecryptConfig transitTestConfig
+	NumKVs                int
+	KVSize                int
+	RandomMounts          bool
+	TokenTTL              time.Duration
+	PctKvv1Read           int
+	PctKvv1Write          int
+	PctKvv2Read           int
+	PctKvv2Write          int
+	PctPkiIssue           int
+	PkiConfig             PkiTestConfig
+	PctApproleLogin       int
+	PctCertLogin          int
+	PctSshCaIssue         int
+	SshCaConfig           SshCaTestConfig
+	PctHAStatus           int
+	PctSealStatus         int
+	PctMetrics            int
+	PctTransitSign        int
+	TransitSignConfig     transitTestConfig
+	PctTransitVerify      int
+	TransitVerifyConfig   transitTestConfig
+	PctTransitEncrypt     int
+	TransitEncryptConfig  transitTestConfig
+	PctTransitDecrypt     int
+	TransitDecryptConfig  transitTestConfig
+	PctCassandraRead      int
+	CassandraDBConfig     CassandraDBConfig
+	CassandraDBRoleConfig CassandraRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -300,6 +303,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: transit.pathPrefix,
 			percent:    spec.PctTransitDecrypt,
 			target:     transit.write,
+		})
+	}
+	if spec.PctCassandraRead > 0 {
+		cassandra, err := setupCassandra(client, spec.RandomMounts, &spec.CassandraDBConfig, &spec.CassandraDBRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "cassandra cred retrieval",
+			method:     "GET",
+			pathPrefix: cassandra.pathPrefix,
+			percent:    spec.PctCassandraRead,
+			target:     cassandra.read,
 		})
 	}
 
