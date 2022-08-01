@@ -20,6 +20,7 @@ Tests options:
 - `pct_cert_login`: percent of requests that are cert logins
 - `pct_pki_issue`: percent of requests that are pki issues
 - `pki_gen_lease`: when running PKI issue tests, set to true to generate leases for each cert
+- `pct_cassandradb_read`: percent of requests that are CassandraDB Dynamic Credential generations
 
 There is also a `numkvs` option: if any kvv1 or kvv2 requests are specified,
 then this many keys will be written during the setup phase.  The read operations
@@ -44,6 +45,32 @@ op          mean       95th%       99th        successRatio
 kvv1 read   817.22µs   1.674553ms  2.437689ms  100.00%
 kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
 ```
+
+# Tests
+## CassandraDB
+
+This benchmark will test the dynamic generation of CassandraDB credentials. In order to use this test, configuration for the CassandraDB instance must be provided as a JSON file using the `cassandradb_config_json` flag. The primary required fields are the `username` and `password` for the user configured in CassandraDB for Vault to use, as well as the `hosts` field that defines the addresses to be use and the `protocol_version`. Below is an example configuration to communicate with a locally running test environment:
+
+```
+{
+    "hosts": "127.0.0.1",
+    "protocol_version": 4,
+    "username":"vault",
+    "password":"vault"
+}
+```
+
+Please refer to the CassandraDB Vault documentation for all available configuration options.
+
+A role configuration file can also be passed via the `cassandradb_role_config_json` flag. This allows more specific options to be specified if required by the CassandraDB environment setup. By default the following role `benchmark-role` is defined and used:
+```
+{
+	"default_ttl": "1h",
+	"max_ttl": "24h",
+	"creation_statements": "CREATE USER '{{username}}' WITH PASSWORD '{{password}}' NOSUPERUSER; GRANT SELECT ON ALL KEYSPACES TO {{username}};"
+}
+```
+Any configuration passed will modify the `benchmark-role`.
 
 # Outputs
 
