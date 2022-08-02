@@ -125,6 +125,9 @@ type TestSpecification struct {
 	PctCassandraRead      int
 	CassandraDBConfig     CassandraDBConfig
 	CassandraDBRoleConfig CassandraRoleConfig
+	PctLDAPLogin          int
+	LDAPAuthConfig        LDAPAuthConfig
+	LDAPTestUserConfig    LDAPTestUserConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -195,6 +198,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: cert.pathPrefix,
 			percent:    spec.PctCertLogin,
 			target:     cert.login,
+		})
+	}
+	if spec.PctLDAPLogin > 0 {
+		ldap, err := setupLDAPAuth(client, spec.RandomMounts, &spec.LDAPAuthConfig, &spec.LDAPTestUserConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP login",
+			method:     "POST",
+			pathPrefix: ldap.pathPrefix,
+			percent:    spec.PctLDAPLogin,
+			target:     ldap.login,
 		})
 	}
 	if spec.PctPkiIssue > 0 {
