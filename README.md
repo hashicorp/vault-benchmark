@@ -111,7 +111,7 @@ either terse or verbose reports.
 `pprof_interval` runs the `vault debug` command to gather pprof data; this
 is written to a folder named `vault-debug-X` where X is a timestamp.
 
-## Docker
+# Docker
 
 **Tip**: Create a Benchmark Vault image with the `make image` command.
 
