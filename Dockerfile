@@ -1,15 +1,3 @@
-FROM docker.mirror.hashicorp.services/alpine:latest as dev
-
-RUN addgroup vault && \
-    adduser -S -G vault vault
-
-ADD dist/benchmark-vault /benchmark-vault
-
-USER vault
-
-ENTRYPOINT ["/benchmark-vault"]
-
-# This target creates a production release image for the project.
 FROM docker.mirror.hashicorp.services/alpine:latest as default
 
 # PRODUCT_VERSION is the tag built, e.g. v0.1.0
