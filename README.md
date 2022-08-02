@@ -111,3 +111,42 @@ either terse or verbose reports.
 `pprof_interval` runs the `vault debug` command to gather pprof data; this
 is written to a folder named `vault-debug-X` where X is a timestamp.
 
+## Docker
+
+**Tip**: Create a Benchmark Vault image with the `make image` command.
+
+First, create a network that Vault and Benchmark Vault will share:
+
+```bash
+docker network create vault
+```
+
+Next, deploy Vault to Docker and ensure it's running:
+
+```bash
+docker run \
+  --name=vault \
+  --hostname=vault \
+  --network=vault \
+  -p 8200:8200 \
+  -e VAULT_DEV_ROOT_TOKEN_ID="root" \
+  -e VAULT_ADDR="http://localhost:8200" \
+  -e VAULT_DEV_LISTEN_ADDRESS="0.0.0.0:8200" \
+  --privileged \
+  --detach vault:latest
+
+docker logs -f vault
+```
+
+Once Vault is running, create a Benchmark Vault container and watch the logs for the results:
+
+```bash
+docker run \
+  --name=benchmark-vault \
+  --hostname=benchmark-vault \
+  --network=vault \
+  --detach hashicorp/benchmark-vault:0.0.0-dev \
+  benchmark-vault -vault_addr=http://vault:8200 -vault_token=root -pct_kvv1_read=90 -pct_kvv1_write=10
+
+docker logs -f benchmark-vault
+```
