@@ -72,6 +72,25 @@ A role configuration file can also be passed via the `cassandradb_role_config_js
 ```
 Any configuration passed will modify the `benchmark-role`.
 
+## LDAP Auth
+
+This benchmark will test LDAP Authentication to Vault. In order to use this test, configuration for the target LDAP server(s) must be provided as a JSON file using the `ldap_config_json` flag. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method. Below is an example configuration to communicate with a locally running LDAP test environment:
+
+```
+{
+	"url":"ldap://127.0.0.1",
+	"userdn":"ou=users,dc=hashicorp,dc=com",
+	"groupdn":"ou=groups,dc=hashicorp,dc=com",
+	"binddn":"cn=admin,dc=hashicorp,dc=com",
+	"bindpass":"admin",
+	"userattr":"uid",
+	"groupattr":"cn",
+	"groupfilter":"(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
+}
+```
+
+Please refer to the Vault LDAP Auth documentation for all available configuration options.
+
 # Outputs
 
 ## Reports

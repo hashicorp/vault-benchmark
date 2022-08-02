@@ -55,6 +55,8 @@ func main() {
 		transitDecryptConfigJSON  = flag.String("transit_decrypt_config_json", "", "when specified, path to Transit decrypt benchmark configuration JSON file to use")
 		cassandraDBConfigJSON     = flag.String("cassandradb_config_json", "", "path to JSON file containing Vault CassandraDB configuration")
 		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
+		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth configuration")
+		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
 	)
 
 	// test-related settings
@@ -78,6 +80,7 @@ func main() {
 	flag.IntVar(&spec.PctTransitEncrypt, "pct_transit_encrypt", 0, "percent of requests that are encrypt requests to transit")
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
+	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
 
 	// Config Options
 	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")
@@ -113,12 +116,26 @@ func main() {
 		log.Fatalf("unable to parse Transit decrypt config at %v: %v", *transitDecryptConfigJSON, err)
 	}
 
-	if err := spec.CassandraDBConfig.FromJSON(*cassandraDBConfigJSON); err != nil {
-		log.Fatalf("unable to parse CassandraDB config at %v: %v", *cassandraDBConfigJSON, err)
+	// Only attempt to load/generate config if actually testing
+	// This is only needed since we are requiring configs for these tests
+	if spec.PctCassandraRead > 0 {
+		if err := spec.CassandraDBConfig.FromJSON(*cassandraDBConfigJSON); err != nil {
+			log.Fatalf("unable to parse CassandraDB config at %v: %v", *cassandraDBConfigJSON, err)
+		}
+
+		if err := spec.CassandraDBRoleConfig.FromJSON(*cassandraDBRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse CassandraDB Role config at %v: %v", *cassandraDBRoleConfigJSON, err)
+		}
 	}
 
-	if err := spec.CassandraDBRoleConfig.FromJSON(*cassandraDBRoleConfigJSON); err != nil {
-		log.Fatalf("unable to parse CassandraDB Role config at %v: %v", *cassandraDBRoleConfigJSON, err)
+	if spec.PctLDAPLogin > 0 {
+		if err := spec.LDAPAuthConfig.FromJSON(*ldapConfigJSON); err != nil {
+			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
+		}
+
+		if err := spec.LDAPTestUserConfig.FromJSON(*ldapTestUserCredsJSON); err != nil {
+			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapTestUserCredsJSON, err)
+		}
 	}
 
 	switch *reportMode {
