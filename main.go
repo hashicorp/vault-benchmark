@@ -57,6 +57,8 @@ func main() {
 		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
 		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth configuration")
 		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
+		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
+		postgresqlRoleConfigJSON  = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
 	)
 
 	// test-related settings
@@ -81,6 +83,7 @@ func main() {
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
+	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 
 	// Config Options
 	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")
@@ -135,6 +138,16 @@ func main() {
 
 		if err := spec.LDAPTestUserConfig.FromJSON(*ldapTestUserCredsJSON); err != nil {
 			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapTestUserCredsJSON, err)
+		}
+	}
+
+	if spec.PctPostgreSQLRead > 0 {
+		if err := spec.PostgreSQLDBConfig.FromJSON(*postgresqlDBConfigJSON); err != nil {
+			log.Fatalf("unable to parse PostgreSQL config at %v: %v", *postgresqlDBConfigJSON, err)
+		}
+
+		if err := spec.PostgreSQLRoleConfig.FromJSON(*postgresqlRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse PostgreSQL Role config at %v: %v", *postgresqlRoleConfigJSON, err)
 		}
 	}
 
