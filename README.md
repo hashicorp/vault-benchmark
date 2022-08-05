@@ -74,7 +74,7 @@ Any configuration passed will modify the `benchmark-role`.
 
 ## PostgreSQL
 
-This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as a JSON file using the `postgresql_config_json` flag. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the addresses to be used as well as any other parameters that need to be passed via the URL. Below is an example configuration to communicate with a locally running test environment:
+This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as a JSON file using the `postgresql_config_json` flag. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the address to be used as well as any other parameters that need to be passed via the URL. Below is an example configuration to communicate with a locally running test environment:
 
 ```
 {
