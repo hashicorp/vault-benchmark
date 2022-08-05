@@ -96,6 +96,30 @@ A role configuration file can also be passed via the `postgresql_role_config_jso
 ```
 Any configuration passed will modify the `benchmark-role`.
 
+## Couchbase
+
+This benchmark will test the dynamic generation of Couchbase credentials. In order to use this test, configuration for the Couchbase instance must be provided as a JSON file using the `couchbase_config_json` flag. The primary required fields are the `username` and `password` for the user configured in Couchbase for Vault to use, as well as the `hosts` field that defines the addresses to use. Below is an example configuration to communicate with a locally running test environment:
+
+```
+{
+    "hosts": "couchbase://127.0.0.1",
+    "username":"vault",
+    "password":"vault"
+}
+```
+
+Please refer to the Couchbase Vault documentation for all available configuration options.
+
+A role configuration file can also be passed via the `couchbase_role_config_json` flag. This allows more specific options to be specified if required by the Couchbase environment setup. By default the following role `benchmark-role` is defined and used:
+```
+{
+	"default_ttl": "1h",
+	"max_ttl": "24h",
+	"creation_statements": "{\"Roles\": [{\"role\":\"ro_admin\"}]}"
+}
+```
+Any configuration passed will modify the `benchmark-role`.
+
 ## LDAP Auth
 
 This benchmark will test LDAP Authentication to Vault. In order to use this test, configuration for the target LDAP server(s) must be provided as a JSON file using the `ldap_config_json` flag. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method. Below is an example configuration to communicate with a locally running LDAP test environment:

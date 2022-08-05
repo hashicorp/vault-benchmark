@@ -59,6 +59,8 @@ func main() {
 		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
 		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
 		postgresqlRoleConfigJSON  = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
+		couchbaseConfigJSON       = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
+		couchbaseRoleConfigJSON   = flag.String("couchbase_role_config_json", "", "when specified, path to Couchbase benchmark role configuration JSON file to use")
 	)
 
 	// test-related settings
@@ -84,6 +86,7 @@ func main() {
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
+	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 
 	// Config Options
 	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")
@@ -148,6 +151,15 @@ func main() {
 
 		if err := spec.PostgreSQLRoleConfig.FromJSON(*postgresqlRoleConfigJSON); err != nil {
 			log.Fatalf("unable to parse PostgreSQL Role config at %v: %v", *postgresqlRoleConfigJSON, err)
+		}
+	}
+	if spec.PctCouchbaseRead > 0 {
+		if err := spec.CouchbaseConfig.FromJSON(*couchbaseConfigJSON); err != nil {
+			log.Fatalf("unable to parse Couchbase config at %v: %v", *couchbaseConfigJSON, err)
+		}
+
+		if err := spec.CouchbaseRoleConfig.FromJSON(*couchbaseRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse Couchbase role config at %v: %v", *couchbaseRoleConfigJSON, err)
 		}
 	}
 

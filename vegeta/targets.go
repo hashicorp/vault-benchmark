@@ -131,6 +131,9 @@ type TestSpecification struct {
 	PctPostgreSQLRead     int
 	PostgreSQLDBConfig    PostgreSQLDBConfig
 	PostgreSQLRoleConfig  PostgreSQLRoleConfig
+	PctCouchbaseRead      int
+	CouchbaseConfig       CouchbaseConfig
+	CouchbaseRoleConfig   CouchbaseRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -348,6 +351,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: postgresql.pathPrefix,
 			percent:    spec.PctPostgreSQLRead,
 			target:     postgresql.read,
+		})
+	}
+	if spec.PctCouchbaseRead > 0 {
+		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "couchbase cred retrieval",
+			method:     "GET",
+			pathPrefix: couchbase.pathPrefix,
+			percent:    spec.PctCouchbaseRead,
+			target:     couchbase.read,
 		})
 	}
 
