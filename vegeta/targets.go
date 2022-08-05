@@ -128,6 +128,9 @@ type TestSpecification struct {
 	PctLDAPLogin          int
 	LDAPAuthConfig        LDAPAuthConfig
 	LDAPTestUserConfig    LDAPTestUserConfig
+	PctCouchbaseRead      int
+	CouchbaseConfig       CouchbaseConfig
+	CouchbaseRoleConfig   CouchbaseRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -332,6 +335,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: cassandra.pathPrefix,
 			percent:    spec.PctCassandraRead,
 			target:     cassandra.read,
+		})
+	}
+	if spec.PctCouchbaseRead > 0 {
+		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "couchbase cred retrieval",
+			method:     "GET",
+			pathPrefix: couchbase.pathPrefix,
+			percent:    spec.PctCouchbaseRead,
+			target:     couchbase.read,
 		})
 	}
 
