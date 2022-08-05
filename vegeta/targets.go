@@ -128,6 +128,9 @@ type TestSpecification struct {
 	PctLDAPLogin          int
 	LDAPAuthConfig        LDAPAuthConfig
 	LDAPTestUserConfig    LDAPTestUserConfig
+	PctPostgreSQLRead     int
+	PostgreSQLDBConfig    PostgreSQLDBConfig
+	PostgreSQLRoleConfig  PostgreSQLRoleConfig
 	PctCouchbaseRead      int
 	CouchbaseConfig       CouchbaseConfig
 	CouchbaseRoleConfig   CouchbaseRoleConfig
@@ -335,6 +338,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: cassandra.pathPrefix,
 			percent:    spec.PctCassandraRead,
 			target:     cassandra.read,
+		})
+	}
+	if spec.PctPostgreSQLRead > 0 {
+		postgresql, err := setupPostgreSQL(client, spec.RandomMounts, &spec.PostgreSQLDBConfig, &spec.PostgreSQLRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "postgresql cred retrieval",
+			method:     "GET",
+			pathPrefix: postgresql.pathPrefix,
+			percent:    spec.PctPostgreSQLRead,
+			target:     postgresql.read,
 		})
 	}
 	if spec.PctCouchbaseRead > 0 {
