@@ -48,7 +48,8 @@ func setupKvv1(client *api.Client, randomMounts bool, numKVs int, kvSize int) (*
 		kvv1Path = "kvv1"
 	}
 
-	err = client.Sys().Mount(kvv1Path, &api.MountInput{
+	var setupIndex string
+	err = client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(kvv1Path, &api.MountInput{
 		Type: "kv",
 	})
 	if err != nil {
@@ -60,16 +61,27 @@ func setupKvv1(client *api.Client, randomMounts bool, numKVs int, kvSize int) (*
 			"foo": 1,
 		},
 	}
+	if setupIndex != "" {
+		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
+	}
+	var lastIndex string
 	for i := 1; i <= numKVs; i++ {
+		if i == numKVs-1 {
+			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))
+		}
 		_, err = client.Logical().Write(kvv1Path+"/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
 			return nil, fmt.Errorf("error writing kvv1: %v", err)
 		}
 	}
 
+	headers := http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}}
+	if lastIndex != "" {
+		headers["X-Vault-Index"] = []string{lastIndex}
+	}
 	return &kvv1test{
 		pathPrefix: "/v1/" + kvv1Path,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		header:     headers,
 		numKVs:     numKVs,
 		kvSize:     kvSize,
 	}, nil
