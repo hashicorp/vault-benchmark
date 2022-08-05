@@ -84,7 +84,7 @@ This benchmark will test the dynamic generation of PostgreSQL credentials. In or
 }
 ```
 
-Please refer to the PostgreSQL Vault documentation for all available configuration options.
+Please refer to the [PostgreSQL Vault documentation](https://www.vaultproject.io/docs/secrets/databases/postgresql) for all available configuration options.
 
 A role configuration file can also be passed via the `postgresql_role_config_json` flag. This allows more specific options to be specified if required by the PostgreSQL environment setup. By default the following role `benchmark-role` is defined and used:
 ```
