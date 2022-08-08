@@ -72,6 +72,30 @@ A role configuration file can also be passed via the `cassandradb_role_config_js
 ```
 Any configuration passed will modify the `benchmark-role`.
 
+## PostgreSQL
+
+This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as a JSON file using the `postgresql_config_json` flag. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the address to be used as well as any other parameters that need to be passed via the URL. Below is an example configuration to communicate with a locally running test environment:
+
+```
+{
+  "username":"postgres",
+  "password":"password",
+  "connection_url":"postgresql://{{username}}:{{password}}@localhost:5432/?sslmode=disable"
+}
+```
+
+Please refer to the [PostgreSQL Vault documentation](https://www.vaultproject.io/docs/secrets/databases/postgresql) for all available configuration options.
+
+A role configuration file can also be passed via the `postgresql_role_config_json` flag. This allows more specific options to be specified if required by the PostgreSQL environment setup. By default the following role `benchmark-role` is defined and used:
+```
+{
+	"default_ttl": "1h",
+	"max_ttl": "24h",
+	"creation_statements": "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+}
+```
+Any configuration passed will modify the `benchmark-role`.
+
 ## Couchbase
 
 This benchmark will test the dynamic generation of Couchbase credentials. In order to use this test, configuration for the Couchbase instance must be provided as a JSON file using the `couchbase_config_json` flag. The primary required fields are the `username` and `password` for the user configured in Couchbase for Vault to use, as well as the `hosts` field that defines the addresses to use. Below is an example configuration to communicate with a locally running test environment:

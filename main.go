@@ -57,6 +57,8 @@ func main() {
 		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
 		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth configuration")
 		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
+		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
+		postgresqlRoleConfigJSON  = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
 		couchbaseConfigJSON       = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
 		couchbaseRoleConfigJSON   = flag.String("couchbase_role_config_json", "", "when specified, path to Couchbase benchmark role configuration JSON file to use")
 		kubernetesConfigJSON      = flag.String("k8s_config_json", "", "path to JSON file containing Vault Kubernetes Auth configuration")
@@ -85,6 +87,7 @@ func main() {
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
+	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
 
@@ -144,6 +147,15 @@ func main() {
 		}
 	}
 
+	if spec.PctPostgreSQLRead > 0 {
+		if err := spec.PostgreSQLDBConfig.FromJSON(*postgresqlDBConfigJSON); err != nil {
+			log.Fatalf("unable to parse PostgreSQL config at %v: %v", *postgresqlDBConfigJSON, err)
+		}
+
+		if err := spec.PostgreSQLRoleConfig.FromJSON(*postgresqlRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse PostgreSQL Role config at %v: %v", *postgresqlRoleConfigJSON, err)
+		}
+	}
 	if spec.PctCouchbaseRead > 0 {
 		if err := spec.CouchbaseConfig.FromJSON(*couchbaseConfigJSON); err != nil {
 			log.Fatalf("unable to parse Couchbase config at %v: %v", *couchbaseConfigJSON, err)
