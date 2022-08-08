@@ -21,6 +21,10 @@ Tests options:
 - `pct_pki_issue`: percent of requests that are pki issues
 - `pki_gen_lease`: when running PKI issue tests, set to true to generate leases for each cert
 - `pct_cassandradb_read`: percent of requests that are CassandraDB Dynamic Credential generations
+- `pct_couchbase_read`: percent of requests that are Couchbase dynamic credential generations
+- `pct_ldap_login`: percent of requests that are LDAP logins
+- `pct_k8s_login`: percent of requests that are Kubernetes logins
+- `pct_postgresql_read`: percent of requests that are PostgreSQL credential generations
 
 There is also a `numkvs` option: if any kvv1 or kvv2 requests are specified,
 then this many keys will be written during the setup phase.  The read operations
@@ -60,7 +64,7 @@ This benchmark will test the dynamic generation of CassandraDB credentials. In o
 }
 ```
 
-Please refer to the CassandraDB Vault documentation for all available configuration options.
+Please refer to the [CassandraDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/cassandra) for all available configuration options.
 
 A role configuration file can also be passed via the `cassandradb_role_config_json` flag. This allows more specific options to be specified if required by the CassandraDB environment setup. By default the following role `benchmark-role` is defined and used:
 ```
@@ -108,7 +112,7 @@ This benchmark will test the dynamic generation of Couchbase credentials. In ord
 }
 ```
 
-Please refer to the Couchbase Vault documentation for all available configuration options.
+Please refer to the [Couchbase Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/couchbase) for all available configuration options.
 
 A role configuration file can also be passed via the `couchbase_role_config_json` flag. This allows more specific options to be specified if required by the Couchbase environment setup. By default the following role `benchmark-role` is defined and used:
 ```
@@ -137,7 +141,33 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 }
 ```
 
-Please refer to the Vault LDAP Auth documentation for all available configuration options.
+Please refer to the [Vault LDAP Auth documentation](https://www.vaultproject.io/api-docs/auth/ldap) for all available configuration options.
+
+## Kubernetes Auth
+
+This benchmark will test Vault authentication using the Kubernetes Auth method. In order to use this test, configuration for the target Kubernetes cluster must be provided as a JSON file using the `k8s_config_json` flag. The primary required field is `kubernetes_host`. A role config also needs to be passed with the primary required fields being `name`, `bound_service_account_names`, and `bound_service_account_namespaces`. Included is an example `benchmark-vault-job.yaml` file which can be applied to use the benchmark-vault image in a Kubernetes cluster. This example assumes a Vault cluster deployed in a Kubernetes environment based on our [Vault Installation to Minikube via Helm with Integrated Storage](https://learn.hashicorp.com/tutorials/vault/kubernetes-minikube-raft?in=vault/kubernetes) learn guide. This file can be edited to suit a specific deployment methodology. Below is the ConfigMap snippet showing example configuration:
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-vault-configmap
+data:
+  k8s_config.json: |
+    {
+      "kubernetes_host":"https://kubernetes.default.svc"
+    }
+  k8s_role_config.json: |
+    {
+      "name":"benchmark-vault-role",
+      "bound_service_account_names":["benchmark-vault"],
+      "bound_service_account_namespaces":["*"],
+      "token_max_ttl":"24h",
+      "token_ttl":"1h"
+    }
+```
+
+Please refer to the [Vault Kubernetes Auth Method](https://www.vaultproject.io/api-docs/auth/kubernetes) documentation for all available configuration options.
 
 # Outputs
 
