@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: benchmark-vault
+  namespace: default
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-vault-configmap
+data:
+  k8s_config.json: |
+    {
+      "kubernetes_host":"https://kubernetes.default.svc"
+    }
+  k8s_role_config.json: |
+    {
+      "name":"benchmark-vault-role",
+      "bound_service_account_names":["benchmark-vault"],
+      "bound_service_account_namespaces":["*"],
+      "token_max_ttl":"24h",
+      "token_ttl":"1h"
+    }
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark-vault
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      name: benchmark-vault
+      labels:
+        app: benchmark-vault
+    spec:
+      containers:
+      - name: benchmark-vault
+        image: hashicorp/benchmark-vault:0.0.0-dev
+        command: ["benchmark-vault"]
+        args: [
+          "-vault_addr=http://vault-0.vault-internal:8200",
+          "-vault_token=root",
+          "-pct_k8s_login=100",
+          "-k8s_config_json=/config/k8s_config.json",
+          "-k8s_role_config_json=/config/k8s_role_config.json"
+          ]
+        volumeMounts:
+        - name: benchmark-config
+          mountPath: "/config"
+          readOnly: true
+      restartPolicy: Never
+      serviceAccountName: benchmark-vault
+      volumes:
+      - name: benchmark-config
+        configMap:
+          name: benchmark-vault-configmap
