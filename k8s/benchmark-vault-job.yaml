@@ -3,7 +3,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: benchmark-vault
-  namespace: default
 
 ---
 apiVersion: v1
@@ -39,10 +38,11 @@ spec:
     spec:
       containers:
       - name: benchmark-vault
-        image: hashicorp/benchmark-vault:0.0.0-dev
+        image: hashicorp/benchmark-vault:latest
+        imagePullPolicy: IfNotPresent
         command: ["benchmark-vault"]
         args: [
-          "-vault_addr=http://vault-0.vault-internal:8200",
+          "-vault_addr=http://vault:8200",
           "-vault_token=root",
           "-pct_k8s_login=100",
           "-k8s_config_json=/config/k8s_config.json",

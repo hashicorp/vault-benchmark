@@ -2,6 +2,7 @@ REGISTRY_NAME?=docker.io/hashicorp
 IMAGE_NAME=benchmark-vault
 VERSION?=0.0.0-dev
 IMAGE_TAG?=$(REGISTRY_NAME)/$(IMAGE_NAME):$(VERSION)
+LATEST_TAG?=$(REGISTRY_NAME)/$(IMAGE_NAME):latest
 BUILD_DIR=dist
 GOOS?=linux
 GOARCH?=amd64
@@ -21,7 +22,7 @@ build:
 		.
 
 image: build
-	docker build --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) .
+	docker build --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
 
 clean:
 	-rm -rf $(BUILD_DIR)
