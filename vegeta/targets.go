@@ -97,43 +97,46 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 }
 
 type TestSpecification struct {
-	NumKVs                int
-	KVSize                int
-	RandomMounts          bool
-	TokenTTL              time.Duration
-	PctKvv1Read           int
-	PctKvv1Write          int
-	PctKvv2Read           int
-	PctKvv2Write          int
-	PctPkiIssue           int
-	PkiConfig             PkiTestConfig
-	PctApproleLogin       int
-	PctCertLogin          int
-	PctSshCaIssue         int
-	SshCaConfig           SshCaTestConfig
-	PctHAStatus           int
-	PctSealStatus         int
-	PctMetrics            int
-	PctTransitSign        int
-	TransitSignConfig     transitTestConfig
-	PctTransitVerify      int
-	TransitVerifyConfig   transitTestConfig
-	PctTransitEncrypt     int
-	TransitEncryptConfig  transitTestConfig
-	PctTransitDecrypt     int
-	TransitDecryptConfig  transitTestConfig
-	PctCassandraRead      int
-	CassandraDBConfig     CassandraDBConfig
-	CassandraDBRoleConfig CassandraRoleConfig
-	PctLDAPLogin          int
-	LDAPAuthConfig        LDAPAuthConfig
-	LDAPTestUserConfig    LDAPTestUserConfig
-	PctPostgreSQLRead     int
-	PostgreSQLDBConfig    PostgreSQLDBConfig
-	PostgreSQLRoleConfig  PostgreSQLRoleConfig
-	PctCouchbaseRead      int
-	CouchbaseConfig       CouchbaseConfig
-	CouchbaseRoleConfig   CouchbaseRoleConfig
+	NumKVs                   int
+	KVSize                   int
+	RandomMounts             bool
+	TokenTTL                 time.Duration
+	PctKvv1Read              int
+	PctKvv1Write             int
+	PctKvv2Read              int
+	PctKvv2Write             int
+	PctPkiIssue              int
+	PkiConfig                PkiTestConfig
+	PctApproleLogin          int
+	PctCertLogin             int
+	PctSshCaIssue            int
+	SshCaConfig              SshCaTestConfig
+	PctHAStatus              int
+	PctSealStatus            int
+	PctMetrics               int
+	PctTransitSign           int
+	TransitSignConfig        transitTestConfig
+	PctTransitVerify         int
+	TransitVerifyConfig      transitTestConfig
+	PctTransitEncrypt        int
+	TransitEncryptConfig     transitTestConfig
+	PctTransitDecrypt        int
+	TransitDecryptConfig     transitTestConfig
+	PctCassandraRead         int
+	CassandraDBConfig        CassandraDBConfig
+	CassandraDBRoleConfig    CassandraRoleConfig
+	PctLDAPLogin             int
+	LDAPAuthConfig           LDAPAuthConfig
+	LDAPTestUserConfig       LDAPTestUserConfig
+	PctPostgreSQLRead        int
+	PostgreSQLDBConfig       PostgreSQLDBConfig
+	PostgreSQLRoleConfig     PostgreSQLRoleConfig
+	PctCouchbaseRead         int
+	CouchbaseConfig          CouchbaseConfig
+	CouchbaseRoleConfig      CouchbaseRoleConfig
+	PctKubernetesLogin       int
+	KubernetesAuthConfig     KubernetesAuthConfig
+	KubernetesTestRoleConfig KubernetesTestRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -217,6 +220,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldap.pathPrefix,
 			percent:    spec.PctLDAPLogin,
 			target:     ldap.login,
+		})
+	}
+	if spec.PctKubernetesLogin > 0 {
+		kubernetes, err := setupKubernetesAuth(client, spec.RandomMounts, &spec.KubernetesAuthConfig, &spec.KubernetesTestRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "Kubernetes login",
+			method:     "POST",
+			pathPrefix: kubernetes.pathPrefix,
+			percent:    spec.PctKubernetesLogin,
+			target:     kubernetes.login,
 		})
 	}
 	if spec.PctPkiIssue > 0 {
