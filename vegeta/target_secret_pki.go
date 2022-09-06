@@ -38,6 +38,7 @@ type PkiTestConfig struct {
 	LeafKeyBits int    `json:"leaf_key_bits"`
 	LeafStore   bool   `json:"leaf_store"`
 	LeafLease   bool   `json:"leaf_lease"`
+	LeafExpiry  string `json:"leaf_expiry"`
 }
 
 func (p *PkiTestConfig) FromJSON(path string) error {
@@ -50,6 +51,7 @@ func (p *PkiTestConfig) FromJSON(path string) error {
 	p.LeafKeyBits = 2048
 	p.LeafStore = false
 	p.LeafLease = false
+	p.LeafExpiry = ""
 
 	if path == "" {
 		return nil
@@ -178,6 +180,7 @@ func createIntermediateCA(cli *api.Client, pfx string, config PkiTestConfig) (st
 		"allow_localhost":  "true",
 		"allow_any_name":   "true",
 		"allow_ip_sans":    "true",
+		"ttl":              config.LeafExpiry,
 		"max_ttl":          "720h",
 		"generate_lease":   fmt.Sprintf("%t", config.LeafLease),
 		"no_store":         fmt.Sprintf("%t", !config.LeafStore),
