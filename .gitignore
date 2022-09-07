@@ -1,1 +1,4 @@
 dist/
+
+# Disallow checking-in the executable
+/benchmark-vault
