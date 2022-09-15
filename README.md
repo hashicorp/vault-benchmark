@@ -25,6 +25,7 @@ Tests options:
 - `pct_ldap_login`: percent of requests that are LDAP logins
 - `pct_k8s_login`: percent of requests that are Kubernetes logins
 - `pct_postgresql_read`: percent of requests that are PostgreSQL credential generations
+- `pct_ssh_sign`: percent of requests that are SSH Client Key Sign operations
 
 There is also a `numkvs` option: if any kvv1 or kvv2 requests are specified,
 then this many keys will be written during the setup phase.  The read operations
@@ -168,6 +169,34 @@ data:
 ```
 
 Please refer to the [Vault Kubernetes Auth Method](https://www.vaultproject.io/api-docs/auth/kubernetes) documentation for all available configuration options.
+
+## SSH Key Signing
+
+This benchmark will test throughput for SSH Key Signing. This test defaults to Client Key signing, but you can provide configuration for both the CA and Signer Role by using the `ssh_signer_ca_config_json` and `ssh_signer_role_config_json` flags respectively. Default configurations are as follows:
+
+`/ssh/config/ca`
+```
+{
+  "generate_signing_key": true,
+  "key_type": "ssh-rsa",
+  "key_bits": 0,
+}
+```
+
+`/ssh/roles/:name`
+```
+{
+  "name": "benchmark-role",
+  "port": 22,
+	"key_bits": 1024,
+	"algorithm_signer": "default",
+	"not_before_duration": "30s",
+	"key_type": "ca",
+	"allow_user_certificates": true,
+}
+```
+
+Please refer to the [SSH Secrets Engine](https://developer.hashicorp.com/vault/api-docs/secret/ssh) documenation for all available configuration options.
 
 # Outputs
 

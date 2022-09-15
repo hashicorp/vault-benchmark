@@ -137,6 +137,9 @@ type TestSpecification struct {
 	PctKubernetesLogin       int
 	KubernetesAuthConfig     KubernetesAuthConfig
 	KubernetesTestRoleConfig KubernetesTestRoleConfig
+	PctSSHSign               int
+	SSHSignerCAConfig        SSHSignerCAConfig
+	SSHSignerRoleConfig      SSHSignerRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -380,6 +383,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: couchbase.pathPrefix,
 			percent:    spec.PctCouchbaseRead,
 			target:     couchbase.read,
+		})
+	}
+	if spec.PctSSHSign > 0 {
+		sshSign, err := setupSSHSign(client, spec.RandomMounts, &spec.SSHSignerCAConfig, &spec.SSHSignerRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "ssh pub key sign",
+			method:     "POST",
+			pathPrefix: sshSign.pathPrefix,
+			percent:    spec.PctSSHSign,
+			target:     sshSign.sign,
 		})
 	}
 
