@@ -63,6 +63,8 @@ func main() {
 		couchbaseRoleConfigJSON   = flag.String("couchbase_role_config_json", "", "when specified, path to Couchbase benchmark role configuration JSON file to use")
 		kubernetesConfigJSON      = flag.String("k8s_config_json", "", "path to JSON file containing Vault Kubernetes Auth configuration")
 		kubernetesRoleConfigJSON  = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
+		sshSignerCAConfigJSON     = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
+		sshSignerRoleConfigJSON   = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
 	)
 
 	// test-related settings
@@ -90,6 +92,7 @@ func main() {
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
+	flag.IntVar(&spec.PctSSHSign, "pct_ssh_sign", 0, "percent of requests that are SSH Client Key Sign operations")
 
 	// Config Options
 	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")
@@ -173,6 +176,15 @@ func main() {
 
 		if err := spec.KubernetesTestRoleConfig.FromJSON(*kubernetesRoleConfigJSON); err != nil {
 			log.Fatalf("unable to parse Kubernetes role config at %v: %v", *kubernetesRoleConfigJSON, err)
+		}
+	}
+
+	if spec.PctSSHSign > 0 {
+		if err := spec.SSHSignerCAConfig.FromJSON(*sshSignerCAConfigJSON); err != nil {
+			log.Fatalf("unable to parse SSH CA config at %v: %v", *sshSignerCAConfigJSON, err)
+		}
+		if err := spec.SSHSignerRoleConfig.FromJSON(*sshSignerRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse SSH CA config at %v: %v", *sshSignerRoleConfigJSON, err)
 		}
 	}
 
