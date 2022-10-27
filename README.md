@@ -2,10 +2,23 @@
 
 benchmark-vault is a benchmark tool for Vault.
 
+Vault configuration settings
+
+- `vault_addr`: vault address, overrides VAULT_ADDR
+- `cluster_json`: path to cluster.json file
+- `vault_token`: vault token, overrides VAULT_TOKEN
+- `audit_path`: when creating vault cluster, path to file for audit log
+- `ca_pem_file`: when using external vault with HTTPS, path to its CA file in PEM format
+
 The main generic options are:
 - `workers`: number of workers aka virtual users
 - `duration`: benchmark duration
 - `rps`: requests per second
+- `report_mode`  reporting mode: terse, verbose, json
+- `pprof_interval` collection interval for vault debug pprof profiling
+- `input_results` instead of running tests, read a JSON file from a previous test run
+- `annotate` comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' fodashboard example
+- `debug` before running tests, execute each benchmark target and output request/response info
 
 benchmark-vault will create `workers` virtual users which will continuously
 generate requests to the Vault API.  The requests to generate are controlled
@@ -19,7 +32,14 @@ Tests options:
 - `pct_approle_login`: percent of requests that are approle logins
 - `pct_cert_login`: percent of requests that are cert logins
 - `pct_pki_issue`: percent of requests that are pki issues
-- `pki_gen_lease`: when running PKI issue tests, set to true to generate leases for each cert
+- `pct_ssh_ca_issue`: percent of requests that are ssh issue certs
+- `pct_ha_status`: percent of requests that are ha status requests (/sys/ha-status)
+- `pct_seal_status`: percent of requests that are seal status requests (/sys/seal-status)
+- `pct_metrics`: percent of requests that are read requests to metrics (/sys/metrics)
+- `pct_transit_sign`: percent of requests that are sign requests to transit
+- `pct_transit_verify`: percent of requests that are verify requests to transit
+- `pct_transit_encrypt`: percent of requests that are encrypt requests to transit
+- `pct_transit_decrypt`: percent of requests that are decrypt requests to transit
 - `pct_cassandradb_read`: percent of requests that are CassandraDB Dynamic Credential generations
 - `pct_couchbase_read`: percent of requests that are Couchbase dynamic credential generations
 - `pct_ldap_login`: percent of requests that are LDAP logins
@@ -52,9 +72,117 @@ kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
 ```
 
 # Tests
+## KVV1 and KVV2
+
+This benchmark tests the performance of KVV1 and/or KVV2.  It writes a set number of keys
+(KV1 or KV2) to each mount, then reads them back.  The number of keys is defaulted to 1000, but can
+be changed with the `-numkvs` option.  The size of the values is defaulted to 1 character, but can
+be changed with the `-kvsize` option.
+
+```
+$ ./benchmark-vault -pct_kvv1_read=75 -pct_kvv1_write=25 -numkvs=100 -kvsize=10
+op          count  rate         throughput   mean       95th%       99th%       successRatio
+op          count   rate          throughput    mean       95th%      99th%       successRatio
+kvv1 read   207078  20707.991723  20707.303112  342.588µs  792.455µs  1.79457ms   100.00%
+kvv1 write  69309   6931.423438   6931.229002   382.028µs  861.062µs  2.103818ms  100.00%
+
+$ ./benchmark-vault -pct_kvv2_read=50 -pct_kvv2_write=50
+op          count  rate         throughput   mean       95th%       99th%       successRatio
+kvv2 read   99087  9909.216270  9908.109187  396.701µs  927.28µs    1.954493ms  100.00%
+kvv2 write  98077  9807.787657  9807.321928  604.503µs  1.348884ms  2.790181ms  100.00%
+```
+
+## AppRole
+
+This benchmark tests the performance of logins using the AppRole auth method.
+
+```
+$ ./benchmark-vault -pct_approle_login=100
+op             count   rate          throughput    mean       95th%       99th%       successRatio
+approle login  152174  15217.447491  15216.776175  648.864µs  1.372863ms  2.330503ms  100.00%
+```
+
+## Certificate Auth
+
+This benchmark tests the performance of logins using the Certificate auth method.
+
+```
+$ ./benchmark-vault -pct_cert_login=100
+op          count   rate          throughput  mean       95th%      99th%       successRatio
+cert login  319098  31909.905836  0.000000    303.255µs  695.622µs  1.497842ms  0.00%
+```
+
+## PKI
+
+This benchmark tests the performance of PKI issue operations.  A value can be specified for the
+`-pki_setup_delay` option to allow the PKI backend to be setup before the test starts.  An additional
+configuration option, `-pki_config_json` can be used to specify a JSON file containing the PKI configuration
+to use.  If this is not specified, a default configuration will be used.
+
+```
+$ ./benchmark-vault -pct_pki_issue=100
+op         count  rate       throughput  mean          95th%         99th%         successRatio
+pki issue  770    76.912068  75.437967   130.886886ms  281.848785ms  424.038003ms  100.00%
+```
+
+## Signed SSH Certificates
+
+This benchmark tests the performance of Signed SSH Certificate issue operations.  A value can be specified for the
+`-ssh_ca_setup_delay` option to allow the SSH backend to be setup before the test starts.  An additional configuration
+option, `-ssh_ca_config_json` can be used to specify a JSON file containing the SSH CA configuration to use.  If this is
+not specified, a default configuration will be used.
+
+```
+$ ./benchmark-vault -pct_ssh_ca_issue=100
+op         count   rate          throughput  mean       95th%      99th%       successRatio
+ssh issue  300282  30028.310228  0.000000    324.823µs  752.144µs  1.601211ms  0.00%
+```
+
+## High Availability (HA)
+
+This benchmark tests the performance of HA status requests.
+
+```
+$ ./benchmark-vault -pct_ha_status=100
+op         count   rate          throughput    mean       95th%      99th%       successRatio
+ha status  307299  30731.021169  30728.013045  316.743µs  717.639µs  1.705715ms  100.00%
+```
+
+## Seal Status
+
+This benchmark tests the performance of the seal status operation, `/sys/seal-status`.
+
+```
+$ ./benchmark-vault -pct_seal_status=100
+op           count   rate          throughput    mean       95th%      99th%       successRatio
+seal status  510343  51034.352310  51033.783069  173.612µs  434.735µs  1.116063ms  100.00%
+```
+
+## Metrics
+
+This benchmark tests the performance of the metrics operation, `/sys/metrics`.
+
+```
+$ ./benchmark-vault -pct_metrics=100
+op       count   rate          throughput    mean       95th%      99th%       successRatio
+metrics  305119  30512.043407  30509.221162  311.575µs  853.498µs  2.214729ms  100.00%
+```
+
+## Transit
+
+This benchmark tests the performance of the transit operations.  A value can be specified for the
+`-transit_*_setup_delay` options to allow the transit backend to be setup before the test starts.
+
+```
+$ ./benchmark-vault -pct_transit_sign=50 -pct_transit_verify=50
+op               count  rate         throughput   mean        95th%       99th%       successRatio
+transit sign     54570  5457.386815  5456.674805  1.505858ms  2.679909ms  3.661053ms  100.00%
+transit verify   26984  2698.373376  2698.320209  344.872µs   802.958µs   1.395324ms  100.00%
+```
+
 ## CassandraDB
 
-This benchmark will test the dynamic generation of CassandraDB credentials. In order to use this test, configuration for the CassandraDB instance must be provided as a JSON file using the `cassandradb_config_json` flag. The primary required fields are the `username` and `password` for the user configured in CassandraDB for Vault to use, as well as the `hosts` field that defines the addresses to be use and the `protocol_version`. Below is an example configuration to communicate with a locally running test environment:
+This benchmark will test the dynamic generation of CassandraDB credentials. In order to use this test, configuration for the CassandraDB instance MUST be provided as a JSON file using the `cassandradb_config_json` flag. The primary required fields are the `username` and `password` for the user configured in CassandraDB for Vault to use, as well as the `hosts` field that defines the addresses to be use and the `protocol_version`. Below is an example configuration to communicate with a locally running test environment:
 
 ```
 {
@@ -197,6 +325,12 @@ This benchmark will test throughput for SSH Key Signing. This test defaults to C
 ```
 
 Please refer to the [SSH Secrets Engine](https://developer.hashicorp.com/vault/api-docs/secret/ssh) documenation for all available configuration options.
+
+```
+$ ./benchmark-vault -pct_ssh_sign=100
+op                count  rate         throughput   mean        95th%        99th%        successRatio
+ssh pub key sign  12946  1294.587852  1293.681384  7.720743ms  10.379888ms  13.079202ms  100.00%
+```
 
 # Outputs
 
