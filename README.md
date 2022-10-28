@@ -24,32 +24,7 @@ benchmark-vault will create `workers` virtual users which will continuously
 generate requests to the Vault API.  The requests to generate are controlled
 by test options, which must sum to 100.
 
-Tests options:
-- `pct_kvv1_write`: percent of requests that are kvv1 writes
-- `pct_kvv1_read`: percent of requests that are kvv1 reads
-- `pct_kvv2_write`: percent of requests that are kvv2 writes
-- `pct_kvv2_read`: percent of requests that are kvv2 reads
-- `pct_approle_login`: percent of requests that are approle logins
-- `pct_cert_login`: percent of requests that are cert logins
-- `pct_pki_issue`: percent of requests that are pki issues
-- `pct_ssh_ca_issue`: percent of requests that are ssh issue certs
-- `pct_ha_status`: percent of requests that are ha status requests (/sys/ha-status)
-- `pct_seal_status`: percent of requests that are seal status requests (/sys/seal-status)
-- `pct_metrics`: percent of requests that are read requests to metrics (/sys/metrics)
-- `pct_transit_sign`: percent of requests that are sign requests to transit
-- `pct_transit_verify`: percent of requests that are verify requests to transit
-- `pct_transit_encrypt`: percent of requests that are encrypt requests to transit
-- `pct_transit_decrypt`: percent of requests that are decrypt requests to transit
-- `pct_cassandradb_read`: percent of requests that are CassandraDB Dynamic Credential generations
-- `pct_couchbase_read`: percent of requests that are Couchbase dynamic credential generations
-- `pct_ldap_login`: percent of requests that are LDAP logins
-- `pct_k8s_login`: percent of requests that are Kubernetes logins
-- `pct_postgresql_read`: percent of requests that are PostgreSQL credential generations
-- `pct_ssh_sign`: percent of requests that are SSH Client Key Sign operations
-
-There is also a `numkvs` option: if any kvv1 or kvv2 requests are specified,
-then this many keys will be written during the setup phase.  The read operations
-will read from these keys, and the write operations overwrite them.
+Additionally, there are test specific options that can be found under that tests designated section.
 
 # Vault cluster
 
@@ -79,6 +54,15 @@ This benchmark tests the performance of KVV1 and/or KVV2.  It writes a set numbe
 be changed with the `-numkvs` option.  The size of the values is defaulted to 1 character, but can
 be changed with the `-kvsize` option.
 
+Configuration Options
+- `pct_kvv1_write`: percent of requests that are kvv1 writes
+- `pct_kvv1_read`: percent of requests that are kvv1 reads
+- `pct_kvv2_write`: percent of requests that are kvv2 writes
+- `pct_kvv2_read`: percent of requests that are kvv2 reads
+- `numkvs` option: if any kvv1 or kvv2 requests are specified,
+then this many keys will be written during the setup phase.  The read operations
+will read from these keys, and the write operations overwrite them.
+
 ```
 $ ./benchmark-vault -pct_kvv1_read=75 -pct_kvv1_write=25 -numkvs=100 -kvsize=10
 op          count  rate         throughput   mean       95th%       99th%       successRatio
@@ -96,6 +80,9 @@ kvv2 write  98077  9807.787657  9807.321928  604.503µs  1.348884ms  2.790181ms 
 
 This benchmark tests the performance of logins using the AppRole auth method.
 
+Configuration Options
+- `pct_approle_login`: percent of requests that are approle logins
+
 ```
 $ ./benchmark-vault -pct_approle_login=100
 op             count   rate          throughput    mean       95th%       99th%       successRatio
@@ -106,6 +93,9 @@ approle login  152174  15217.447491  15216.776175  648.864µs  1.372863ms  2.330
 
 This benchmark tests the performance of logins using the Certificate auth method.
 
+Configuration Options
+- `pct_cert_login`: percent of requests that are cert logins
+
 ```
 $ ./benchmark-vault -pct_cert_login=100
 op          count   rate          throughput  mean       95th%      99th%       successRatio
@@ -114,9 +104,13 @@ cert login  319098  31909.905836  0.000000    303.255µs  695.622µs  1.497842ms
 
 ## PKI
 
-This benchmark tests the performance of PKI issue operations.  A value can be specified for the
-`-pki_setup_delay` option to allow the PKI backend to be setup before the test starts.  An additional
-configuration option, `-pki_config_json` can be used to specify a JSON file containing the PKI configuration
+This benchmark tests the performance of PKI issue operations.
+
+Configuration Options
+- `pct_pki_issue`: percent of requests that are pki issues
+- `-pki_setup_delay`: option to allow the PKI backend to be setup before the test starts.  An additional
+configuration option,
+- `-pki_config_json`: can be used to specify a JSON file containing the PKI configuration
 to use.  If this is not specified, a default configuration will be used.
 
 ```
@@ -127,9 +121,12 @@ pki issue  770    76.912068  75.437967   130.886886ms  281.848785ms  424.038003m
 
 ## Signed SSH Certificates
 
-This benchmark tests the performance of Signed SSH Certificate issue operations.  A value can be specified for the
-`-ssh_ca_setup_delay` option to allow the SSH backend to be setup before the test starts.  An additional configuration
-option, `-ssh_ca_config_json` can be used to specify a JSON file containing the SSH CA configuration to use.  If this is
+This benchmark tests the performance of Signed SSH Certificate issue operations.
+
+Configuration Options
+- `pct_ssh_ca_issue`: percent of requests that are ssh issue certs
+- `-ssh_ca_setup_delay` option to allow the SSH backend to be setup before the test starts.
+`-ssh_ca_config_json`: can be used to specify a JSON file containing the SSH CA configuration to use.  If this is
 not specified, a default configuration will be used.
 
 ```
@@ -142,6 +139,10 @@ ssh issue  300282  30028.310228  0.000000    324.823µs  752.144µs  1.601211ms 
 
 This benchmark tests the performance of HA status requests.
 
+Configuration Options
+- `pct_ha_status`: percent of requests that are ha status requests (/sys/ha-status)
+
+
 ```
 $ ./benchmark-vault -pct_ha_status=100
 op         count   rate          throughput    mean       95th%      99th%       successRatio
@@ -151,6 +152,9 @@ ha status  307299  30731.021169  30728.013045  316.743µs  717.639µs  1.705715m
 ## Seal Status
 
 This benchmark tests the performance of the seal status operation, `/sys/seal-status`.
+
+Configuration Options
+- `pct_seal_status`: percent of requests that are seal status requests (/sys/seal-status)
 
 ```
 $ ./benchmark-vault -pct_seal_status=100
@@ -162,6 +166,9 @@ seal status  510343  51034.352310  51033.783069  173.612µs  434.735µs  1.11606
 
 This benchmark tests the performance of the metrics operation, `/sys/metrics`.
 
+Configuration Options
+- `pct_metrics`: percent of requests that are read requests to metrics (/sys/metrics)
+
 ```
 $ ./benchmark-vault -pct_metrics=100
 op       count   rate          throughput    mean       95th%      99th%       successRatio
@@ -170,7 +177,13 @@ metrics  305119  30512.043407  30509.221162  311.575µs  853.498µs  2.214729ms 
 
 ## Transit
 
-This benchmark tests the performance of the transit operations.  A value can be specified for the
+This benchmark tests the performance of the transit operations.
+
+Configuration Options
+- `pct_transit_sign`: percent of requests that are sign requests to transit
+- `pct_transit_verify`: percent of requests that are verify requests to transit
+- `pct_transit_encrypt`: percent of requests that are encrypt requests to transit
+- `pct_transit_decrypt`: percent of requests that are decrypt requests to transit
 `-transit_*_setup_delay` options to allow the transit backend to be setup before the test starts.
 
 ```
@@ -183,6 +196,9 @@ transit verify   26984  2698.373376  2698.320209  344.872µs   802.958µs   1.39
 ## CassandraDB
 
 This benchmark will test the dynamic generation of CassandraDB credentials. In order to use this test, configuration for the CassandraDB instance MUST be provided as a JSON file using the `cassandradb_config_json` flag. The primary required fields are the `username` and `password` for the user configured in CassandraDB for Vault to use, as well as the `hosts` field that defines the addresses to be use and the `protocol_version`. Below is an example configuration to communicate with a locally running test environment:
+
+Configuration Options
+- `pct_cassandradb_read`: percent of requests that are CassandraDB Dynamic Credential generations
 
 ```
 {
@@ -217,6 +233,9 @@ This benchmark will test the dynamic generation of PostgreSQL credentials. In or
 }
 ```
 
+Configuration Options
+- `pct_postgresql_read`: percent of requests that are PostgreSQL credential generations
+
 Please refer to the [PostgreSQL Vault documentation](https://www.vaultproject.io/docs/secrets/databases/postgresql) for all available configuration options.
 
 A role configuration file can also be passed via the `postgresql_role_config_json` flag. This allows more specific options to be specified if required by the PostgreSQL environment setup. By default the following role `benchmark-role` is defined and used:
@@ -232,6 +251,9 @@ Any configuration passed will modify the `benchmark-role`.
 ## Couchbase
 
 This benchmark will test the dynamic generation of Couchbase credentials. In order to use this test, configuration for the Couchbase instance must be provided as a JSON file using the `couchbase_config_json` flag. The primary required fields are the `username` and `password` for the user configured in Couchbase for Vault to use, as well as the `hosts` field that defines the addresses to use. Below is an example configuration to communicate with a locally running test environment:
+
+Configuration Options
+- `pct_couchbase_read`: percent of requests that are Couchbase dynamic credential generations
 
 ```
 {
@@ -270,11 +292,18 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 }
 ```
 
+Configuration Options
+- `pct_ldap_login`: percent of requests that are LDAP logins
+
 Please refer to the [Vault LDAP Auth documentation](https://www.vaultproject.io/api-docs/auth/ldap) for all available configuration options.
 
 ## Kubernetes Auth
 
 This benchmark will test Vault authentication using the Kubernetes Auth method. In order to use this test, configuration for the target Kubernetes cluster must be provided as a JSON file using the `k8s_config_json` flag. The primary required field is `kubernetes_host`. A role config also needs to be passed with the primary required fields being `name`, `bound_service_account_names`, and `bound_service_account_namespaces`. Included is an example `benchmark-vault-job.yaml` file which can be applied to use the benchmark-vault image in a Kubernetes cluster. This example assumes a Vault cluster deployed in a Kubernetes environment based on our [Vault Installation to Minikube via Helm with Integrated Storage](https://learn.hashicorp.com/tutorials/vault/kubernetes-minikube-raft?in=vault/kubernetes) learn guide. This file can be edited to suit a specific deployment methodology. Below is the ConfigMap snippet showing example configuration:
+
+Configuration Options
+- `pct_k8s_login`: percent of requests that are Kubernetes logins
+
 
 ```
 apiVersion: v1
@@ -323,6 +352,9 @@ This benchmark will test throughput for SSH Key Signing. This test defaults to C
 	"allow_user_certificates": true,
 }
 ```
+
+Configuration Options
+- `pct_ssh_sign`: percent of requests that are SSH Client Key Sign operations
 
 Please refer to the [SSH Secrets Engine](https://developer.hashicorp.com/vault/api-docs/secret/ssh) documenation for all available configuration options.
 
