@@ -15,13 +15,14 @@ type targetFraction struct {
 	name       string
 	method     string
 	pathPrefix string
-	percent    int // e.g. 30 is 30%
+	percent    int // e.g. 30 is 30%; must be scaled by TargetMulti.Multiple for granularity
 	target     func(*api.Client) vegeta.Target
 }
 
 // TargetMulti allows building a vegeta targetter that chooses between various
 // operations randomly following a specified distribution.
 type TargetMulti struct {
+	Multiple  int
 	fractions []targetFraction
 }
 
@@ -30,8 +31,8 @@ func (tm TargetMulti) validate() error {
 	for _, fraction := range tm.fractions {
 		total += fraction.percent
 	}
-	if total != 100 {
-		return fmt.Errorf("test percentage total comes to %d, should be 100", total)
+	if total != 100*tm.Multiple {
+		return fmt.Errorf("test percentage total comes to %d, should be 100*(Multiple: %v) = %v / scaled: %v of 100", total, tm.Multiple, 100*tm.Multiple, total/tm.Multiple)
 	}
 	return nil
 }
@@ -40,6 +41,8 @@ func (tm TargetMulti) choose(i int) targetFraction {
 	if i > 99 || i < 0 {
 		panic("i must be between 0 and 99")
 	}
+
+	i *= tm.Multiple
 
 	total := 0
 	for _, fraction := range tm.fractions {
@@ -101,12 +104,15 @@ type TestSpecification struct {
 	KVSize                   int
 	RandomMounts             bool
 	TokenTTL                 time.Duration
+	NumKvMounts              int
 	PctKvv1Read              int
 	PctKvv1Write             int
 	PctKvv2Read              int
 	PctKvv2Write             int
+	NumPkiMounts             int
 	PctPkiIssue              int
 	PkiConfig                PkiTestConfig
+	NumApproleMounts         int
 	PctApproleLogin          int
 	PctCertLogin             int
 	PctSshCaIssue            int
@@ -145,59 +151,91 @@ type TestSpecification struct {
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
 	var tm TargetMulti
 
-	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
-		kvv1, err := setupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
-		if err != nil {
-			return nil, err
+	// Multiple is a scaling factor on the percentage to keep everything
+	// an integer. In particular, with two tests, A and B, with A.P% and
+	// B.P% division of work between them and A.M and B.M mounts, we have:
+	//
+	// A.P + B.P = 100
+	// A.M + B.M total mounts,
+	// L = lcm(A.M, B.M)
+	// (A.P * L) + (B.P * L) = 100*L
+	//
+	// with both A.M dividing (A.P*L) and B.M dividing B.P*L. This lets us
+	// assign (A.P*L/A.M) to each mount as a percentage/work unit, and
+	// scale all percentages by the same common multiple (based off the
+	// mount counts) without requiring a priori that all mount counts divide
+	// their sum.
+	tm.Multiple = lcm(spec.NumKvMounts, spec.NumPkiMounts)
+	tm.Multiple = lcm(tm.Multiple, spec.NumApproleMounts)
+
+	if tm.Multiple > 1 {
+		if !spec.RandomMounts {
+			return nil, fmt.Errorf("got total mounts=%v > 1 mounts, but RandomMounts=%v so can't create unique mounts", tm.Multiple, spec.RandomMounts)
 		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv1 read",
-			method:     "GET",
-			pathPrefix: kvv1.pathPrefix,
-			percent:    spec.PctKvv1Read,
-			target:     kvv1.read,
-		})
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv1 write",
-			method:     "POST",
-			pathPrefix: kvv1.pathPrefix,
-			percent:    spec.PctKvv1Write,
-			target:     kvv1.write,
-		})
+	}
+
+	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
+		for mc := 0; mc < spec.NumKvMounts; mc++ {
+			kvv1, err := setupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
+			if err != nil {
+				return nil, err
+			}
+			tm.fractions = append(tm.fractions, targetFraction{
+				name:       "kvv1 read",
+				method:     "GET",
+				pathPrefix: kvv1.pathPrefix,
+				percent:    (spec.PctKvv1Read * tm.Multiple) / spec.NumKvMounts,
+				target:     kvv1.read,
+			})
+			tm.fractions = append(tm.fractions, targetFraction{
+				name:       "kvv1 write",
+				method:     "POST",
+				pathPrefix: kvv1.pathPrefix,
+				percent:    (spec.PctKvv1Write * tm.Multiple) / spec.NumKvMounts,
+				target:     kvv1.write,
+			})
+		}
 	}
 	if spec.PctKvv2Read > 0 || spec.PctKvv2Write > 0 {
-		kvv2, err := setupKvv2(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
-		if err != nil {
-			return nil, err
+		if (spec.PctKvv2Read%spec.NumKvMounts) != 0 || (spec.PctKvv2Write%spec.NumKvMounts) != 0 {
+			return nil, fmt.Errorf("expected PctKvv2Read=%v and PctKvv2Write=%v to be an even multiple of NumKvMounts=%v", spec.PctKvv1Read, spec.PctKvv1Write, spec.NumKvMounts)
 		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv2 read",
-			method:     "GET",
-			pathPrefix: kvv2.pathPrefix,
-			percent:    spec.PctKvv2Read,
-			target:     kvv2.read,
-		})
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv2 write",
-			method:     "POST",
-			pathPrefix: kvv2.pathPrefix,
-			percent:    spec.PctKvv2Write,
-			target:     kvv2.write,
-		})
+		for mc := 0; mc < spec.NumKvMounts; mc++ {
+			kvv2, err := setupKvv2(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
+			if err != nil {
+				return nil, err
+			}
+			tm.fractions = append(tm.fractions, targetFraction{
+				name:       "kvv2 read",
+				method:     "GET",
+				pathPrefix: kvv2.pathPrefix,
+				percent:    (spec.PctKvv2Read * tm.Multiple) / spec.NumKvMounts,
+				target:     kvv2.read,
+			})
+			tm.fractions = append(tm.fractions, targetFraction{
+				name:       "kvv2 write",
+				method:     "POST",
+				pathPrefix: kvv2.pathPrefix,
+				percent:    (spec.PctKvv2Write * tm.Multiple) / spec.NumKvMounts,
+				target:     kvv2.write,
+			})
+		}
 	}
 
 	if spec.PctApproleLogin > 0 {
-		approle, err := setupApprole(client, spec.RandomMounts, spec.TokenTTL)
-		if err != nil {
-			return nil, err
+		for mc := 0; mc < spec.NumApproleMounts; mc++ {
+			approle, err := setupApprole(client, spec.RandomMounts, spec.TokenTTL)
+			if err != nil {
+				return nil, err
+			}
+			tm.fractions = append(tm.fractions, targetFraction{
+				name:       "approle login",
+				method:     "POST",
+				pathPrefix: approle.pathPrefix,
+				percent:    (spec.PctApproleLogin * tm.Multiple) / spec.NumApproleMounts,
+				target:     approle.login,
+			})
 		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "approle login",
-			method:     "POST",
-			pathPrefix: approle.pathPrefix,
-			percent:    spec.PctApproleLogin,
-			target:     approle.login,
-		})
 	}
 	if spec.PctCertLogin > 0 {
 		cert, err := setupCert(client, spec.RandomMounts, spec.TokenTTL, clientCAPem)
@@ -208,7 +246,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "cert login",
 			method:     "POST",
 			pathPrefix: cert.pathPrefix,
-			percent:    spec.PctCertLogin,
+			percent:    spec.PctCertLogin * tm.Multiple,
 			target:     cert.login,
 		})
 	}
@@ -221,7 +259,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "LDAP login",
 			method:     "POST",
 			pathPrefix: ldap.pathPrefix,
-			percent:    spec.PctLDAPLogin,
+			percent:    spec.PctLDAPLogin * tm.Multiple,
 			target:     ldap.login,
 		})
 	}
@@ -234,22 +272,24 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "Kubernetes login",
 			method:     "POST",
 			pathPrefix: kubernetes.pathPrefix,
-			percent:    spec.PctKubernetesLogin,
+			percent:    spec.PctKubernetesLogin * tm.Multiple,
 			target:     kubernetes.login,
 		})
 	}
 	if spec.PctPkiIssue > 0 {
-		pki, err := setupPKI(client, spec.RandomMounts, spec.PkiConfig)
-		if err != nil {
-			return nil, err
+		for mc := 0; mc < spec.NumPkiMounts; mc++ {
+			pki, err := setupPKI(client, spec.RandomMounts, spec.PkiConfig)
+			if err != nil {
+				return nil, err
+			}
+			tm.fractions = append(tm.fractions, targetFraction{
+				name:       "pki issue",
+				method:     "POST",
+				pathPrefix: pki.pathPrefix,
+				percent:    (spec.PctPkiIssue * tm.Multiple) / spec.NumPkiMounts,
+				target:     pki.write,
+			})
 		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "pki issue",
-			method:     "POST",
-			pathPrefix: pki.pathPrefix,
-			percent:    spec.PctPkiIssue,
-			target:     pki.write,
-		})
 	}
 	if spec.PctSshCaIssue > 0 {
 		ssh, err := setupSSH(client, spec.RandomMounts, spec.SshCaConfig)
@@ -260,7 +300,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "ssh issue",
 			method:     "POST",
 			pathPrefix: ssh.pathPrefix,
-			percent:    spec.PctSshCaIssue,
+			percent:    spec.PctSshCaIssue * tm.Multiple,
 			target:     ssh.write,
 		})
 	}
@@ -270,7 +310,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "ha status",
 			method:     "GET",
 			pathPrefix: "/v1/sys/ha-status",
-			percent:    spec.PctHAStatus,
+			percent:    spec.PctHAStatus * tm.Multiple,
 			target:     status.read,
 		})
 	}
@@ -280,7 +320,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "seal status",
 			method:     "GET",
 			pathPrefix: "/v1/sys/seal-status",
-			percent:    spec.PctSealStatus,
+			percent:    spec.PctSealStatus * tm.Multiple,
 			target:     status.read,
 		})
 	}
@@ -290,7 +330,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "metrics",
 			method:     "GET",
 			pathPrefix: "/v1/sys/metrics",
-			percent:    spec.PctMetrics,
+			percent:    spec.PctMetrics * tm.Multiple,
 			target:     status.read,
 		})
 	}
@@ -303,7 +343,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "transit sign",
 			method:     "POST",
 			pathPrefix: transit.pathPrefix,
-			percent:    spec.PctTransitSign,
+			percent:    spec.PctTransitSign * tm.Multiple,
 			target:     transit.write,
 		})
 	}
@@ -316,7 +356,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "transit verify",
 			method:     "POST",
 			pathPrefix: transit.pathPrefix,
-			percent:    spec.PctTransitVerify,
+			percent:    spec.PctTransitVerify * tm.Multiple,
 			target:     transit.write,
 		})
 	}
@@ -329,7 +369,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "transit encrypt",
 			method:     "POST",
 			pathPrefix: transit.pathPrefix,
-			percent:    spec.PctTransitEncrypt,
+			percent:    spec.PctTransitEncrypt * tm.Multiple,
 			target:     transit.write,
 		})
 	}
@@ -342,7 +382,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "transit decrypt",
 			method:     "POST",
 			pathPrefix: transit.pathPrefix,
-			percent:    spec.PctTransitDecrypt,
+			percent:    spec.PctTransitDecrypt * tm.Multiple,
 			target:     transit.write,
 		})
 	}
@@ -355,7 +395,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "cassandra cred retrieval",
 			method:     "GET",
 			pathPrefix: cassandra.pathPrefix,
-			percent:    spec.PctCassandraRead,
+			percent:    spec.PctCassandraRead * tm.Multiple,
 			target:     cassandra.read,
 		})
 	}
@@ -368,7 +408,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "postgresql cred retrieval",
 			method:     "GET",
 			pathPrefix: postgresql.pathPrefix,
-			percent:    spec.PctPostgreSQLRead,
+			percent:    spec.PctPostgreSQLRead * tm.Multiple,
 			target:     postgresql.read,
 		})
 	}
@@ -381,7 +421,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "couchbase cred retrieval",
 			method:     "GET",
 			pathPrefix: couchbase.pathPrefix,
-			percent:    spec.PctCouchbaseRead,
+			percent:    spec.PctCouchbaseRead * tm.Multiple,
 			target:     couchbase.read,
 		})
 	}
@@ -394,7 +434,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			name:       "ssh pub key sign",
 			method:     "POST",
 			pathPrefix: sshSign.pathPrefix,
-			percent:    spec.PctSSHSign,
+			percent:    spec.PctSSHSign * tm.Multiple,
 			target:     sshSign.sign,
 		})
 	}
