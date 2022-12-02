@@ -9,13 +9,12 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
-
-	_ "net/http/pprof"
 
 	"github.com/hashicorp/vault-tools/benchmark-vault/vegeta"
 	vaultapi "github.com/hashicorp/vault/api"
@@ -378,6 +377,7 @@ func main() {
 	}
 
 	var l sync.Mutex
+	results := make(map[string]*vegeta.Reporter)
 	for _, client := range clients {
 		wg.Add(1)
 		go func(client *vaultapi.Client) {
@@ -398,20 +398,26 @@ func main() {
 
 			l.Lock()
 			// TODO rethink how we present results when multiple nodes are attacked
-			fmt.Println(client.Address())
-			switch *reportMode {
-			case "json":
-				rpt.ReportJSON(os.Stdout)
-			case "verbose":
-				rpt.ReportVerbose(os.Stdout)
-			default:
-				rpt.ReportTerse(os.Stdout)
-			}
-			fmt.Println()
+			results[client.Address()] = rpt
 			l.Unlock()
 		}(client)
 	}
 	testRunning.WithLabelValues(annoValues...).Set(0)
 
 	wg.Wait()
+
+	for _, client := range clients {
+		addr := client.Address()
+		rpt := results[addr]
+		fmt.Println(addr)
+		switch *reportMode {
+		case "json":
+			rpt.ReportJSON(os.Stdout)
+		case "verbose":
+			rpt.ReportVerbose(os.Stdout)
+		default:
+			rpt.ReportTerse(os.Stdout)
+		}
+		fmt.Println()
+	}
 }
