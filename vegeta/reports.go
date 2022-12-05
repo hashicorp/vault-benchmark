@@ -3,12 +3,12 @@ package vegeta
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/vault/api"
 	"io"
 	"sort"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/hashicorp/vault/api"
 	"github.com/prometheus/client_golang/prometheus"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
@@ -27,13 +27,13 @@ func init() {
 	prometheus.MustRegister(attackErrors)
 }
 
-type reporter struct {
+type Reporter struct {
 	tm         *TargetMulti
 	clientAddr string
 	metrics    map[string]*vegeta.Metrics
 }
 
-func FromReader(r io.Reader) (*reporter, error) {
+func FromReader(r io.Reader) (*Reporter, error) {
 	d := json.NewDecoder(r)
 	m := make(map[string]*vegeta.Metrics)
 	if err := d.Decode(&m); err != nil {
@@ -44,8 +44,8 @@ func FromReader(r io.Reader) (*reporter, error) {
 	return rpt, nil
 }
 
-func newReporter(tm *TargetMulti, client *api.Client) *reporter {
-	r := &reporter{tm: tm, clientAddr: client.Address()}
+func newReporter(tm *TargetMulti, client *api.Client) *Reporter {
+	r := &Reporter{tm: tm, clientAddr: client.Address()}
 	r.metrics = make(map[string]*vegeta.Metrics, len(tm.fractions)+1)
 	r.metrics["total"] = &vegeta.Metrics{}
 	for _, f := range tm.fractions {
@@ -54,7 +54,7 @@ func newReporter(tm *TargetMulti, client *api.Client) *reporter {
 	return r
 }
 
-func (r *reporter) Add(result *vegeta.Result) {
+func (r *Reporter) Add(result *vegeta.Result) {
 	r.metrics["total"].Add(result)
 	for _, fraction := range r.tm.fractions {
 		if result.Method == fraction.method && strings.HasPrefix(result.URL, r.clientAddr+fraction.pathPrefix) {
@@ -69,18 +69,18 @@ func (r *reporter) Add(result *vegeta.Result) {
 	// TODO what if we didn't find any match?
 }
 
-func (r *reporter) Close() {
+func (r *Reporter) Close() {
 	for name := range r.metrics {
 		r.metrics[name].Close()
 	}
 }
 
-func (r *reporter) ReportJSON(w io.Writer) error {
+func (r *Reporter) ReportJSON(w io.Writer) error {
 	j := json.NewEncoder(w)
 	return j.Encode(r.metrics)
 }
 
-func (r *reporter) ReportVerbose(w io.Writer) error {
+func (r *Reporter) ReportVerbose(w io.Writer) error {
 	sections := make([]string, 0, len(r.metrics))
 	for name := range r.metrics {
 		sections = append(sections, name)
@@ -101,11 +101,22 @@ func (r *reporter) ReportVerbose(w io.Writer) error {
 	return nil
 }
 
-func (r *reporter) ReportTerse(w io.Writer) error {
+func (r *Reporter) ReportTerse(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
 	fmt.Fprintf(tw, "op\tcount\trate\tthroughput\tmean\t95th%%\t99th%%\tsuccessRatio\n")
 	const fmtstr = "%s\t%d\t%f\t%f\t%s\t%s\t%s\t%.2f%%\n"
-	for name, m := range r.metrics {
+
+	metricNames := make([]string, 0)
+	for name := range r.metrics {
+		metricNames = append(metricNames, name)
+	}
+
+	sort.Slice(metricNames, func(i, j int) bool {
+		return metricNames[i] < metricNames[j]
+	})
+
+	for _, name := range metricNames {
+		m := r.metrics[name]
 		if name != "total" {
 			fmt.Fprintf(tw, fmtstr, name, m.Requests, m.Rate, m.Throughput, m.Latencies.Mean, m.Latencies.P95, m.Latencies.P99, m.Success*100)
 		}

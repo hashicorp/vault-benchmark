@@ -7,7 +7,7 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-func Attack(tm *TargetMulti, client *api.Client, duration time.Duration, rps int, workers int) (*reporter, error) {
+func Attack(tm *TargetMulti, client *api.Client, duration time.Duration, rps int, workers int) (*Reporter, error) {
 	rate := vegeta.Rate{Freq: rps, Per: time.Second}
 	opts := []func(*vegeta.Attacker){
 		vegeta.Workers(uint64(workers)),
