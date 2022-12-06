@@ -126,7 +126,10 @@ type TestSpecification struct {
 	CassandraDBConfig        CassandraDBConfig
 	CassandraDBRoleConfig    CassandraRoleConfig
 	PctLDAPLogin             int
+	PctLDAPWrite             int
+	PctLDAPRead              int
 	LDAPAuthConfig           LDAPAuthConfig
+	LDAPSecretConfig         LDAPSecretConfig
 	LDAPTestUserConfig       LDAPTestUserConfig
 	PctPostgreSQLRead        int
 	PostgreSQLDBConfig       PostgreSQLDBConfig
@@ -223,6 +226,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldap.pathPrefix,
 			percent:    spec.PctLDAPLogin,
 			target:     ldap.login,
+		})
+	}
+	if spec.PctLDAPWrite > 0 || spec.PctLDAPRead > 0 {
+		ldapsecret, err := setupLDAPSecret(client, spec.RandomMounts, &spec.LDAPAuthConfig, &spec.LDAPSecretConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP read",
+			method:     "GET",
+			pathPrefix: ldapsecret.pathPrefix,
+			percent:    spec.PctLDAPRead,
+			target:     ldapsecret.read,
 		})
 	}
 	if spec.PctKubernetesLogin > 0 {
