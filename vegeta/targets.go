@@ -126,7 +126,6 @@ type TestSpecification struct {
 	CassandraDBConfig        CassandraDBConfig
 	CassandraDBRoleConfig    CassandraRoleConfig
 	PctLDAPLogin             int
-	PctLDAPWrite             int
 	PctLDAPRead              int
 	LDAPAuthConfig           LDAPAuthConfig
 	LDAPSecretConfig         LDAPSecretConfig
@@ -228,7 +227,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			target:     ldap.login,
 		})
 	}
-	if spec.PctLDAPWrite > 0 || spec.PctLDAPRead > 0 {
+	if spec.PctLDAPRead > 0 {
 		ldapsecret, err := setupLDAPSecret(client, spec.RandomMounts, &spec.LDAPAuthConfig, &spec.LDAPSecretConfig)
 		if err != nil {
 			return nil, err
