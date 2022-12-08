@@ -126,10 +126,13 @@ type TestSpecification struct {
 	CassandraDBConfig        CassandraDBConfig
 	CassandraDBRoleConfig    CassandraRoleConfig
 	PctLDAPLogin             int
-	PctLDAPRead              int
 	LDAPAuthConfig           LDAPAuthConfig
-	LDAPSecretConfig         LDAPSecretConfig
 	LDAPTestUserConfig       LDAPTestUserConfig
+	PctLDAPStaticRead        int
+	PctLDAPDynamicRead       int
+	LDAPSecretConfig         LDAPSecretConfig
+	LDAPStaticRoleConfig     LDAPStaticRoleConfig
+	LDAPDynamicRoleConfig    LDAPDynamicRoleConfig
 	PctPostgreSQLRead        int
 	PostgreSQLDBConfig       PostgreSQLDBConfig
 	PostgreSQLRoleConfig     PostgreSQLRoleConfig
@@ -227,17 +230,30 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			target:     ldap.login,
 		})
 	}
-	if spec.PctLDAPRead > 0 {
-		ldapsecret, err := setupLDAPSecret(client, spec.RandomMounts, &spec.LDAPAuthConfig, &spec.LDAPSecretConfig)
+	if spec.PctLDAPStaticRead > 0 {
+		ldapsecret, err := setupLDAPStaticSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPStaticRoleConfig)
 		if err != nil {
 			return nil, err
 		}
 		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "LDAP read",
+			name:       "LDAP static read",
 			method:     "GET",
 			pathPrefix: ldapsecret.pathPrefix,
-			percent:    spec.PctLDAPRead,
-			target:     ldapsecret.read,
+			percent:    spec.PctLDAPStaticRead,
+			target:     ldapsecret.readStatic,
+		})
+	}
+	if spec.PctLDAPDynamicRead > 0 {
+		ldapsecret, err := setupLDAPDynamicSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPDynamicRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP dynamic read",
+			method:     "GET",
+			pathPrefix: ldapsecret.pathPrefix,
+			percent:    spec.PctLDAPDynamicRead,
+			target:     ldapsecret.readDynamic,
 		})
 	}
 	if spec.PctKubernetesLogin > 0 {

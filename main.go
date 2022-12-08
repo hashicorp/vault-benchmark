@@ -56,7 +56,8 @@ func main() {
 		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
 		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth/Secrets configuration")
 		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
-		ldapSecretConfigJSON      = flag.String("ldap_secret_json", "", "path to JSON file containing test secret for LDAP Secret Engine benchmarking")
+		ldapStaticRoleConfigJSON  = flag.String("ldap_static_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine static role benchmarking")
+		ldapDynamicRoleConfigJSON = flag.String("ldap_dynamic_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine dynamic role benchmarking")
 		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
 		postgresqlRoleConfigJSON  = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
 		couchbaseConfigJSON       = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
@@ -89,7 +90,8 @@ func main() {
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
-	flag.IntVar(&spec.PctLDAPRead, "pct_ldap_read", 0, "percent of requests that are LDAP reads")
+	flag.IntVar(&spec.PctLDAPStaticRead, "pct_ldap_static_role_read", 0, "percent of requests that are LDAP static role reads")
+	flag.IntVar(&spec.PctLDAPDynamicRead, "pct_ldap_dynamic_role_read", 0, "percent of requests that are LDAP dynamic reads")
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
@@ -151,13 +153,23 @@ func main() {
 		}
 	}
 
-	if spec.PctLDAPRead > 0 {
-		if err := spec.LDAPAuthConfig.FromJSON(*ldapConfigJSON); err != nil {
+	if spec.PctLDAPStaticRead > 0 {
+		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {
 			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
 		}
 
-		if err := spec.LDAPSecretConfig.FromJSON(*ldapSecretConfigJSON); err != nil {
-			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapSecretConfigJSON, err)
+		if err := spec.LDAPStaticRoleConfig.FromJSON(*ldapStaticRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapStaticRoleConfigJSON, err)
+		}
+	}
+
+	if spec.PctLDAPDynamicRead > 0 {
+		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {
+			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
+		}
+
+		if err := spec.LDAPDynamicRoleConfig.FromJSON(*ldapDynamicRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapDynamicRoleConfigJSON, err)
 		}
 	}
 

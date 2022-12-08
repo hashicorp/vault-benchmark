@@ -65,7 +65,6 @@ will read from these keys, and the write operations overwrite them.
 
 ```
 $ ./benchmark-vault -pct_kvv1_read=75 -pct_kvv1_write=25 -numkvs=100 -kvsize=10
-op          count  rate         throughput   mean       95th%       99th%       successRatio
 op          count   rate          throughput    mean       95th%      99th%       successRatio
 kvv1 read   207078  20707.991723  20707.303112  342.588µs  792.455µs  1.79457ms   100.00%
 kvv1 write  69309   6931.423438   6931.229002   382.028µs  861.062µs  2.103818ms  100.00%
@@ -279,8 +278,8 @@ Any configuration passed will modify the `benchmark-role`.
 
 This benchmark will test LDAP Secret Engines to Vault. In order to use this test, configuration for the target LDAP server(s) must be provided as a JSON file using the `ldap_config_json` flag as well as a JSON file with the user credentials using the `ldap_secret_json`. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method. Below is an example configuration to communicate with a locally running LDAP test environment:
 
+`ldap_config_json`
 ```json
-// ldap_config_json
 {
 	"url":"ldap://127.0.0.1",
 	"userdn":"ou=users,dc=hashicorp,dc=com",
@@ -293,8 +292,8 @@ This benchmark will test LDAP Secret Engines to Vault. In order to use this test
 }
 ```
 
+`ldap_secret_json`
 ```json
-// ldap_secret_json
 {
     "dn": "uid=alice,ou=users,dc=hashicorp,dc=com",
     "username": "alice",
@@ -303,7 +302,7 @@ This benchmark will test LDAP Secret Engines to Vault. In order to use this test
 ```
 
 Configuration Options
-- `pct_ldap_read`: percent of requests that are LDAP reads
+- `pct_ldap_static_read`: percent of requests that are LDAP reads
 
 Please refer to the [Vault LDAP Auth documentation](https://www.vaultproject.io/api-docs/auth/ldap) for all available configuration options.
 
@@ -337,7 +336,7 @@ Configuration Options
 - `pct_k8s_login`: percent of requests that are Kubernetes logins
 
 
-```json
+```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
