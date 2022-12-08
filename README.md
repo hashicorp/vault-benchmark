@@ -276,7 +276,7 @@ Any configuration passed will modify the `benchmark-role`.
 
 ## LDAP Secret Engine
 
-This benchmark will test LDAP Secret Engines to Vault. In order to use this test, configuration for the target LDAP server(s) must be provided as a JSON file using the `ldap_config_json` flag as well as a JSON file with the user credentials using the `ldap_secret_json`. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method. Below is an example configuration to communicate with a locally running LDAP test environment:
+This benchmark will test LDAP secret engine operations. In order to use this test, configuration for the LDAP server must be provided as a JSON file using the `ldap_config_json` flag. The primary required fields are the `url` and `binddn` for the user configured in LDAP for Vault to use, as well as the `bindpass` field that defines the password for the user. Below is an example configuration to communicate with a locally running test environment:
 
 `ldap_config_json`
 ```json
@@ -292,7 +292,8 @@ This benchmark will test LDAP Secret Engines to Vault. In order to use this test
 }
 ```
 
-`ldap_secret_json`
+This includes tests for both static and dynamic roles.
+A static role configuration file can be passed via the `ldap_static_role_config_json` flag. This allows more specific options to be specified if required by the LDAP environment setup. For example:
 ```json
 {
     "dn": "uid=alice,ou=users,dc=hashicorp,dc=com",
@@ -301,8 +302,20 @@ This benchmark will test LDAP Secret Engines to Vault. In order to use this test
 }
 ```
 
+A dynamic role configuration file can be passed via the `ldap_dynamic_role_config_json` flag. This allows more specific options to be specified if required by the LDAP environment setup. For example:
+```json
+{
+    "role_name": "alice",
+    "creation_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpvYmplY3RDbGFzczogcGVyc29uCm9iamVjdENsYXNzOiB0b3AKY246IGxlYXJuCnNuOiB7ey5QYXNzd29yZCB8IHV0ZjE2bGUgfCBiYXNlNjR9fQptZW1iZXJPZjogY249ZGV2LG91PWdyb3VwcyxkYz1oYXNoaWNvcnAsZGM9Y29tCnVzZXJQYXNzd29yZDoge3suUGFzc3dvcmR9fQo=",
+    "deletion_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9bGVhcm4sZGM9ZXhhbXBsZQpjaGFuZ2V0eXBlOiBkZWxldGUK",
+    "rollback_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpjaGFuZ2V0eXBlOiBkZWxldGUK"
+}
+```
+*Note: The `creation_ldif` and `deletion_ldif` fields are base64 encoded LDIFs. The `rollback_ldif` field is optional and is only used if the `rollback_on_failure` field is set to true.*
+
 Configuration Options
 - `pct_ldap_static_read`: percent of requests that are LDAP reads
+- `pct_ldap_dynamic_read`: percent of requests that are LDAP dynamic credential generations
 
 Please refer to the [Vault LDAP Auth documentation](https://www.vaultproject.io/api-docs/auth/ldap) for all available configuration options.
 
