@@ -129,6 +129,7 @@ type TestSpecification struct {
 	LDAPAuthConfig           LDAPAuthConfig
 	LDAPTestUserConfig       LDAPTestUserConfig
 	PctLDAPStaticRead        int
+	PctLDAPStaticRotate      int
 	PctLDAPDynamicRead       int
 	LDAPSecretConfig         LDAPSecretConfig
 	LDAPStaticRoleConfig     LDAPStaticRoleConfig
@@ -241,6 +242,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldapsecret.pathPrefix,
 			percent:    spec.PctLDAPStaticRead,
 			target:     ldapsecret.readStatic,
+		})
+	}
+	if spec.PctLDAPStaticRotate > 0 {
+		ldapsecret, err := setupLDAPStaticSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPStaticRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP static rotate",
+			method:     "POST",
+			pathPrefix: ldapsecret.pathPrefix,
+			percent:    spec.PctLDAPStaticRotate,
+			target:     ldapsecret.rotateStatic,
 		})
 	}
 	if spec.PctLDAPDynamicRead > 0 {

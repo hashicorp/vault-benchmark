@@ -91,6 +91,7 @@ func main() {
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
 	flag.IntVar(&spec.PctLDAPStaticRead, "pct_ldap_static_role_read", 0, "percent of requests that are LDAP static role reads")
+	flag.IntVar(&spec.PctLDAPStaticRotate, "pct_ldap_static_role_rotate", 0, "percent of requests that are LDAP static role rotates")
 	flag.IntVar(&spec.PctLDAPDynamicRead, "pct_ldap_dynamic_role_read", 0, "percent of requests that are LDAP dynamic reads")
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
@@ -153,7 +154,7 @@ func main() {
 		}
 	}
 
-	if spec.PctLDAPStaticRead > 0 {
+	if spec.PctLDAPStaticRead > 0 || spec.PctLDAPStaticRotate > 0 {
 		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {
 			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
 		}

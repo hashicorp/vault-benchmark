@@ -145,6 +145,14 @@ func (l *ldapsecrettest) readStatic(client *api.Client) vegeta.Target {
 	}
 }
 
+func (l *ldapsecrettest) rotateStatic(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: "POST",
+		URL:    client.Address() + l.pathPrefix + "/rotate-role/" + l.roleName,
+		Header: l.header,
+	}
+}
+
 func (l *ldapsecrettest) readDynamic(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: "GET",
