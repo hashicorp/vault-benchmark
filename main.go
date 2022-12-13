@@ -56,6 +56,8 @@ func main() {
 		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
 		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth configuration")
 		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
+		mongoDBConfigJSON         = flag.String("mongodb_config_json", "", "path to JSON file containing Vault MongoDB configuration")
+		mongoDBRoleConfigJSON     = flag.String("mongodb_role_config_json", "", "when specified, path to MongoDB benchmark role configuration JSON file to use")
 		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
 		postgresqlRoleConfigJSON  = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
 		couchbaseConfigJSON       = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
@@ -88,6 +90,7 @@ func main() {
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
+	flag.IntVar(&spec.PctMongoRead, "pct_mongodb_read", 0, "percent of requests that are MongoDB credential generations")
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
@@ -146,6 +149,16 @@ func main() {
 
 		if err := spec.LDAPTestUserConfig.FromJSON(*ldapTestUserCredsJSON); err != nil {
 			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapTestUserCredsJSON, err)
+		}
+	}
+
+	if spec.PctMongoRead > 0 {
+		if err := spec.MongoDBConfig.FromJSON(*mongoDBConfigJSON); err != nil {
+			log.Fatalf("unable to parse MongoDB config at %v: %v", *mongoDBConfigJSON, err)
+		}
+
+		if err := spec.MongoDBRoleConfig.FromJSON(*mongoDBRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse MongoDB Role config at %v: %v", *mongoDBRoleConfigJSON, err)
 		}
 	}
 

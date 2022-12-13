@@ -128,6 +128,9 @@ type TestSpecification struct {
 	PctLDAPLogin             int
 	LDAPAuthConfig           LDAPAuthConfig
 	LDAPTestUserConfig       LDAPTestUserConfig
+	PctMongoRead             int
+	MongoDBConfig            MongoDBConfig
+	MongoDBRoleConfig        MongoRoleConfig
 	PctPostgreSQLRead        int
 	PostgreSQLDBConfig       PostgreSQLDBConfig
 	PostgreSQLRoleConfig     PostgreSQLRoleConfig
@@ -357,6 +360,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: cassandra.pathPrefix,
 			percent:    spec.PctCassandraRead,
 			target:     cassandra.read,
+		})
+	}
+	if spec.PctMongoRead > 0 {
+		mongo, err := setupMongo(client, spec.RandomMounts, &spec.MongoDBConfig, &spec.MongoDBRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "mongo cred retrieval",
+			method:     "GET",
+			pathPrefix: mongo.pathPrefix,
+			percent:    spec.PctMongoRead,
+			target:     mongo.read,
 		})
 	}
 	if spec.PctPostgreSQLRead > 0 {
