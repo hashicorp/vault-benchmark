@@ -100,9 +100,6 @@ func (c *MongoDBConfig) FromJSON(path string) error {
 }
 
 func (c *mongotest) read(client *api.Client) vegeta.Target {
-	// fmt.Println("Reading secret... ")
-	// fmt.Println(c)
-	// fmt.Println(client.Address() + c.pathPrefix + "/creds/" + c.roleName)
 	return vegeta.Target{
 		Method: "GET",
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
@@ -128,9 +125,6 @@ func setupMongo(client *api.Client, randomMounts bool, config *MongoDBConfig, ro
 	}
 
 	// Write DB config
-	fmt.Println("Writing db config... ")
-	fmt.Println(config)
-	fmt.Println(mongoPath + "/config/mongo-benchmark-database")
 	_, err = client.Logical().Write(mongoPath+"/config/mongo-benchmark-database", map[string]interface{}{
 		"plugin_name":         config.PluginName,
 		"allowed_roles":       config.AllowedRoles,
@@ -148,9 +142,6 @@ func setupMongo(client *api.Client, randomMounts bool, config *MongoDBConfig, ro
 	}
 
 	// Create Role
-	fmt.Println("Creating role... ")
-	fmt.Println(roleConfig)
-	fmt.Println(mongoPath + "/roles/" + roleConfig.Name)
 	_, err = client.Logical().Write(mongoPath+"/roles/"+roleConfig.Name, map[string]interface{}{
 		"db_name":             roleConfig.DBName,
 		"creation_statements": roleConfig.CreationStatements,
