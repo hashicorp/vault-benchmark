@@ -226,8 +226,8 @@ This benchmark will test the dynamic generation of MongoDB credentials. In order
 
 Configuration Options
 
-- `pct_mongodb_read`: percent of requests that are MongoDB Dynamic Credential generations
-- `mongodb_config_json`: path to a JSON file containing the MongoDB configuration
+- `pct_mongodb_read` _(required)_: percent of requests that are MongoDB Dynamic Credential generations
+- `mongodb_config_json` _(required)_: path to a JSON file containing the MongoDB configuration
 - `mongodb_role_config_json`: path to a JSON file containing the MongoDB role configuration
 
 `mongodb_config_json`
