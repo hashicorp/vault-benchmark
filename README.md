@@ -65,7 +65,6 @@ will read from these keys, and the write operations overwrite them.
 
 ```
 $ ./benchmark-vault -pct_kvv1_read=75 -pct_kvv1_write=25 -numkvs=100 -kvsize=10
-op          count  rate         throughput   mean       95th%       99th%       successRatio
 op          count   rate          throughput    mean       95th%      99th%       successRatio
 kvv1 read   207078  20707.991723  20707.303112  342.588µs  792.455µs  1.79457ms   100.00%
 kvv1 write  69309   6931.423438   6931.229002   382.028µs  861.062µs  2.103818ms  100.00%
@@ -200,7 +199,7 @@ This benchmark will test the dynamic generation of CassandraDB credentials. In o
 Configuration Options
 - `pct_cassandradb_read`: percent of requests that are CassandraDB Dynamic Credential generations
 
-```
+```json
 {
     "hosts": "127.0.0.1",
     "protocol_version": 4,
@@ -212,7 +211,7 @@ Configuration Options
 Please refer to the [CassandraDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/cassandra) for all available configuration options.
 
 A role configuration file can also be passed via the `cassandradb_role_config_json` flag. This allows more specific options to be specified if required by the CassandraDB environment setup. By default the following role `benchmark-role` is defined and used:
-```
+```json
 {
 	"default_ttl": "1h",
 	"max_ttl": "24h",
@@ -225,7 +224,7 @@ Any configuration passed will modify the `benchmark-role`.
 
 This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as a JSON file using the `postgresql_config_json` flag. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the address to be used as well as any other parameters that need to be passed via the URL. Below is an example configuration to communicate with a locally running test environment:
 
-```
+```json
 {
   "username":"postgres",
   "password":"password",
@@ -239,7 +238,7 @@ Configuration Options
 Please refer to the [PostgreSQL Vault documentation](https://www.vaultproject.io/docs/secrets/databases/postgresql) for all available configuration options.
 
 A role configuration file can also be passed via the `postgresql_role_config_json` flag. This allows more specific options to be specified if required by the PostgreSQL environment setup. By default the following role `benchmark-role` is defined and used:
-```
+```json
 {
 	"default_ttl": "1h",
 	"max_ttl": "24h",
@@ -255,7 +254,7 @@ This benchmark will test the dynamic generation of Couchbase credentials. In ord
 Configuration Options
 - `pct_couchbase_read`: percent of requests that are Couchbase dynamic credential generations
 
-```
+```json
 {
     "hosts": "couchbase://127.0.0.1",
     "username":"vault",
@@ -266,7 +265,7 @@ Configuration Options
 Please refer to the [Couchbase Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/couchbase) for all available configuration options.
 
 A role configuration file can also be passed via the `couchbase_role_config_json` flag. This allows more specific options to be specified if required by the Couchbase environment setup. By default the following role `benchmark-role` is defined and used:
-```
+```json
 {
 	"default_ttl": "1h",
 	"max_ttl": "24h",
@@ -275,11 +274,56 @@ A role configuration file can also be passed via the `couchbase_role_config_json
 ```
 Any configuration passed will modify the `benchmark-role`.
 
+## LDAP Secret Engine
+
+This benchmark will test LDAP secret engine operations. In order to use this test, configuration for the LDAP server must be provided as a JSON file using the `ldap_config_json` flag. The primary required fields are the `url` and `binddn` for the user configured in LDAP for Vault to use, as well as the `bindpass` field that defines the password for the user. Below is an example configuration to communicate with a locally running test environment:
+
+`ldap_config_json`
+```json
+{
+	"url":"ldap://127.0.0.1",
+	"userdn":"ou=users,dc=hashicorp,dc=com",
+	"groupdn":"ou=groups,dc=hashicorp,dc=com",
+	"binddn":"cn=admin,dc=hashicorp,dc=com",
+	"bindpass":"admin",
+	"userattr":"uid",
+	"groupattr":"cn",
+	"groupfilter":"(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
+}
+```
+
+This includes tests for both static and dynamic roles.
+A static role configuration file can be passed via the `ldap_static_role_config_json` flag. This allows more specific options to be specified if required by the LDAP environment setup. For example:
+```json
+{
+    "dn": "uid=alice,ou=users,dc=hashicorp,dc=com",
+    "username": "alice",
+    "rotation_period":"24h"
+}
+```
+
+A dynamic role configuration file can be passed via the `ldap_dynamic_role_config_json` flag. This allows more specific options to be specified if required by the LDAP environment setup. For example:
+```json
+{
+    "role_name": "alice",
+    "creation_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpvYmplY3RDbGFzczogcGVyc29uCm9iamVjdENsYXNzOiB0b3AKY246IGxlYXJuCnNuOiB7ey5QYXNzd29yZCB8IHV0ZjE2bGUgfCBiYXNlNjR9fQptZW1iZXJPZjogY249ZGV2LG91PWdyb3VwcyxkYz1oYXNoaWNvcnAsZGM9Y29tCnVzZXJQYXNzd29yZDoge3suUGFzc3dvcmR9fQo=",
+    "deletion_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9bGVhcm4sZGM9ZXhhbXBsZQpjaGFuZ2V0eXBlOiBkZWxldGUK",
+    "rollback_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpjaGFuZ2V0eXBlOiBkZWxldGUK"
+}
+```
+*Note: The `creation_ldif` and `deletion_ldif` fields are base64 encoded LDIFs. The `rollback_ldif` field is optional and is only used if the `rollback_on_failure` field is set to true.*
+
+Configuration Options
+- `pct_ldap_static_read`: percent of requests that are LDAP reads
+- `pct_ldap_dynamic_read`: percent of requests that are LDAP dynamic credential generations
+
+Please refer to the [Vault LDAP Auth documentation](https://www.vaultproject.io/api-docs/auth/ldap) for all available configuration options.
+
 ## LDAP Auth
 
 This benchmark will test LDAP Authentication to Vault. In order to use this test, configuration for the target LDAP server(s) must be provided as a JSON file using the `ldap_config_json` flag. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method. Below is an example configuration to communicate with a locally running LDAP test environment:
 
-```
+```json
 {
 	"url":"ldap://127.0.0.1",
 	"userdn":"ou=users,dc=hashicorp,dc=com",
@@ -305,7 +349,7 @@ Configuration Options
 - `pct_k8s_login`: percent of requests that are Kubernetes logins
 
 
-```
+```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -332,7 +376,7 @@ Please refer to the [Vault Kubernetes Auth Method](https://www.vaultproject.io/a
 This benchmark will test throughput for SSH Key Signing. This test defaults to Client Key signing, but you can provide configuration for both the CA and Signer Role by using the `ssh_signer_ca_config_json` and `ssh_signer_role_config_json` flags respectively. Default configurations are as follows:
 
 `/ssh/config/ca`
-```
+```json
 {
   "generate_signing_key": true,
   "key_type": "ssh-rsa",
@@ -341,7 +385,7 @@ This benchmark will test throughput for SSH Key Signing. This test defaults to C
 ```
 
 `/ssh/roles/:name`
-```
+```json
 {
   "name": "benchmark-role",
   "port": 22,
