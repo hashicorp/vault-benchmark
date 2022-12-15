@@ -131,6 +131,12 @@ type TestSpecification struct {
 	PctMongoRead             int
 	MongoDBConfig            MongoDBConfig
 	MongoDBRoleConfig        MongoRoleConfig
+	PctLDAPStaticRead        int
+	PctLDAPStaticRotate      int
+	PctLDAPDynamicRead       int
+	LDAPSecretConfig         LDAPSecretConfig
+	LDAPStaticRoleConfig     LDAPStaticRoleConfig
+	LDAPDynamicRoleConfig    LDAPDynamicRoleConfig
 	PctPostgreSQLRead        int
 	PostgreSQLDBConfig       PostgreSQLDBConfig
 	PostgreSQLRoleConfig     PostgreSQLRoleConfig
@@ -226,6 +232,45 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldap.pathPrefix,
 			percent:    spec.PctLDAPLogin,
 			target:     ldap.login,
+		})
+	}
+	if spec.PctLDAPStaticRead > 0 {
+		ldapsecret, err := setupLDAPStaticSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPStaticRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP static read",
+			method:     "GET",
+			pathPrefix: ldapsecret.pathPrefix,
+			percent:    spec.PctLDAPStaticRead,
+			target:     ldapsecret.readStatic,
+		})
+	}
+	if spec.PctLDAPStaticRotate > 0 {
+		ldapsecret, err := setupLDAPStaticSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPStaticRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP static rotate",
+			method:     "POST",
+			pathPrefix: ldapsecret.pathPrefix,
+			percent:    spec.PctLDAPStaticRotate,
+			target:     ldapsecret.rotateStatic,
+		})
+	}
+	if spec.PctLDAPDynamicRead > 0 {
+		ldapsecret, err := setupLDAPDynamicSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPDynamicRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "LDAP dynamic read",
+			method:     "GET",
+			pathPrefix: ldapsecret.pathPrefix,
+			percent:    spec.PctLDAPDynamicRead,
+			target:     ldapsecret.readDynamic,
 		})
 	}
 	if spec.PctKubernetesLogin > 0 {

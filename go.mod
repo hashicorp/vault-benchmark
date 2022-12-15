@@ -8,6 +8,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.5.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/tsenart/vegeta/v12 v12.8.4
+	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 )
 
 require (
@@ -52,7 +53,6 @@ require (
 	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
 	golang.org/x/sys v0.0.0-20220803195053-6e608f9ce704 // indirect
 	golang.org/x/text v0.3.3 // indirect
