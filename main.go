@@ -56,6 +56,8 @@ func main() {
 		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
 		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth/Secrets configuration")
 		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
+		mongoDBConfigJSON         = flag.String("mongodb_config_json", "", "path to JSON file containing Vault MongoDB configuration")
+		mongoDBRoleConfigJSON     = flag.String("mongodb_role_config_json", "", "when specified, path to MongoDB benchmark role configuration JSON file to use")
 		ldapStaticRoleConfigJSON  = flag.String("ldap_static_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine static role benchmarking")
 		ldapDynamicRoleConfigJSON = flag.String("ldap_dynamic_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine dynamic role benchmarking")
 		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
@@ -90,6 +92,7 @@ func main() {
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
+	flag.IntVar(&spec.PctMongoRead, "pct_mongodb_read", 0, "percent of requests that are MongoDB credential generations")
 	flag.IntVar(&spec.PctLDAPStaticRead, "pct_ldap_static_role_read", 0, "percent of requests that are LDAP static role reads")
 	flag.IntVar(&spec.PctLDAPStaticRotate, "pct_ldap_static_role_rotate", 0, "percent of requests that are LDAP static role rotates")
 	flag.IntVar(&spec.PctLDAPDynamicRead, "pct_ldap_dynamic_role_read", 0, "percent of requests that are LDAP dynamic reads")
@@ -153,6 +156,17 @@ func main() {
 			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapTestUserCredsJSON, err)
 		}
 	}
+
+	if spec.PctMongoRead > 0 {
+		if err := spec.MongoDBConfig.FromJSON(*mongoDBConfigJSON); err != nil {
+			log.Fatalf("unable to parse MongoDB config at %v: %v", *mongoDBConfigJSON, err)
+		}
+
+		if err := spec.MongoDBRoleConfig.FromJSON(*mongoDBRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse MongoDB Role config at %v: %v", *mongoDBRoleConfigJSON, err)
+		}
+	}
+
 
 	if spec.PctLDAPStaticRead > 0 || spec.PctLDAPStaticRotate > 0 {
 		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {

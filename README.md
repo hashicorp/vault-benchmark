@@ -220,6 +220,45 @@ A role configuration file can also be passed via the `cassandradb_role_config_js
 ```
 Any configuration passed will modify the `benchmark-role`.
 
+## MongoDB
+
+This benchmark will test the dynamic generation of MongoDB credentials. In order to use this test, configuration for the MongoDB instance MUST be provided as a JSON file using the `mongodb_config_json` flag. The primary required fields are the `username` and `password` for the user configured in MongoDB for Vault to use, as well as the `connection_url` field that defines the address to be used. Below is an example configuration to communicate with a locally running test environment:
+
+Configuration Options
+
+- `pct_mongodb_read` _(required)_: percent of requests that are MongoDB Dynamic Credential generations
+- `mongodb_config_json` _(required)_: path to a JSON file containing the MongoDB configuration
+- `mongodb_role_config_json`: path to a JSON file containing the MongoDB role configuration
+
+`mongodb_config_json`
+
+```json
+{
+    "plugin_name": "mongodb-database-plugin",
+    "connection_url": "mongodb://{{username}}:{{password}}@127.0.0.1:27017/admin?tls=false",
+    "write_concern": "{ \"wmode\": \"majority\", \"wtimeout\": 5000 }",
+    "username": "mdbadmin",
+    "password": "root"
+}
+```
+
+Please refer to the [MongoDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/mongodb) for all available configuration options.
+
+A role configuration file can also be passed via the `mongodb_role_config_json` flag. This allows more specific options to be specified if required by the MongoDB environment setup. By default the following role `benchmark-role` is defined and used:
+
+`mongodb_role_config_json`
+
+```json
+{
+    "db_name": "mongo-benchmark-database",
+    "creation_statements": "{ \"db\": \"admin\", \"roles\": [{ \"role\": \"readWrite\" }, {\"role\": \"read\", \"db\": \"foo\"}] }",
+    "default_ttl": "1h",
+    "max_ttl": "24h"
+}
+```
+
+Any configuration passed will modify the `benchmark-role`.
+
 ## PostgreSQL
 
 This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as a JSON file using the `postgresql_config_json` flag. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the address to be used as well as any other parameters that need to be passed via the URL. Below is an example configuration to communicate with a locally running test environment:
