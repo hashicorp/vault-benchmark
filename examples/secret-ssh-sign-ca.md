@@ -28,7 +28,7 @@ Additional configuration examples can be found in the [ssh configuration directo
 ## Example Usage
 
 ```bash
-$ ./benchmark-vault -pct_ssh_ca_issue=100
+$ benchmark-vault -pct_ssh_ca_issue=100
 op         count   rate          throughput  mean       95th%      99th%       successRatio
 ssh issue  300282  30028.310228  0.000000    324.823µs  752.144µs  1.601211ms  0.00%
 ```
