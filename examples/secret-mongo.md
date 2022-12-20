@@ -25,7 +25,11 @@ This benchmark will test the dynamic generation of MongoDB credentials. In order
 ### Example Usage
 
 ```bash
-$ ./benchmark-vault -vault_addr=http://localhost:8200 -vault_token=root -pct_mongodb_read=100 -mongodb_config_json=/path/to/mongodb/config.json
+$ benchmark-vault \
+    -vault_addr=http://localhost:8200 \
+    -vault_token=root \
+    -pct_mongodb_read=100 \
+    -mongodb_config_json=/path/to/mongodb/config.json
 op                    count  rate       throughput  mean          95th%         99th%         successRatio
 mongo cred retrieval  687    68.602787  67.609274   146.945225ms  153.417724ms  176.005047ms  100.00%
 ```
