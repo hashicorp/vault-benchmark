@@ -19,7 +19,7 @@ This benchmark tests the performance of the transit operations.
 ## Example Usage
 
 ```bash
-$ ./benchmark-vault -pct_transit_sign=50 -pct_transit_verify=50
+$ benchmark-vault -pct_transit_sign=50 -pct_transit_verify=50
 op               count  rate         throughput   mean        95th%       99th%       successRatio
 transit sign     54570  5457.386815  5456.674805  1.505858ms  2.679909ms  3.661053ms  100.00%
 transit verify   26984  2698.373376  2698.320209  344.872µs   802.958µs   1.395324ms  100.00%
