@@ -1,6 +1,6 @@
 benchmark-vault
 
-benchmark-vault is a benchmark tool for Vault.
+`benchmark-vault` is a tool designed to test the performance of Vault auth methods and secret engines.
 
 Vault configuration settings
 
