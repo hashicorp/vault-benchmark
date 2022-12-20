@@ -9,7 +9,7 @@
 ## Example Usage
 
 ```bash
-$ ./benchmark-vault -pct_ha_status=100
+$ benchmark-vault -pct_ha_status=100
 op         count   rate          throughput    mean       95th%      99th%       successRatio
 ha status  307299  30731.021169  30728.013045  316.743µs  717.639µs  1.705715ms  100.00%
 
