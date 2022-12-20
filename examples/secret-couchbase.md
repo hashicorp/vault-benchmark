@@ -24,7 +24,10 @@ This benchmark will test the dynamic generation of Couchbase credentials. In ord
 ### Example Usage
 
 ```bash
-$ ./benchmark-vault -vault_addr=http://localhost:8200 -vault_token=root -pct_couchbase_read=100 -couchbase_config_json=/path/to/couchbase/config.json
+$ benchmark-vault -vault_addr=http://localhost:8200 \
+    -vault_token=root \
+    -pct_couchbase_read=100 \
+    -couchbase_config_json=/path/to/couchbase/config.json
 op                    count  rate       throughput  mean          95th%         99th%         successRatio
 couchbase cred retrieval  687    68.602787  67.609274   146.945225ms  153.417724ms  176.005047ms  100.00%
 ```
