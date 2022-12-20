@@ -29,7 +29,7 @@ op          count   rate          throughput    mean       95th%      99th%     
 kvv1 read   207078  20707.991723  20707.303112  342.588µs  792.455µs  1.79457ms   100.00%
 kvv1 write  69309   6931.423438   6931.229002   382.028µs  861.062µs  2.103818ms  100.00%
 
-$ ./benchmark-vault -pct_kvv2_read=50 -pct_kvv2_write=50
+$ benchmark-vault -pct_kvv2_read=50 -pct_kvv2_write=50
 op          count  rate         throughput   mean       95th%       99th%       successRatio
 kvv2 read   99087  9909.216270  9908.109187  396.701µs  927.28µs    1.954493ms  100.00%
 kvv2 write  98077  9807.787657  9807.321928  604.503µs  1.348884ms  2.790181ms  100.00%
