@@ -14,7 +14,11 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 ## Example Usage
 
 ```bash
-$ ./benchmark-vault -vault_addr=http://localhost:8200 -vault_token=root -pct_ldap_login=100 -ldap_config_json=/path/to/ldap/config.json -ldap_test_user_creds_json=/path/to/ldap/test_user_creds.json
+$ benchmark-vault -vault_addr=http://localhost:8200 \
+    -vault_token=root \
+    -pct_ldap_login=100 \
+    -ldap_config_json=/path/to/ldap/config.json \
+    -ldap_test_user_creds_json=/path/to/ldap/test_user_creds.json
 op          count  rate        throughput  mean         95th%         99th%        successRatio
 LDAP login  1581   157.678405  156.778405    63.310542ms  193.090504ms  199.27467ms  100.00%
 ```
