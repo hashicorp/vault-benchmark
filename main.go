@@ -167,7 +167,6 @@ func main() {
 		}
 	}
 
-
 	if spec.PctLDAPStaticRead > 0 || spec.PctLDAPStaticRotate > 0 {
 		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {
 			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)

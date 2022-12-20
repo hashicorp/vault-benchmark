@@ -1,0 +1,6 @@
+{
+    "hosts": "127.0.0.1",
+    "protocol_version": 4,
+    "username":"vault",
+    "password":"vault"
+}
