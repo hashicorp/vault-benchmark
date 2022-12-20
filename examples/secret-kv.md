@@ -20,7 +20,11 @@ will read from these keys, and the write operations overwrite them.
 ## Example Usage
 
 ```bash
-$ ./benchmark-vault -pct_kvv1_read=75 -pct_kvv1_write=25 -numkvs=100 -kvsize=10
+$ benchmark-vault \
+    -pct_kvv1_read=75 \
+    -pct_kvv1_write=25 \
+    -numkvs=100 \
+    -kvsize=10
 op          count   rate          throughput    mean       95th%      99th%       successRatio
 kvv1 read   207078  20707.991723  20707.303112  342.588µs  792.455µs  1.79457ms   100.00%
 kvv1 write  69309   6931.423438   6931.229002   382.028µs  861.062µs  2.103818ms  100.00%
