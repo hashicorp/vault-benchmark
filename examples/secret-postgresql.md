@@ -24,7 +24,11 @@ This benchmark will test the dynamic generation of PostgreSQL credentials. In or
 ### Example Usage
 
 ```bash
-$ ./benchmark-vault -vault_addr=http://localhost:8200 -vault_token=root -pct_postgresql_read=100 -postgresql_config_json=/path/to/postgresql/config.json
+$ benchmark-vault \
+    -vault_addr=http://localhost:8200 \
+    -vault_token=root \
+    -pct_postgresql_read=100 \
+    -postgresql_config_json=/path/to/postgresql/config.json
 op                    count  rate       throughput  mean          95th%         99th%         successRatio
 postgresql cred retrieval  1000   100.000000  0.000000    1.000000ms   1.000000ms   1.000000ms   0.00%
 ```
