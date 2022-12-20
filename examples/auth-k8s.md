@@ -36,7 +36,11 @@ data:
 ## Example Usage
 
 ```bash
-$ ./benchmark-vault -vault_addr=http://localhost:8200 -vault_token=root -pct_k8s_login=100 -k8s_config_json=/path/to/k8s/config.json -k8s_test_user_creds_json=/path/to/k8s/test_user_creds.json
+$ benchmark-vault -vault_addr=http://localhost:8200 \
+    -vault_token=root \
+    -pct_k8s_login=100 \
+    -k8s_config_json=/path/to/k8s/config.json \
+    -k8s_test_user_creds_json=/path/to/k8s/test_user_creds.json
 op          count  rate        throughput  mean         95th%         99th%        successRatio
 Kubernetes login  1581   157.678405  156.778405    63.310542ms  193.090504ms  199.27467ms  100.00%
 ```
