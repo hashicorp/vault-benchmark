@@ -100,6 +100,8 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 }
 
 type TestSpecification struct {
+	SealWrap bool
+
 	NumKVs                   int
 	KVSize                   int
 	RandomMounts             bool
@@ -176,7 +178,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 
 	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
 		for mc := 0; mc < spec.NumKvMounts; mc++ {
-			kvv1, err := setupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
+			kvv1, err := setupKvv1(client, spec.RandomMounts, spec.SealWrap, spec.NumKVs, spec.KVSize)
 			if err != nil {
 				return nil, err
 			}
@@ -201,7 +203,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			return nil, fmt.Errorf("expected PctKvv2Read=%v and PctKvv2Write=%v to be an even multiple of NumKvMounts=%v", spec.PctKvv1Read, spec.PctKvv1Write, spec.NumKvMounts)
 		}
 		for mc := 0; mc < spec.NumKvMounts; mc++ {
-			kvv2, err := setupKvv2(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
+			kvv2, err := setupKvv2(client, spec.RandomMounts, spec.SealWrap, spec.NumKVs, spec.KVSize)
 			if err != nil {
 				return nil, err
 			}
@@ -278,7 +280,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 	}
 	if spec.PctPkiIssue > 0 {
 		for mc := 0; mc < spec.NumPkiMounts; mc++ {
-			pki, err := setupPKI(client, spec.RandomMounts, spec.PkiConfig)
+			pki, err := setupPKI(client, spec.RandomMounts, spec.SealWrap, spec.PkiConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -292,7 +294,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		}
 	}
 	if spec.PctSshCaIssue > 0 {
-		ssh, err := setupSSH(client, spec.RandomMounts, spec.SshCaConfig)
+		ssh, err := setupSSH(client, spec.RandomMounts, spec.SealWrap, spec.SshCaConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -335,7 +337,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctTransitSign > 0 {
-		transit, err := setupTransit(client, spec.RandomMounts, "sign", spec.TransitSignConfig)
+		transit, err := setupTransit(client, spec.RandomMounts, spec.SealWrap, "sign", spec.TransitSignConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +350,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctTransitVerify > 0 {
-		transit, err := setupTransit(client, spec.RandomMounts, "verify", spec.TransitVerifyConfig)
+		transit, err := setupTransit(client, spec.RandomMounts, spec.SealWrap, "verify", spec.TransitVerifyConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -361,7 +363,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctTransitEncrypt > 0 {
-		transit, err := setupTransit(client, spec.RandomMounts, "encrypt", spec.TransitEncryptConfig)
+		transit, err := setupTransit(client, spec.RandomMounts, spec.SealWrap, "encrypt", spec.TransitEncryptConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -374,7 +376,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctTransitDecrypt > 0 {
-		transit, err := setupTransit(client, spec.RandomMounts, "decrypt", spec.TransitDecryptConfig)
+		transit, err := setupTransit(client, spec.RandomMounts, spec.SealWrap, "decrypt", spec.TransitDecryptConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -387,7 +389,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctCassandraRead > 0 {
-		cassandra, err := setupCassandra(client, spec.RandomMounts, &spec.CassandraDBConfig, &spec.CassandraDBRoleConfig)
+		cassandra, err := setupCassandra(client, spec.RandomMounts, spec.SealWrap, &spec.CassandraDBConfig, &spec.CassandraDBRoleConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -400,7 +402,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctPostgreSQLRead > 0 {
-		postgresql, err := setupPostgreSQL(client, spec.RandomMounts, &spec.PostgreSQLDBConfig, &spec.PostgreSQLRoleConfig)
+		postgresql, err := setupPostgreSQL(client, spec.RandomMounts, spec.SealWrap, &spec.PostgreSQLDBConfig, &spec.PostgreSQLRoleConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -413,7 +415,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctCouchbaseRead > 0 {
-		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig)
+		couchbase, err := setupCouchbase(client, spec.RandomMounts, spec.SealWrap, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -426,7 +428,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctSSHSign > 0 {
-		sshSign, err := setupSSHSign(client, spec.RandomMounts, &spec.SSHSignerCAConfig, &spec.SSHSignerRoleConfig)
+		sshSign, err := setupSSHSign(client, spec.RandomMounts, spec.SealWrap, &spec.SSHSignerCAConfig, &spec.SSHSignerRoleConfig)
 		if err != nil {
 			return nil, err
 		}

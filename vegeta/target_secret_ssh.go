@@ -28,7 +28,7 @@ func (s *sshTest) write(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupSSH(client *api.Client, randomMounts bool, config SshCaTestConfig) (*sshTest, error) {
+func setupSSH(client *api.Client, randomMounts bool, sealWrap bool, config SshCaTestConfig) (*sshTest, error) {
 	sshPathPrefix, err := uuid.GenerateUUID()
 	if err != nil {
 		return nil, err
@@ -39,7 +39,8 @@ func setupSSH(client *api.Client, randomMounts bool, config SshCaTestConfig) (*s
 	}
 
 	err = client.Sys().Mount(sshPathPrefix, &api.MountInput{
-		Type: "ssh",
+		Type:     "ssh",
+		SealWrap: sealWrap,
 		Config: api.MountConfigInput{
 			MaxLeaseTTL: "87600h",
 		},

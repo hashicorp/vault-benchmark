@@ -116,7 +116,7 @@ func (c *cassandratest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupCassandra(client *api.Client, randomMounts bool, config *CassandraDBConfig, roleConfig *CassandraRoleConfig) (*cassandratest, error) {
+func setupCassandra(client *api.Client, randomMounts bool, sealWrap bool, config *CassandraDBConfig, roleConfig *CassandraRoleConfig) (*cassandratest, error) {
 	cassandraPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -126,7 +126,8 @@ func setupCassandra(client *api.Client, randomMounts bool, config *CassandraDBCo
 	}
 
 	err = client.Sys().Mount(cassandraPath, &api.MountInput{
-		Type: "database",
+		Type:     "database",
+		SealWrap: sealWrap,
 	})
 
 	if err != nil {

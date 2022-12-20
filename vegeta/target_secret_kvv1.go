@@ -39,7 +39,7 @@ func (k *kvv1test) write(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupKvv1(client *api.Client, randomMounts bool, numKVs int, kvSize int) (*kvv1test, error) {
+func setupKvv1(client *api.Client, randomMounts bool, sealWrap bool, numKVs int, kvSize int) (*kvv1test, error) {
 	kvv1Path, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -50,7 +50,8 @@ func setupKvv1(client *api.Client, randomMounts bool, numKVs int, kvSize int) (*
 
 	var setupIndex string
 	err = client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(kvv1Path, &api.MountInput{
-		Type: "kv",
+		Type:     "kv",
+		SealWrap: sealWrap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error mounting kvv1: %v", err)

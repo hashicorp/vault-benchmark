@@ -107,7 +107,7 @@ func (c *couchbasetest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig) (*couchbasetest, error) {
+func setupCouchbase(client *api.Client, randomMounts bool, sealWrap bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig) (*couchbasetest, error) {
 	couchbasePath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -117,7 +117,8 @@ func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConf
 	}
 
 	err = client.Sys().Mount(couchbasePath, &api.MountInput{
-		Type: "database",
+		Type:     "database",
+		SealWrap: sealWrap,
 	})
 
 	if err != nil {

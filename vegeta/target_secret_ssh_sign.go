@@ -124,7 +124,7 @@ func (s *sshSigntest) sign(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupSSHSign(client *api.Client, randomMounts bool, caConfig *SSHSignerCAConfig, roleConfig *SSHSignerRoleConfig) (*sshSigntest, error) {
+func setupSSHSign(client *api.Client, randomMounts bool, sealWrap bool, caConfig *SSHSignerCAConfig, roleConfig *SSHSignerRoleConfig) (*sshSigntest, error) {
 	sshSignerPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -135,7 +135,8 @@ func setupSSHSign(client *api.Client, randomMounts bool, caConfig *SSHSignerCACo
 
 	// Enable SSH Secrets Engine
 	err = client.Sys().Mount(sshSignerPath, &api.MountInput{
-		Type: "ssh",
+		Type:     "ssh",
+		SealWrap: sealWrap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error enabling ssh: %v", err)

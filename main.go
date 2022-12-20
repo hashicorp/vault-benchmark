@@ -69,6 +69,7 @@ func main() {
 
 	// test-related settings
 	var spec = vegeta.TestSpecification{RandomMounts: true}
+	flag.BoolVar(&spec.SealWrap, "seal_wrap", false, "whether to seal wrap mounts created by benchmark-vault")
 	flag.IntVar(&spec.NumKVs, "numkvs", 1000, "num KVs to use for KV operations")
 	flag.IntVar(&spec.KVSize, "kvsize", 1, "num KVs to use for KV operations")
 	flag.DurationVar(&spec.TokenTTL, "token_ttl", time.Hour, "ttl to use for logins")

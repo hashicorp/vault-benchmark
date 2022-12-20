@@ -69,7 +69,7 @@ func (t *transitTestConfig) FromJSON(path string) error {
 	return nil
 }
 
-func setupTransit(client *api.Client, randomMounts bool, operation string, config transitTestConfig) (*transitTest, error) {
+func setupTransit(client *api.Client, randomMounts bool, sealWrap bool, operation string, config transitTestConfig) (*transitTest, error) {
 	pathPrefix, err := uuid.GenerateUUID()
 	if err != nil {
 		return nil, err
@@ -80,7 +80,8 @@ func setupTransit(client *api.Client, randomMounts bool, operation string, confi
 	}
 
 	err = client.Sys().Mount(pathPrefix, &api.MountInput{
-		Type: "transit",
+		Type:     "transit",
+		SealWrap: sealWrap,
 		Config: api.MountConfigInput{
 			MaxLeaseTTL: "87600h",
 		},

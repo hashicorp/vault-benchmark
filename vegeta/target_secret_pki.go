@@ -71,7 +71,7 @@ func (p *PkiTestConfig) FromJSON(path string) error {
 	return nil
 }
 
-func setupPKI(client *api.Client, randomMounts bool, config PkiTestConfig) (*pkiTest, error) {
+func setupPKI(client *api.Client, randomMounts bool, sealWrap bool, config PkiTestConfig) (*pkiTest, error) {
 	pkiPathPrefix, err := uuid.GenerateUUID()
 	if err != nil {
 		return nil, err
@@ -80,11 +80,11 @@ func setupPKI(client *api.Client, randomMounts bool, config PkiTestConfig) (*pki
 		pkiPathPrefix = "pki"
 	}
 
-	err = createRootCA(client, pkiPathPrefix, config)
+	err = createRootCA(client, sealWrap, pkiPathPrefix, config)
 	if err != nil {
 		return nil, err
 	}
-	path, cn, err := createIntermediateCA(client, pkiPathPrefix, config)
+	path, cn, err := createIntermediateCA(client, sealWrap, pkiPathPrefix, config)
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +96,11 @@ func setupPKI(client *api.Client, randomMounts bool, config PkiTestConfig) (*pki
 	}, nil
 }
 
-func createRootCA(cli *api.Client, pfx string, config PkiTestConfig) error {
+func createRootCA(cli *api.Client, sealWrap bool, pfx string, config PkiTestConfig) error {
 	rootPath := pfx + "-root"
 	err := cli.Sys().Mount(rootPath, &api.MountInput{
-		Type: "pki",
+		Type:     "pki",
+		SealWrap: sealWrap,
 		Config: api.MountConfigInput{
 			MaxLeaseTTL: "87600h",
 		},
@@ -130,11 +131,12 @@ func createRootCA(cli *api.Client, pfx string, config PkiTestConfig) error {
 	return err
 }
 
-func createIntermediateCA(cli *api.Client, pfx string, config PkiTestConfig) (string, string, error) {
+func createIntermediateCA(cli *api.Client, sealWrap bool, pfx string, config PkiTestConfig) (string, string, error) {
 	rootPath, intPath := pfx+"-root", pfx+"-int"
 
 	err := cli.Sys().Mount(intPath, &api.MountInput{
-		Type: "pki",
+		Type:     "pki",
+		SealWrap: sealWrap,
 		Config: api.MountConfigInput{
 			MaxLeaseTTL: "87600h",
 		},

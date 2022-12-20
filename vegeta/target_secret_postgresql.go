@@ -113,7 +113,7 @@ func (c *postgresqltest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupPostgreSQL(client *api.Client, randomMounts bool, config *PostgreSQLDBConfig, roleConfig *PostgreSQLRoleConfig) (*postgresqltest, error) {
+func setupPostgreSQL(client *api.Client, randomMounts bool, sealWrap bool, config *PostgreSQLDBConfig, roleConfig *PostgreSQLRoleConfig) (*postgresqltest, error) {
 	postgresqlPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -123,7 +123,8 @@ func setupPostgreSQL(client *api.Client, randomMounts bool, config *PostgreSQLDB
 	}
 
 	err = client.Sys().Mount(postgresqlPath, &api.MountInput{
-		Type: "database",
+		Type:     "database",
+		SealWrap: sealWrap,
 	})
 
 	if err != nil {
