@@ -1,4 +1,4 @@
-benchmark-vault
+# benchmark-vault
 
 `benchmark-vault` is a tool designed to test the performance of Vault auth methods and secret engines.
 
