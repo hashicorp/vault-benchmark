@@ -1,0 +1,6 @@
+{
+    "role_name": "alice",
+    "creation_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpvYmplY3RDbGFzczogcGVyc29uCm9iamVjdENsYXNzOiB0b3AKY246IGxlYXJuCnNuOiB7ey5QYXNzd29yZCB8IHV0ZjE2bGUgfCBiYXNlNjR9fQptZW1iZXJPZjogY249ZGV2LG91PWdyb3VwcyxkYz1oYXNoaWNvcnAsZGM9Y29tCnVzZXJQYXNzd29yZDoge3suUGFzc3dvcmR9fQo=",
+    "deletion_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9bGVhcm4sZGM9ZXhhbXBsZQpjaGFuZ2V0eXBlOiBkZWxldGUK",
+    "rollback_ldif": "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpjaGFuZ2V0eXBlOiBkZWxldGUK"
+}

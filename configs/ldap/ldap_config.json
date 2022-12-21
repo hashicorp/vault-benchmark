@@ -1,0 +1,10 @@
+{
+	"url":"ldap://ldap",
+	"userdn":"ou=users,dc=hashicorp,dc=com",
+	"groupdn":"ou=groups,dc=hashicorp,dc=com",
+	"binddn":"cn=admin,dc=hashicorp,dc=com",
+	"bindpass":"admin",
+	"userattr":"uid",
+	"groupattr":"cn",
+	"groupfilter":"(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
+}

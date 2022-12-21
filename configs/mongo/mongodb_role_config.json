@@ -1,0 +1,6 @@
+{
+	"db_name": "mongo-benchmark-database",
+    "creation_statements": "{ \"db\": \"admin\", \"roles\": [{ \"role\": \"readWrite\" }, {\"role\": \"read\", \"db\": \"foo\"}] }",
+	"default_ttl": "1h",
+	"max_ttl": "24h"
+  }
