@@ -16,7 +16,7 @@ This benchmark will test RabbitMQ secret engine operations. In order to use this
 ```json
 {
     "name": "benchmark-role",
-    "vhosts": "{\"/\":{\"write\": \".*\", \"read\": \".*\"}}",
+    "vhosts": "{\"/\":{\"write\": \".*\", \"read\": \".*\"}}"
 }
 ```
 
