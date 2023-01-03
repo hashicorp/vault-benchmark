@@ -131,6 +131,9 @@ type TestSpecification struct {
 	PctMongoRead             int
 	MongoDBConfig            MongoDBConfig
 	MongoDBRoleConfig        MongoRoleConfig
+	PctRabbitRead            int
+	RabbitMQConfig           RabbitMQConfig
+	RabbitMQRoleConfig       RabbitMQRoleConfig
 	PctLDAPStaticRead        int
 	PctLDAPStaticRotate      int
 	PctLDAPDynamicRead       int
@@ -418,6 +421,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: mongo.pathPrefix,
 			percent:    spec.PctMongoRead,
 			target:     mongo.read,
+		})
+	}
+	if spec.PctRabbitRead > 0 {
+		rabbit, err := setupRabbit(client, spec.RandomMounts, &spec.RabbitMQConfig, &spec.RabbitMQRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "rabbit cred retrieval",
+			method:     "GET",
+			pathPrefix: rabbit.pathPrefix,
+			percent:    spec.PctRabbitRead,
+			target:     rabbit.read,
 		})
 	}
 	if spec.PctPostgreSQLRead > 0 {

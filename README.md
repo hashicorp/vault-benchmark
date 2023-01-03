@@ -64,6 +64,7 @@ kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
 - [MongoDB Configurations](/examples/secret-mongo.md)
 - [PKI Configurations](/examples/secret-pki.md)
 - [PostgreSQL Configurations](/examples/secret-postgresql.md)
+- [RabbitMQ Configurations](/examples/secret-rabbit.md)
 - [SSH Key Signing](/examples/secret-ssh-sign.md)
 - [Signed SSH Certificates Configurations](/examples/secret-ssh-sign-ca.md)
 - [Transit Configurations](/examples/secret-transit.md)
