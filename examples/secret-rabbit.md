@@ -8,7 +8,7 @@ This benchmark will test RabbitMQ secret engine operations. In order to use this
 
 ## Additional Parameters
 
-- `rabbitmq_config_json` _(required)_: path to JSON file containing Vault RabbitMQ configuration.  Configuration options can be found in the [RabbitMQ Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/rabbitmq#configure-connection).  Example configuration files can be found in the [RabbitMQ configuration directory](/configs/rabbitmq/).
+- `rabbitmq_config_json` _(required)_: path to JSON file containing Vault RabbitMQ configuration.  The configuration options can be found in the [RabbitMQ Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/rabbitmq#configure-connection).  Example configuration files can be found in the [RabbitMQ configuration directory](/configs/rabbitmq/).
 - `rabbitmq_role_config_json`: path to a JSON file containing the RabbitMQ role configuration. If this is not specified, a default configuration will be used (see below).
 
 ### Default RabbitMQ Role Configuration
