@@ -37,7 +37,6 @@ func main() {
 		caPEMFile   = flag.String("ca_pem_file", "", "when using external vault with HTTPS, path to its CA file in PEM format")
 
 		// benchmark-vault settings
-		randomMounts  = flag.Bool("random_mounts", true, "when creating vault cluster, mount random backends")
 		workers       = flag.Int("workers", 10, "number of workers aka virtual users")
 		rps           = flag.Int("rps", 0, "requests per second, or 0 for as fast as we can")
 		duration      = flag.Duration("duration", 10*time.Second, "test duration")
@@ -74,7 +73,8 @@ func main() {
 	)
 
 	// test-related settings
-	var spec = vegeta.TestSpecification{RandomMounts: true}
+	var spec = vegeta.TestSpecification{}
+	flag.BoolVar(&spec.RandomMounts, "random_mounts", true, "use random mount paths for each test")
 	flag.IntVar(&spec.NumKVs, "numkvs", 1000, "num KVs to use for KV operations")
 	flag.IntVar(&spec.KVSize, "kvsize", 1, "num KVs to use for KV operations")
 	flag.DurationVar(&spec.TokenTTL, "token_ttl", time.Hour, "ttl to use for logins")
@@ -114,11 +114,6 @@ func main() {
 	flag.DurationVar(&spec.TransitDecryptConfig.SetupDelay, "transit_decrypt_setup_delay", 50*time.Millisecond, "When running Transit decrypt tests, delay after creating mount before attempting key creation")
 
 	flag.Parse()
-
-	// If random mounts is set to false, turn off random mounts flag
-	if !*randomMounts {
-		spec.RandomMounts = false
-	}
 
 	if err := spec.PkiConfig.FromJSON(*pkiConfigJSON); err != nil {
 		log.Fatalf("unable to parse PKI config at %v: %v", *pkiConfigJSON, err)
