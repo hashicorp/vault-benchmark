@@ -74,7 +74,7 @@ func main() {
 
 	// test-related settings
 	var spec = vegeta.TestSpecification{}
-	flag.BoolVar(&spec.RandomMounts, "random_mounts", true, "use random mount paths for each test")
+	flag.BoolVar(&spec.RandomMounts, "random_mounts", true, "use random mount path names for each test")
 	flag.IntVar(&spec.NumKVs, "numkvs", 1000, "num KVs to use for KV operations")
 	flag.IntVar(&spec.KVSize, "kvsize", 1, "num KVs to use for KV operations")
 	flag.DurationVar(&spec.TokenTTL, "token_ttl", time.Hour, "ttl to use for logins")
