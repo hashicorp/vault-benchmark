@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -117,6 +119,23 @@ func (k *kubernetestest) login(client *api.Client) vegeta.Target {
 		Header: k.header,
 		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, k.roleName, k.jwt)),
 	}
+}
+
+func (k *kubernetestest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(time.Second * 600)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(k.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupKubernetesAuth(client *api.Client, randomMounts bool, config *KubernetesAuthConfig, testRoleConfig *KubernetesTestRoleConfig) (*kubernetestest, error) {

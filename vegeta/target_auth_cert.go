@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-uuid"
@@ -209,4 +210,13 @@ func (c *certTest) login(client *api.Client) vegeta.Target {
 		URL:    client.Address() + c.pathPrefix + "/login",
 		Header: c.header,
 	}
+}
+
+func (c *certTest) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-uuid"
@@ -26,6 +27,15 @@ func (a *approletest) login(client *api.Client) vegeta.Target {
 		Header: a.header,
 		Body:   []byte(fmt.Sprintf(`{"role_id": "%s", "secret_id": "%s"}`, a.roleID, a.secretID)),
 	}
+}
+
+func (a *approletest) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupApprole(client *api.Client, randomMounts bool, ttl time.Duration) (*approletest, error) {

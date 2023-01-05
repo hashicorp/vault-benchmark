@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -122,6 +123,15 @@ func (s *sshSigntest) sign(client *api.Client) vegeta.Target {
 		Header: s.header,
 		Body:   []byte(fmt.Sprintf(`{"public_key": "%s"}`, s.publicKeyRSA)),
 	}
+}
+
+func (s *sshSigntest) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupSSHSign(client *api.Client, randomMounts bool, caConfig *SSHSignerCAConfig, roleConfig *SSHSignerRoleConfig) (*sshSigntest, error) {

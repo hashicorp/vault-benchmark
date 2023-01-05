@@ -17,6 +17,7 @@ type targetFraction struct {
 	pathPrefix string
 	percent    int // e.g. 30 is 30%
 	target     func(*api.Client) vegeta.Target
+	cleanup    func(*api.Client) error
 }
 
 // TargetMulti allows building a vegeta targetter that chooses between various
@@ -50,6 +51,15 @@ func (tm TargetMulti) choose(i int) targetFraction {
 	}
 
 	panic("unreachable")
+}
+
+func (tm TargetMulti) Cleanup(client *api.Client) error {
+	for _, fraction := range tm.fractions {
+		if err := fraction.cleanup(client); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
@@ -97,6 +107,7 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 }
 
 type TestSpecification struct {
+	Cleanup                  bool
 	NumKVs                   int
 	KVSize                   int
 	RandomMounts             bool
@@ -168,6 +179,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: kvv1.pathPrefix,
 			percent:    spec.PctKvv1Read,
 			target:     kvv1.read,
+			cleanup:    kvv1.cleanup,
 		})
 		tm.fractions = append(tm.fractions, targetFraction{
 			name:       "kvv1 write",
@@ -175,6 +187,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: kvv1.pathPrefix,
 			percent:    spec.PctKvv1Write,
 			target:     kvv1.write,
+			cleanup:    kvv1.cleanup,
 		})
 	}
 	if spec.PctKvv2Read > 0 || spec.PctKvv2Write > 0 {
@@ -188,6 +201,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: kvv2.pathPrefix,
 			percent:    spec.PctKvv2Read,
 			target:     kvv2.read,
+			cleanup:    kvv2.cleanup,
 		})
 		tm.fractions = append(tm.fractions, targetFraction{
 			name:       "kvv2 write",
@@ -195,6 +209,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: kvv2.pathPrefix,
 			percent:    spec.PctKvv2Write,
 			target:     kvv2.write,
+			cleanup:    kvv2.cleanup,
 		})
 	}
 
@@ -209,6 +224,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: approle.pathPrefix,
 			percent:    spec.PctApproleLogin,
 			target:     approle.login,
+			cleanup:    approle.cleanup,
 		})
 	}
 	if spec.PctCertLogin > 0 {
@@ -222,6 +238,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: cert.pathPrefix,
 			percent:    spec.PctCertLogin,
 			target:     cert.login,
+			cleanup:    cert.cleanup,
 		})
 	}
 	if spec.PctLDAPLogin > 0 {
@@ -235,6 +252,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldap.pathPrefix,
 			percent:    spec.PctLDAPLogin,
 			target:     ldap.login,
+			cleanup:    ldap.cleanup,
 		})
 	}
 	if spec.PctLDAPStaticRead > 0 {
@@ -248,6 +266,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldapsecret.pathPrefix,
 			percent:    spec.PctLDAPStaticRead,
 			target:     ldapsecret.readStatic,
+			cleanup:    ldapsecret.cleanup,
 		})
 	}
 	if spec.PctLDAPStaticRotate > 0 {
@@ -261,6 +280,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldapsecret.pathPrefix,
 			percent:    spec.PctLDAPStaticRotate,
 			target:     ldapsecret.rotateStatic,
+			cleanup:    ldapsecret.cleanup,
 		})
 	}
 	if spec.PctLDAPDynamicRead > 0 {
@@ -274,6 +294,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ldapsecret.pathPrefix,
 			percent:    spec.PctLDAPDynamicRead,
 			target:     ldapsecret.readDynamic,
+			cleanup:    ldapsecret.cleanup,
 		})
 	}
 	if spec.PctKubernetesLogin > 0 {
@@ -287,6 +308,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: kubernetes.pathPrefix,
 			percent:    spec.PctKubernetesLogin,
 			target:     kubernetes.login,
+			cleanup:    kubernetes.cleanup,
 		})
 	}
 	if spec.PctPkiIssue > 0 {
@@ -300,6 +322,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: pki.pathPrefix,
 			percent:    spec.PctPkiIssue,
 			target:     pki.write,
+			cleanup:    pki.cleanup,
 		})
 	}
 	if spec.PctSshCaIssue > 0 {
@@ -313,6 +336,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: ssh.pathPrefix,
 			percent:    spec.PctSshCaIssue,
 			target:     ssh.write,
+			cleanup:    ssh.cleanup,
 		})
 	}
 	if spec.PctHAStatus > 0 {
@@ -323,6 +347,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: "/v1/sys/ha-status",
 			percent:    spec.PctHAStatus,
 			target:     status.read,
+			cleanup:    status.cleanup,
 		})
 	}
 	if spec.PctSealStatus > 0 {
@@ -333,6 +358,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: "/v1/sys/seal-status",
 			percent:    spec.PctSealStatus,
 			target:     status.read,
+			cleanup:    status.cleanup,
 		})
 	}
 	if spec.PctMetrics > 0 {
@@ -343,6 +369,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: "/v1/sys/metrics",
 			percent:    spec.PctMetrics,
 			target:     status.read,
+			cleanup:    status.cleanup,
 		})
 	}
 	if spec.PctTransitSign > 0 {
@@ -356,6 +383,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: transit.pathPrefix,
 			percent:    spec.PctTransitSign,
 			target:     transit.write,
+			cleanup:    transit.cleanup,
 		})
 	}
 	if spec.PctTransitVerify > 0 {
@@ -369,6 +397,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: transit.pathPrefix,
 			percent:    spec.PctTransitVerify,
 			target:     transit.write,
+			cleanup:    transit.cleanup,
 		})
 	}
 	if spec.PctTransitEncrypt > 0 {
@@ -382,6 +411,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: transit.pathPrefix,
 			percent:    spec.PctTransitEncrypt,
 			target:     transit.write,
+			cleanup:    transit.cleanup,
 		})
 	}
 	if spec.PctTransitDecrypt > 0 {
@@ -395,6 +425,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: transit.pathPrefix,
 			percent:    spec.PctTransitDecrypt,
 			target:     transit.write,
+			cleanup:    transit.cleanup,
 		})
 	}
 	if spec.PctCassandraRead > 0 {
@@ -408,6 +439,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: cassandra.pathPrefix,
 			percent:    spec.PctCassandraRead,
 			target:     cassandra.read,
+			cleanup:    cassandra.cleanup,
 		})
 	}
 	if spec.PctMongoRead > 0 {
@@ -421,6 +453,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: mongo.pathPrefix,
 			percent:    spec.PctMongoRead,
 			target:     mongo.read,
+			cleanup:    mongo.cleanup,
 		})
 	}
 	if spec.PctRabbitRead > 0 {
@@ -434,6 +467,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: rabbit.pathPrefix,
 			percent:    spec.PctRabbitRead,
 			target:     rabbit.read,
+			cleanup:    rabbit.cleanup,
 		})
 	}
 	if spec.PctPostgreSQLRead > 0 {
@@ -447,6 +481,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: postgresql.pathPrefix,
 			percent:    spec.PctPostgreSQLRead,
 			target:     postgresql.read,
+			cleanup:    postgresql.cleanup,
 		})
 	}
 	if spec.PctCouchbaseRead > 0 {
@@ -460,6 +495,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: couchbase.pathPrefix,
 			percent:    spec.PctCouchbaseRead,
 			target:     couchbase.read,
+			cleanup:    couchbase.cleanup,
 		})
 	}
 	if spec.PctSSHSign > 0 {
@@ -473,6 +509,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: sshSign.pathPrefix,
 			percent:    spec.PctSSHSign,
 			target:     sshSign.sign,
+			cleanup:    sshSign.cleanup,
 		})
 	}
 

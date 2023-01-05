@@ -26,3 +26,8 @@ func (s *statusTest) read(client *api.Client) vegeta.Target {
 		Header: s.header,
 	}
 }
+
+// Cleanup is a no-op for this test
+func (s *statusTest) cleanup(client *api.Client) error {
+	return nil
+}

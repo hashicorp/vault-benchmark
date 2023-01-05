@@ -39,6 +39,15 @@ func (k *kvv1test) write(client *api.Client) vegeta.Target {
 	}
 }
 
+func (k *kvv1test) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
 func setupKvv1(client *api.Client, randomMounts bool, numKVs int, kvSize int) (*kvv1test, error) {
 	kvv1Path, err := uuid.GenerateUUID()
 	if err != nil {

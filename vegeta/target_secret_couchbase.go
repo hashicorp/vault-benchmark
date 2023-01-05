@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -105,6 +107,23 @@ func (c *couchbasetest) read(client *api.Client) vegeta.Target {
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
 		Header: c.header,
 	}
+}
+
+func (c *couchbasetest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(time.Second * 600)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig) (*couchbasetest, error) {

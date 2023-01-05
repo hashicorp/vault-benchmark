@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -124,6 +125,15 @@ func (l *ldaptest) login(client *api.Client) vegeta.Target {
 		Header: l.header,
 		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, l.authPass)),
 	}
+}
+
+func (l *ldaptest) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupLDAPAuth(client *api.Client, randomMounts bool, config *LDAPAuthConfig, testUserConfig *LDAPTestUserConfig) (*ldaptest, error) {
