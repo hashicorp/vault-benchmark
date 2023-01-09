@@ -46,6 +46,7 @@ func main() {
 		annotate      = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
 		debug         = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
 
+		pkiSignConfigJSON         = flag.String("pki_sign_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
 		pkiConfigJSON             = flag.String("pki_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
 		sshCaConfigJSON           = flag.String("ssh_ca_config_json", "", "when specified, path to SSH CA benchmark configuration JSON file to use")
 		transitSignConfigJSON     = flag.String("transit_sign_config_json", "", "when specified, path to Transit sign benchmark configuration JSON file to use")
@@ -85,6 +86,7 @@ func main() {
 	flag.IntVar(&spec.PctApproleLogin, "pct_approle_login", 0, "percent of requests that are approle logins")
 	flag.IntVar(&spec.PctCertLogin, "pct_cert_login", 0, "percent of requests that are cert logins")
 	flag.IntVar(&spec.PctPkiIssue, "pct_pki_issue", 0, "percent of requests that are pki issue certs")
+	flag.IntVar(&spec.PctPkiSign, "pct_pki_sign", 0, "percent of requests that are pki cert signings")
 	flag.IntVar(&spec.PctSshCaIssue, "pct_ssh_ca_issue", 0, "percent of requests that are ssh issue certs")
 	flag.IntVar(&spec.PctHAStatus, "pct_ha_status", 0, "percent of requests that are ha status requests (/sys/ha-status)")
 	flag.IntVar(&spec.PctSealStatus, "pct_seal_status", 0, "percent of requests that are seal status requests (/sys/seal-status)")
@@ -117,6 +119,10 @@ func main() {
 
 	if err := spec.PkiConfig.FromJSON(*pkiConfigJSON); err != nil {
 		log.Fatalf("unable to parse PKI config at %v: %v", *pkiConfigJSON, err)
+	}
+
+	if err := spec.PkiSignConfig.FromJSON(*pkiSignConfigJSON); err != nil {
+		log.Fatalf("unable to parse PKI config at %v: %v", *pkiSignConfigJSON, err)
 	}
 
 	if err := spec.SshCaConfig.FromJSON(*sshCaConfigJSON); err != nil {
