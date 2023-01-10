@@ -18,7 +18,7 @@ This benchmark will test the dynamic generation of redis credentials. In order t
 
 ## Additional Parameters
 
-- `mongodb_config_json` _(required)_: path to JSON file containing Vault redis configuration.  Configuration options can be found in the [MongoDB Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/databases/redis).  Example configuration files can be found in the [redis configuration directory](/configs/redis/).
+- `redis_config_json` _(required)_: path to JSON file containing Vault redis configuration.  Configuration options can be found in the [Redis Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/databases/redis).  Example configuration files can be found in the [redis configuration directory](/configs/redis/).
 - `redis_dynamic_role_config_json`: path to a JSON file containing the redis dynamic role configuration.
 
 ### Default Redis Role Configuration
