@@ -7,4 +7,3 @@
     "allowed_roles": ["my-*-role"],
     "tls": false
   }
-  
