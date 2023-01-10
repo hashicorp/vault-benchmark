@@ -18,7 +18,6 @@ import (
 type pkiSignTest struct {
 	pathPrefix string
 	cn         string
-	csr        string
 	body       []byte
 	header     http.Header
 }
@@ -151,7 +150,6 @@ func setupPKISigning(client *api.Client, randomMounts bool, config PkiSignTestCo
 	return &pkiSignTest{
 		pathPrefix: "/v1/" + pkiPathPrefix + "-int/sign/consul-server",
 		cn:         cn,
-		csr:        csr,
 		body:       bodyData,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 	}, nil
