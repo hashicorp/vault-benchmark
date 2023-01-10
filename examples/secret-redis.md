@@ -12,9 +12,7 @@ This benchmark will test the dynamic generation of redis credentials. In order t
 ```
 
 ## Test Parameters (minimum 1 required)
-
 - `pct_redis_dynamic_read`: percent of requests that are redus Dynamic credential generations
-<!-- - `pct_redis_static_read`: percent of requests that are redus Dynamic credential generations -->
 
 ## Additional Parameters
 
