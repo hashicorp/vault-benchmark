@@ -79,6 +79,7 @@ func main() {
 	flag.IntVar(&spec.NumKVs, "numkvs", 1000, "num KVs to use for KV operations")
 	flag.IntVar(&spec.KVSize, "kvsize", 1, "num KVs to use for KV operations")
 	flag.DurationVar(&spec.TokenTTL, "token_ttl", time.Hour, "ttl to use for logins")
+	flag.DurationVar(&spec.Timeout, "timeout", time.Second*60, "length of timeout for Vault client")
 	flag.IntVar(&spec.PctKvv1Write, "pct_kvv1_write", 0, "percent of requests that are kvv1 writes")
 	flag.IntVar(&spec.PctKvv1Read, "pct_kvv1_read", 0, "percent of requests that are kvv1 reads")
 	flag.IntVar(&spec.PctKvv2Write, "pct_kvv2_write", 0, "percent of requests that are kvv2 writes")

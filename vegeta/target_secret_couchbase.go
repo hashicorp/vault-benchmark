@@ -17,6 +17,7 @@ type couchbasetest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	timeout    time.Duration
 }
 
 type CouchbaseConfig struct {
@@ -110,7 +111,7 @@ func (c *couchbasetest) read(client *api.Client) vegeta.Target {
 }
 
 func (c *couchbasetest) cleanup(client *api.Client) error {
-	client.SetClientTimeout(time.Second * 600)
+	client.SetClientTimeout(c.timeout)
 
 	// Revoke all leases
 	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
@@ -126,7 +127,7 @@ func (c *couchbasetest) cleanup(client *api.Client) error {
 	return nil
 }
 
-func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig) (*couchbasetest, error) {
+func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig, timeout time.Duration) (*couchbasetest, error) {
 	couchbasePath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -177,5 +178,6 @@ func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConf
 		pathPrefix: "/v1/" + couchbasePath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		roleName:   roleConfig.Name,
+		timeout:    timeout,
 	}, nil
 }

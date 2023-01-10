@@ -112,6 +112,7 @@ type TestSpecification struct {
 	KVSize                   int
 	RandomMounts             bool
 	TokenTTL                 time.Duration
+	Timeout                  time.Duration
 	PctKvv1Read              int
 	PctKvv1Write             int
 	PctKvv2Read              int
@@ -298,7 +299,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctKubernetesLogin > 0 {
-		kubernetes, err := setupKubernetesAuth(client, spec.RandomMounts, &spec.KubernetesAuthConfig, &spec.KubernetesTestRoleConfig)
+		kubernetes, err := setupKubernetesAuth(client, spec.RandomMounts, &spec.KubernetesAuthConfig, &spec.KubernetesTestRoleConfig, spec.Timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -429,7 +430,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctCassandraRead > 0 {
-		cassandra, err := setupCassandra(client, spec.RandomMounts, &spec.CassandraDBConfig, &spec.CassandraDBRoleConfig)
+		cassandra, err := setupCassandra(client, spec.RandomMounts, &spec.CassandraDBConfig, &spec.CassandraDBRoleConfig, spec.Timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -457,7 +458,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctRabbitRead > 0 {
-		rabbit, err := setupRabbit(client, spec.RandomMounts, &spec.RabbitMQConfig, &spec.RabbitMQRoleConfig)
+		rabbit, err := setupRabbit(client, spec.RandomMounts, &spec.RabbitMQConfig, &spec.RabbitMQRoleConfig, spec.Timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -471,7 +472,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctPostgreSQLRead > 0 {
-		postgresql, err := setupPostgreSQL(client, spec.RandomMounts, &spec.PostgreSQLDBConfig, &spec.PostgreSQLRoleConfig)
+		postgresql, err := setupPostgreSQL(client, spec.RandomMounts, &spec.PostgreSQLDBConfig, &spec.PostgreSQLRoleConfig, spec.Timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -485,7 +486,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 	if spec.PctCouchbaseRead > 0 {
-		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig)
+		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig, spec.Timeout)
 		if err != nil {
 			return nil, err
 		}

@@ -17,6 +17,7 @@ type rabbittest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	timeout    time.Duration
 }
 
 type RabbitMQConfig struct {
@@ -96,7 +97,7 @@ func (c *rabbittest) read(client *api.Client) vegeta.Target {
 }
 
 func (c *rabbittest) cleanup(client *api.Client) error {
-	client.SetClientTimeout(time.Second * 600)
+	client.SetClientTimeout(c.timeout)
 
 	// Revoke all leases
 	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
@@ -112,7 +113,7 @@ func (c *rabbittest) cleanup(client *api.Client) error {
 	return nil
 }
 
-func setupRabbit(client *api.Client, randomMounts bool, config *RabbitMQConfig, roleConfig *RabbitMQRoleConfig) (*rabbittest, error) {
+func setupRabbit(client *api.Client, randomMounts bool, config *RabbitMQConfig, roleConfig *RabbitMQRoleConfig, timeout time.Duration) (*rabbittest, error) {
 	rabbitPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -159,5 +160,6 @@ func setupRabbit(client *api.Client, randomMounts bool, config *RabbitMQConfig, 
 		pathPrefix: "/v1/" + rabbitPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		roleName:   roleConfig.Name,
+		timeout:    timeout,
 	}, nil
 }
