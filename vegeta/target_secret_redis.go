@@ -26,7 +26,7 @@ type RedisConfig struct {
 	Password     string   `json:"password"`
 	TLS          *bool    `json:"tls"`
 	InsecureTLS  *bool    `json:"insecure_tls"`
-	// TODO: add certs
+	CACert       string   `json:"ca_cert"`
 }
 
 type RedisDynamicRoleConfig struct {
@@ -90,6 +90,19 @@ func (c *RedisConfig) FromJSON(path string) error {
 }
 
 func (r *RedisDynamicRoleConfig) FromJSON(path string) error {
+	// defaults
+	defaultRoleName := "benchmark-role"
+	defaultCreationStatement := "[\"+@admin\"]"
+	defaultTTL := "1h"
+	defaultMaxTTL := "24h"
+
+	if path == "" {
+		r.RoleName = defaultRoleName
+		r.CreationStatements = defaultCreationStatement
+		r.DefaultTTL = defaultTTL
+		r.MaxTTL = defaultMaxTTL
+	}
+
 	// Load JSON config
 	file, err := os.Open(path)
 	if err != nil {
@@ -100,12 +113,6 @@ func (r *RedisDynamicRoleConfig) FromJSON(path string) error {
 	if err := decoder.Decode(r); err != nil {
 		return err
 	}
-
-	// Set defaults
-	defaultRoleName := "benchmark-role"
-	defaultCreationStatement := "[\"+@admin\"]"
-	defaultTTL := "1h"
-	defaultMaxTTL := "24h"
 
 	if r.RoleName == "" {
 		r.RoleName = defaultRoleName
@@ -161,6 +168,7 @@ func setupDynamicRoleRedis(client *api.Client, randomMounts bool, config *RedisC
 		"port":          *config.Port,
 		"username":      config.Username,
 		"password":      config.Password,
+		"ca_cert":       config.CACert,
 	})
 
 	if err != nil {

@@ -193,7 +193,7 @@ func main() {
 		}
 
 		if err := spec.RedisDynamicRoleConfigJSON.FromJSON(*redisDynamicRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse redis role config at %v: %v", *redisDynamicRoleConfigJSON, err)
+			log.Printf("no role config present, default role config used")
 		}
 	}
 
