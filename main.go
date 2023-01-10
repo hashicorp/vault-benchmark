@@ -469,7 +469,7 @@ func main() {
 		for _, client := range clients {
 			err := tm.Cleanup(client)
 			if err != nil {
-				log.Fatal("cleanup error", err)
+				log.Println("cleanup error", err)
 			}
 		}
 	}
