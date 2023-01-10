@@ -39,7 +39,7 @@ $ benchmark-vault \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_redis_dynamic_read=100 \
-    -redis_config_json=./configs/redis/redis_config.json
+    -redis_config_json=./configs/redis/redis_config.json \
     -redis_dynamic_role_config_json=./configs/redis/redis_dynamic_role_config.json
 op                            count  rate        throughput  mean         95th%        99th%        successRatio
 redis dynamic cred retrieval  7077   707.659551  706.959286  14.137498ms  25.264196ms  67.917547ms  100.00%
