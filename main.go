@@ -46,31 +46,33 @@ func main() {
 		annotate      = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
 		debug         = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
 
-		pkiSignConfigJSON         = flag.String("pki_sign_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
-		pkiConfigJSON             = flag.String("pki_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
-		sshCaConfigJSON           = flag.String("ssh_ca_config_json", "", "when specified, path to SSH CA benchmark configuration JSON file to use")
-		transitSignConfigJSON     = flag.String("transit_sign_config_json", "", "when specified, path to Transit sign benchmark configuration JSON file to use")
-		transitVerifyConfigJSON   = flag.String("transit_verify_config_json", "", "when specified, path to Transit verify benchmark configuration JSON file to use")
-		transitEncryptConfigJSON  = flag.String("transit_encrypt_config_json", "", "when specified, path to Transit encrypt benchmark configuration JSON file to use")
-		transitDecryptConfigJSON  = flag.String("transit_decrypt_config_json", "", "when specified, path to Transit decrypt benchmark configuration JSON file to use")
-		cassandraDBConfigJSON     = flag.String("cassandradb_config_json", "", "path to JSON file containing Vault CassandraDB configuration")
-		cassandraDBRoleConfigJSON = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
-		ldapConfigJSON            = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth/Secrets configuration")
-		ldapTestUserCredsJSON     = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
-		ldapStaticRoleConfigJSON  = flag.String("ldap_static_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine static role benchmarking")
-		ldapDynamicRoleConfigJSON = flag.String("ldap_dynamic_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine dynamic role benchmarking")
-		mongoDBConfigJSON         = flag.String("mongodb_config_json", "", "path to JSON file containing Vault MongoDB configuration")
-		mongoDBRoleConfigJSON     = flag.String("mongodb_role_config_json", "", "when specified, path to MongoDB benchmark role configuration JSON file to use")
-		rabbitMQConfigJSON        = flag.String("rabbitmq_config_json", "", "path to JSON file containing Vault RabbitMQ configuration")
-		rabbitMQRoleConfigJSON    = flag.String("rabbitmq_role_config_json", "", "when specified, path to RabbitMQ benchmark role configuration JSON file to use")
-		postgresqlDBConfigJSON    = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
-		postgresqlRoleConfigJSON  = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
-		couchbaseConfigJSON       = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
-		couchbaseRoleConfigJSON   = flag.String("couchbase_role_config_json", "", "when specified, path to Couchbase benchmark role configuration JSON file to use")
-		kubernetesConfigJSON      = flag.String("k8s_config_json", "", "path to JSON file containing Vault Kubernetes Auth configuration")
-		kubernetesRoleConfigJSON  = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
-		sshSignerCAConfigJSON     = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
-		sshSignerRoleConfigJSON   = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
+		pkiConfigJSON              = flag.String("pki_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
+		sshCaConfigJSON            = flag.String("ssh_ca_config_json", "", "when specified, path to SSH CA benchmark configuration JSON file to use")
+		transitSignConfigJSON      = flag.String("transit_sign_config_json", "", "when specified, path to Transit sign benchmark configuration JSON file to use")
+		transitVerifyConfigJSON    = flag.String("transit_verify_config_json", "", "when specified, path to Transit verify benchmark configuration JSON file to use")
+		transitEncryptConfigJSON   = flag.String("transit_encrypt_config_json", "", "when specified, path to Transit encrypt benchmark configuration JSON file to use")
+		transitDecryptConfigJSON   = flag.String("transit_decrypt_config_json", "", "when specified, path to Transit decrypt benchmark configuration JSON file to use")
+		cassandraDBConfigJSON      = flag.String("cassandradb_config_json", "", "path to JSON file containing Vault CassandraDB configuration")
+		cassandraDBRoleConfigJSON  = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
+		ldapConfigJSON             = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth/Secrets configuration")
+		ldapTestUserCredsJSON      = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
+		ldapStaticRoleConfigJSON   = flag.String("ldap_static_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine static role benchmarking")
+		ldapDynamicRoleConfigJSON  = flag.String("ldap_dynamic_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine dynamic role benchmarking")
+		mongoDBConfigJSON          = flag.String("mongodb_config_json", "", "path to JSON file containing Vault MongoDB configuration")
+		mongoDBRoleConfigJSON      = flag.String("mongodb_role_config_json", "", "when specified, path to MongoDB benchmark role configuration JSON file to use")
+		redisConfigJSON            = flag.String("redis_config_json", "", "path to JSON file containing Vault redis configuration")
+		redisDynamicRoleConfigJSON = flag.String("redis_dynamic_role_config_json", "", "when specified, path to redis dynamic role configuration JSON file to use")
+		// TODO: add redis static role config
+		rabbitMQConfigJSON       = flag.String("rabbitmq_config_json", "", "path to JSON file containing Vault RabbitMQ configuration")
+		rabbitMQRoleConfigJSON   = flag.String("rabbitmq_role_config_json", "", "when specified, path to RabbitMQ benchmark role configuration JSON file to use")
+		postgresqlDBConfigJSON   = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
+		postgresqlRoleConfigJSON = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
+		couchbaseConfigJSON      = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
+		couchbaseRoleConfigJSON  = flag.String("couchbase_role_config_json", "", "when specified, path to Couchbase benchmark role configuration JSON file to use")
+		kubernetesConfigJSON     = flag.String("k8s_config_json", "", "path to JSON file containing Vault Kubernetes Auth configuration")
+		kubernetesRoleConfigJSON = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
+		sshSignerCAConfigJSON    = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
+		sshSignerRoleConfigJSON  = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
 	)
 
 	// test-related settings
@@ -103,6 +105,7 @@ func main() {
 	flag.IntVar(&spec.PctLDAPStaticRotate, "pct_ldap_static_role_rotate", 0, "percent of requests that are LDAP static role rotates")
 	flag.IntVar(&spec.PctLDAPDynamicRead, "pct_ldap_dynamic_role_read", 0, "percent of requests that are LDAP dynamic reads")
 	flag.IntVar(&spec.PctMongoRead, "pct_mongodb_read", 0, "percent of requests that are MongoDB credential generations")
+	flag.IntVar(&spec.PctRedisDynamicRead, "pct_redis_dynamic_read", 0, "percent of requests that are redis dynamic credential generations")
 	flag.IntVar(&spec.PctRabbitRead, "pct_rabbitmq_read", 0, "percent of requests that are RabbitMQ credential generations")
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
@@ -181,6 +184,16 @@ func main() {
 
 		if err := spec.MongoDBRoleConfig.FromJSON(*mongoDBRoleConfigJSON); err != nil {
 			log.Fatalf("unable to parse MongoDB Role config at %v: %v", *mongoDBRoleConfigJSON, err)
+		}
+	}
+
+	if spec.PctRedisDynamicRead > 0 {
+		if err := spec.RedisConfig.FromJSON(*redisConfigJSON); err != nil {
+			log.Fatalf("unable to parse redis config at %v: %v", *redisConfigJSON, err)
+		}
+
+		if err := spec.RedisDynamicRoleConfigJSON.FromJSON(*redisDynamicRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse redis role config at %v: %v", *redisDynamicRoleConfigJSON, err)
 		}
 	}
 

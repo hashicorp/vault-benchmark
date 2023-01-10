@@ -107,65 +107,66 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 }
 
 type TestSpecification struct {
-	Cleanup                  bool
-	NumKVs                   int
-	KVSize                   int
-	RandomMounts             bool
-	TokenTTL                 time.Duration
-	Timeout                  time.Duration
-	PctKvv1Read              int
-	PctKvv1Write             int
-	PctKvv2Read              int
-	PctKvv2Write             int
-	PctPkiIssue              int
-	PkiConfig                PkiTestConfig
-	PctApproleLogin          int
-	PctCertLogin             int
-	PctSshCaIssue            int
-	SshCaConfig              SshCaTestConfig
-	PctHAStatus              int
-	PctSealStatus            int
-	PctMetrics               int
-	PctTransitSign           int
-	TransitSignConfig        transitTestConfig
-	PctTransitVerify         int
-	TransitVerifyConfig      transitTestConfig
-	PctTransitEncrypt        int
-	TransitEncryptConfig     transitTestConfig
-	PctTransitDecrypt        int
-	TransitDecryptConfig     transitTestConfig
-	PctCassandraRead         int
-	CassandraDBConfig        CassandraDBConfig
-	CassandraDBRoleConfig    CassandraRoleConfig
-	PctLDAPLogin             int
-	LDAPAuthConfig           LDAPAuthConfig
-	LDAPTestUserConfig       LDAPTestUserConfig
-	PctMongoRead             int
-	MongoDBConfig            MongoDBConfig
-	MongoDBRoleConfig        MongoRoleConfig
-	PctRabbitRead            int
-	RabbitMQConfig           RabbitMQConfig
-	RabbitMQRoleConfig       RabbitMQRoleConfig
-	PctLDAPStaticRead        int
-	PctLDAPStaticRotate      int
-	PctLDAPDynamicRead       int
-	LDAPSecretConfig         LDAPSecretConfig
-	LDAPStaticRoleConfig     LDAPStaticRoleConfig
-	LDAPDynamicRoleConfig    LDAPDynamicRoleConfig
-	PctPostgreSQLRead        int
-	PostgreSQLDBConfig       PostgreSQLDBConfig
-	PostgreSQLRoleConfig     PostgreSQLRoleConfig
-	PctCouchbaseRead         int
-	CouchbaseConfig          CouchbaseConfig
-	CouchbaseRoleConfig      CouchbaseRoleConfig
-	PctKubernetesLogin       int
-	KubernetesAuthConfig     KubernetesAuthConfig
-	KubernetesTestRoleConfig KubernetesTestRoleConfig
-	PctSSHSign               int
-	SSHSignerCAConfig        SSHSignerCAConfig
-	SSHSignerRoleConfig      SSHSignerRoleConfig
-	PctPkiSign               int
-	PkiSignConfig            PkiSignTestConfig
+	NumKVs                     int
+	KVSize                     int
+	RandomMounts               bool
+	TokenTTL                   time.Duration
+	PctKvv1Read                int
+	PctKvv1Write               int
+	PctKvv2Read                int
+	PctKvv2Write               int
+	PctPkiIssue                int
+	PkiConfig                  PkiTestConfig
+	PctApproleLogin            int
+	PctCertLogin               int
+	PctSshCaIssue              int
+	SshCaConfig                SshCaTestConfig
+	PctHAStatus                int
+	PctSealStatus              int
+	PctMetrics                 int
+	PctTransitSign             int
+	TransitSignConfig          transitTestConfig
+	PctTransitVerify           int
+	TransitVerifyConfig        transitTestConfig
+	PctTransitEncrypt          int
+	TransitEncryptConfig       transitTestConfig
+	PctTransitDecrypt          int
+	TransitDecryptConfig       transitTestConfig
+	PctCassandraRead           int
+	CassandraDBConfig          CassandraDBConfig
+	CassandraDBRoleConfig      CassandraRoleConfig
+	PctLDAPLogin               int
+	LDAPAuthConfig             LDAPAuthConfig
+	LDAPTestUserConfig         LDAPTestUserConfig
+	PctMongoRead               int
+	MongoDBConfig              MongoDBConfig
+	MongoDBRoleConfig          MongoRoleConfig
+	PctRabbitRead              int
+	RabbitMQConfig             RabbitMQConfig
+	RabbitMQRoleConfig         RabbitMQRoleConfig
+	PctLDAPStaticRead          int
+	PctLDAPStaticRotate        int
+	PctLDAPDynamicRead         int
+	LDAPSecretConfig           LDAPSecretConfig
+	LDAPStaticRoleConfig       LDAPStaticRoleConfig
+	LDAPDynamicRoleConfig      LDAPDynamicRoleConfig
+	PctPostgreSQLRead          int
+	PostgreSQLDBConfig         PostgreSQLDBConfig
+	PostgreSQLRoleConfig       PostgreSQLRoleConfig
+	PctCouchbaseRead           int
+	CouchbaseConfig            CouchbaseConfig
+	CouchbaseRoleConfig        CouchbaseRoleConfig
+	PctKubernetesLogin         int
+	KubernetesAuthConfig       KubernetesAuthConfig
+	KubernetesTestRoleConfig   KubernetesTestRoleConfig
+	PctSSHSign                 int
+	SSHSignerCAConfig          SSHSignerCAConfig
+	SSHSignerRoleConfig        SSHSignerRoleConfig
+	PctPkiSign                 int
+	PkiSignConfig              PkiSignTestConfig
+	PctRedisDynamicRead        int
+	RedisConfig                RedisConfig
+	RedisDynamicRoleConfigJSON RedisDynamicRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -472,6 +473,22 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			cleanup:    mongo.cleanup,
 		})
 	}
+
+	if spec.PctRedisDynamicRead > 0 {
+		redis, err := setupDynamicRoleRedis(client, spec.RandomMounts, &spec.RedisConfig, &spec.RedisDynamicRoleConfigJSON)
+		if err != nil {
+			return nil, err
+		}
+
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "redis dynamic cred retrieval",
+			method:     "GET",
+			pathPrefix: redis.pathPrefix,
+			percent:    spec.PctRedisDynamicRead,
+			target:     redis.read,
+		})
+	}
+
 	if spec.PctRabbitRead > 0 {
 		rabbit, err := setupRabbit(client, spec.RandomMounts, &spec.RabbitMQConfig, &spec.RabbitMQRoleConfig, spec.Timeout)
 		if err != nil {
