@@ -459,21 +459,18 @@ func main() {
 			// TODO rethink how we present results when multiple nodes are attacked
 			results[client.Address()] = rpt
 			l.Unlock()
+
+			if spec.Cleanup {
+				err := tm.Cleanup(client)
+				if err != nil {
+					log.Println("cleanup error", err)
+				}
+			}
 		}(client)
 	}
 	testRunning.WithLabelValues(annoValues...).Set(0)
 
 	wg.Wait()
-
-	// Cleanup mounts
-	if spec.Cleanup {
-		for _, client := range clients {
-			err := tm.Cleanup(client)
-			if err != nil {
-				log.Println("cleanup error", err)
-			}
-		}
-	}
 
 	for _, client := range clients {
 		addr := client.Address()
