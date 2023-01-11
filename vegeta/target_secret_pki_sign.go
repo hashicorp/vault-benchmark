@@ -15,6 +15,8 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
+const defaultBenchmarkingCertTTL = "87600h"
+
 type pkiSignTest struct {
 	pathPrefix string
 	cn         string
@@ -160,7 +162,7 @@ func createSigningRootCA(cli *api.Client, pfx string, config PkiSignTestConfig) 
 	err := cli.Sys().Mount(rootPath, &api.MountInput{
 		Type: "pki",
 		Config: api.MountConfigInput{
-			MaxLeaseTTL: "87600h",
+			MaxLeaseTTL: defaultBenchmarkingCertTTL,
 		},
 	})
 	if err != nil {
@@ -174,7 +176,7 @@ func createSigningRootCA(cli *api.Client, pfx string, config PkiSignTestConfig) 
 
 	_, err = cli.Logical().Write(rootPath+"/root/generate/internal", map[string]interface{}{
 		"common_name": "example.com",
-		"ttl":         "87600h",
+		"ttl":         defaultBenchmarkingCertTTL,
 		"key_type":    config.RootKeyType,
 		"key_bits":    config.RootKeyBits,
 	})
@@ -195,7 +197,7 @@ func createIntermediateSigningCA(cli *api.Client, pfx string, config PkiSignTest
 	err := cli.Sys().Mount(intPath, &api.MountInput{
 		Type: "pki",
 		Config: api.MountConfigInput{
-			MaxLeaseTTL: "87600h",
+			MaxLeaseTTL: defaultBenchmarkingCertTTL,
 		},
 	})
 	if err != nil {
@@ -209,7 +211,7 @@ func createIntermediateSigningCA(cli *api.Client, pfx string, config PkiSignTest
 
 	resp, err := cli.Logical().Write(intPath+"/intermediate/generate/internal", map[string]interface{}{
 		"common_name": "example.com Intermediate Authority",
-		"ttl":         "87600h",
+		"ttl":         defaultBenchmarkingCertTTL,
 		"key_type":    config.IntKeyType,
 		"key_bits":    config.IntKeyBits,
 	})
