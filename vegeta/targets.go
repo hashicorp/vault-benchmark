@@ -152,6 +152,8 @@ type TestSpecification struct {
 	PctSSHSign               int
 	SSHSignerCAConfig        SSHSignerCAConfig
 	SSHSignerRoleConfig      SSHSignerRoleConfig
+	PctPkiSign               int
+	PkiSignConfig            PkiSignTestConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -300,6 +302,19 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: pki.pathPrefix,
 			percent:    spec.PctPkiIssue,
 			target:     pki.write,
+		})
+	}
+	if spec.PctPkiSign > 0 {
+		pkiSign, err := setupPKISigning(client, spec.RandomMounts, spec.PkiSignConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "pki sign",
+			method:     "POST",
+			pathPrefix: pkiSign.pathPrefix,
+			percent:    spec.PctPkiSign,
+			target:     pkiSign.sign,
 		})
 	}
 	if spec.PctSshCaIssue > 0 {
