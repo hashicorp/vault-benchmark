@@ -46,6 +46,7 @@ func main() {
 		annotate      = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
 		debug         = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
 
+		pkiSignConfigJSON          = flag.String("pki_sign_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
 		pkiConfigJSON              = flag.String("pki_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
 		sshCaConfigJSON            = flag.String("ssh_ca_config_json", "", "when specified, path to SSH CA benchmark configuration JSON file to use")
 		transitSignConfigJSON      = flag.String("transit_sign_config_json", "", "when specified, path to Transit sign benchmark configuration JSON file to use")
