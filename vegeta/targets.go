@@ -166,8 +166,10 @@ type TestSpecification struct {
 	PctPkiSign                 int
 	PkiSignConfig              PkiSignTestConfig
 	PctRedisDynamicRead        int
+	PctRedisStaticRead         int
 	RedisConfig                RedisConfig
 	RedisDynamicRoleConfigJSON RedisDynamicRoleConfig
+	RedisStaticRoleConfigJSON  RedisStaticRoleConfig
 	Timeout                    time.Duration
 }
 
@@ -487,7 +489,22 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			method:     "GET",
 			pathPrefix: redis.pathPrefix,
 			percent:    spec.PctRedisDynamicRead,
-			target:     redis.read,
+			target:     redis.readDynamic,
+		})
+	}
+
+	if spec.PctRedisStaticRead > 0 {
+		redis, err := setupStaticRoleRedis(client, spec.RandomMounts, &spec.RedisConfig, &spec.RedisStaticRoleConfigJSON)
+		if err != nil {
+			return nil, err
+		}
+
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "redis static cred retrieval",
+			method:     "GET",
+			pathPrefix: redis.pathPrefix,
+			percent:    spec.PctRedisStaticRead,
+			target:     redis.readStatic,
 		})
 	}
 

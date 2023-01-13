@@ -36,6 +36,12 @@ type RedisDynamicRoleConfig struct {
 	CreationStatements string `json:"creation_statements"`
 }
 
+type RedisStaticRoleConfig struct {
+	RoleName       string `json:"role_name"`
+	RotationPeriod string `json:"rotation_period"`
+	Username       string `json:"username"`
+}
+
 func (c *RedisConfig) FromJSON(path string) error {
 	if path == "" {
 		return fmt.Errorf("no redis config passed but is required")
@@ -133,10 +139,56 @@ func (r *RedisDynamicRoleConfig) FromJSON(path string) error {
 	return nil
 }
 
-func (c *redistest) read(client *api.Client) vegeta.Target {
+func (r *RedisStaticRoleConfig) FromJSON(path string) error {
+	// defaults
+	defaultRoleName := "benchmark-role"
+	defaultUsername := "vault-admin"
+	defaultRotationPeriod := "5m"
+
+	if path == "" {
+		r.RoleName = defaultRoleName
+		r.Username = defaultUsername
+		r.RotationPeriod = defaultRotationPeriod
+	}
+
+	// Load JSON config
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(r); err != nil {
+		return err
+	}
+
+	if r.RoleName == "" {
+		r.RoleName = defaultRoleName
+	}
+
+	if r.Username == "" {
+		r.Username = defaultUsername
+	}
+
+	if r.RotationPeriod == "" {
+		r.RotationPeriod = defaultRotationPeriod
+	}
+
+	return nil
+}
+
+func (c *redistest) readDynamic(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: "GET",
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *redistest) readStatic(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: "GET",
+		URL:    client.Address() + c.pathPrefix + "/static-creds/" + c.roleName,
 		Header: c.header,
 	}
 }
@@ -182,6 +234,59 @@ func setupDynamicRoleRedis(client *api.Client, randomMounts bool, config *RedisC
 		"creation_statements": roleConfig.CreationStatements,
 		"default_ttl":         roleConfig.DefaultTTL,
 		"max_ttl":             roleConfig.MaxTTL,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error writing redis db role: %v", err)
+	}
+
+	return &redistest{
+		pathPrefix: "/v1/" + redisPath,
+		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		roleName:   roleConfig.RoleName,
+	}, nil
+}
+
+func setupStaticRoleRedis(client *api.Client, randomMounts bool, config *RedisConfig, roleConfig *RedisStaticRoleConfig) (*redistest, error) {
+	redisPath, err := uuid.GenerateUUID()
+	if err != nil {
+		panic("can't create UUID")
+	}
+
+	if !randomMounts {
+		redisPath = "redis"
+	}
+
+	err = client.Sys().Mount(redisPath, &api.MountInput{
+		Type: "database",
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error mounting db: %v", err)
+	}
+
+	// Write DB config
+	configPath := fmt.Sprintf("%s/config/%s", redisPath, config.DBName)
+	_, err = client.Logical().Write(configPath, map[string]interface{}{
+		"plugin_name":   "redis-database-plugin",
+		"allowed_roles": config.AllowedRoles,
+		"host":          config.Host,
+		"port":          *config.Port,
+		"username":      config.Username,
+		"password":      config.Password,
+		"ca_cert":       config.CACert,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error writing redis db config: %v", err)
+	}
+
+	// Create Role
+	rolePath := fmt.Sprintf("%v/static-roles/%v", redisPath, roleConfig.RoleName)
+	_, err = client.Logical().Write(rolePath, map[string]interface{}{
+		"db_name":         config.DBName,
+		"username":        roleConfig.Username,
+		"rotation_period": roleConfig.RotationPeriod,
 	})
 
 	if err != nil {
