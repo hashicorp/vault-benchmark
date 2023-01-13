@@ -107,6 +107,7 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 }
 
 type TestSpecification struct {
+	Cleanup                    bool
 	NumKVs                     int
 	KVSize                     int
 	RandomMounts               bool
@@ -167,6 +168,7 @@ type TestSpecification struct {
 	PctRedisDynamicRead        int
 	RedisConfig                RedisConfig
 	RedisDynamicRoleConfigJSON RedisDynamicRoleConfig
+	Timeout                    time.Duration
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
