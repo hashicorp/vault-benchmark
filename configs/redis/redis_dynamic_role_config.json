@@ -1,0 +1,6 @@
+{
+    "role_name": "my-dynamic-role",
+    "creation_statements": "[\"+@admin\"]",
+    "default_ttl": "5m",
+    "max_ttl": "1h"
+  }
