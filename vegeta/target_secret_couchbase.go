@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -15,6 +17,7 @@ type couchbasetest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	timeout    time.Duration
 }
 
 type CouchbaseConfig struct {
@@ -107,7 +110,24 @@ func (c *couchbasetest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig) (*couchbasetest, error) {
+func (c *couchbasetest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(c.timeout)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConfig, roleConfig *CouchbaseRoleConfig, timeout time.Duration) (*couchbasetest, error) {
 	couchbasePath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -158,5 +178,6 @@ func setupCouchbase(client *api.Client, randomMounts bool, config *CouchbaseConf
 		pathPrefix: "/v1/" + couchbasePath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		roleName:   roleConfig.Name,
+		timeout:    timeout,
 	}, nil
 }

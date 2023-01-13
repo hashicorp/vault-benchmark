@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,6 +27,22 @@ func (p *pkiTest) write(client *api.Client) vegeta.Target {
 		Body:   []byte(fmt.Sprintf(`{"common_name": "%s"}`, p.cn)),
 		Header: p.header,
 	}
+}
+
+func (p *pkiTest) cleanup(client *api.Client) error {
+	re := regexp.MustCompile(`/v1/(\S+)(?:-int)/\S+/\S+`)
+	pfx := re.ReplaceAllString(p.pathPrefix, "/sys/mounts/$1")
+
+	_, err := client.Logical().Delete(pfx + "-root")
+	if err != nil {
+		return fmt.Errorf("error cleaning up root mount: %v", err)
+	}
+
+	_, err = client.Logical().Delete(pfx + "-int")
+	if err != nil {
+		return fmt.Errorf("error cleaning up int mount: %v", err)
+	}
+	return nil
 }
 
 type PkiTestConfig struct {

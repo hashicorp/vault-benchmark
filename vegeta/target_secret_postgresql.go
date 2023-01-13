@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -15,6 +17,7 @@ type postgresqltest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	timeout    time.Duration
 }
 
 type PostgreSQLDBConfig struct {
@@ -113,7 +116,24 @@ func (c *postgresqltest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupPostgreSQL(client *api.Client, randomMounts bool, config *PostgreSQLDBConfig, roleConfig *PostgreSQLRoleConfig) (*postgresqltest, error) {
+func (c *postgresqltest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(c.timeout)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func setupPostgreSQL(client *api.Client, randomMounts bool, config *PostgreSQLDBConfig, roleConfig *PostgreSQLRoleConfig, timeout time.Duration) (*postgresqltest, error) {
 	postgresqlPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -171,5 +191,6 @@ func setupPostgreSQL(client *api.Client, randomMounts bool, config *PostgreSQLDB
 		pathPrefix: "/v1/" + postgresqlPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		roleName:   roleConfig.Name,
+		timeout:    timeout,
 	}, nil
 }

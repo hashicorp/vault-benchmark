@@ -76,9 +76,11 @@ func main() {
 	// test-related settings
 	var spec = vegeta.TestSpecification{}
 	flag.BoolVar(&spec.RandomMounts, "random_mounts", true, "use random mount path names for each test")
+	flag.BoolVar(&spec.Cleanup, "cleanup", true, "cleanup after test run")
 	flag.IntVar(&spec.NumKVs, "numkvs", 1000, "num KVs to use for KV operations")
 	flag.IntVar(&spec.KVSize, "kvsize", 1, "num KVs to use for KV operations")
 	flag.DurationVar(&spec.TokenTTL, "token_ttl", time.Hour, "ttl to use for logins")
+	flag.DurationVar(&spec.Timeout, "timeout", time.Second*60, "length of timeout for Vault client")
 	flag.IntVar(&spec.PctKvv1Write, "pct_kvv1_write", 0, "percent of requests that are kvv1 writes")
 	flag.IntVar(&spec.PctKvv1Read, "pct_kvv1_read", 0, "percent of requests that are kvv1 reads")
 	flag.IntVar(&spec.PctKvv2Write, "pct_kvv2_write", 0, "percent of requests that are kvv2 writes")
@@ -116,6 +118,11 @@ func main() {
 	flag.DurationVar(&spec.TransitDecryptConfig.SetupDelay, "transit_decrypt_setup_delay", 50*time.Millisecond, "When running Transit decrypt tests, delay after creating mount before attempting key creation")
 
 	flag.Parse()
+
+	// Only allow cleanup when random mounts is enabled
+	if !spec.RandomMounts && spec.Cleanup {
+		log.Fatal("Cleanup can only be enabled when random mounts is enabled")
+	}
 
 	if err := spec.PkiConfig.FromJSON(*pkiConfigJSON); err != nil {
 		log.Fatalf("unable to parse PKI config at %v: %v", *pkiConfigJSON, err)
@@ -458,6 +465,13 @@ func main() {
 			// TODO rethink how we present results when multiple nodes are attacked
 			results[client.Address()] = rpt
 			l.Unlock()
+
+			if spec.Cleanup {
+				err := tm.Cleanup(client)
+				if err != nil {
+					log.Println("cleanup error", err)
+				}
+			}
 		}(client)
 	}
 	testRunning.WithLabelValues(annoValues...).Set(0)

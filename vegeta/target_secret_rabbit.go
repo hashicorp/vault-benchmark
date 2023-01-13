@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -15,6 +17,7 @@ type rabbittest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	timeout    time.Duration
 }
 
 type RabbitMQConfig struct {
@@ -93,7 +96,24 @@ func (c *rabbittest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupRabbit(client *api.Client, randomMounts bool, config *RabbitMQConfig, roleConfig *RabbitMQRoleConfig) (*rabbittest, error) {
+func (c *rabbittest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(c.timeout)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func setupRabbit(client *api.Client, randomMounts bool, config *RabbitMQConfig, roleConfig *RabbitMQRoleConfig, timeout time.Duration) (*rabbittest, error) {
 	rabbitPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -140,5 +160,6 @@ func setupRabbit(client *api.Client, randomMounts bool, config *RabbitMQConfig, 
 		pathPrefix: "/v1/" + rabbitPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		roleName:   roleConfig.Name,
+		timeout:    timeout,
 	}, nil
 }

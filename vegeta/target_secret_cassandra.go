@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -15,6 +17,7 @@ type cassandratest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	timeout    time.Duration
 }
 
 type CassandraDBConfig struct {
@@ -116,7 +119,24 @@ func (c *cassandratest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupCassandra(client *api.Client, randomMounts bool, config *CassandraDBConfig, roleConfig *CassandraRoleConfig) (*cassandratest, error) {
+func (c *cassandratest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(c.timeout)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func setupCassandra(client *api.Client, randomMounts bool, config *CassandraDBConfig, roleConfig *CassandraRoleConfig, timeout time.Duration) (*cassandratest, error) {
 	cassandraPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -175,5 +195,6 @@ func setupCassandra(client *api.Client, randomMounts bool, config *CassandraDBCo
 		pathPrefix: "/v1/" + cassandraPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		roleName:   roleConfig.Name,
+		timeout:    timeout,
 	}, nil
 }

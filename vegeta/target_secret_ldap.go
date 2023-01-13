@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -159,6 +160,15 @@ func (l *ldapsecrettest) readDynamic(client *api.Client) vegeta.Target {
 		URL:    client.Address() + l.pathPrefix + "/creds/" + l.roleName,
 		Header: l.header,
 	}
+}
+
+func (l *ldapsecrettest) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupLDAPStaticSecret(client *api.Client, randomMounts bool, config *LDAPSecretConfig, roleConfig *LDAPStaticRoleConfig) (*ldapsecrettest, error) {

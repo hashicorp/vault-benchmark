@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -17,6 +19,7 @@ type kubernetestest struct {
 	roleName   string
 	jwt        string
 	header     http.Header
+	timeout    time.Duration
 }
 
 type KubernetesAuthConfig struct {
@@ -119,7 +122,24 @@ func (k *kubernetestest) login(client *api.Client) vegeta.Target {
 	}
 }
 
-func setupKubernetesAuth(client *api.Client, randomMounts bool, config *KubernetesAuthConfig, testRoleConfig *KubernetesTestRoleConfig) (*kubernetestest, error) {
+func (k *kubernetestest) cleanup(client *api.Client) error {
+	client.SetClientTimeout(k.timeout)
+
+	// Revoke all leases
+	_, err := client.Logical().Write(strings.Replace(k.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("error cleaning up leases: %v", err)
+	}
+
+	_, err = client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func setupKubernetesAuth(client *api.Client, randomMounts bool, config *KubernetesAuthConfig, testRoleConfig *KubernetesTestRoleConfig, timeout time.Duration) (*kubernetestest, error) {
 	authPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -184,6 +204,7 @@ func setupKubernetesAuth(client *api.Client, randomMounts bool, config *Kubernet
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleName:   testRoleConfig.Name,
 		jwt:        jwt,
+		timeout:    timeout,
 	}, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -105,6 +106,15 @@ func (c *mongotest) read(client *api.Client) vegeta.Target {
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
 		Header: c.header,
 	}
+}
+
+func (c *mongotest) cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupMongo(client *api.Client, randomMounts bool, config *MongoDBConfig, roleConfig *MongoRoleConfig) (*mongotest, error) {

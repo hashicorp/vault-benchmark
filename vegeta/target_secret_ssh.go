@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/hashicorp/go-uuid"
@@ -26,6 +27,16 @@ func (s *sshTest) write(client *api.Client) vegeta.Target {
 		Body:   []byte(fmt.Sprintf(`{"key_type": "%s", "key_bits": "%d"}`, s.keyType, s.keyBits)),
 		Header: s.header,
 	}
+}
+
+func (s *sshTest) cleanup(client *api.Client) error {
+	re := regexp.MustCompile(`(?m)/v1/(\S+)/\S+/\S+`)
+	_, err := client.Logical().Delete(re.ReplaceAllString(s.pathPrefix, "/sys/mounts/$1"))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }
 
 func setupSSH(client *api.Client, randomMounts bool, config SshCaTestConfig) (*sshTest, error) {
