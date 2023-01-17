@@ -8,8 +8,8 @@ In order to use this test, configuration for the Redis instance MUST be provided
  A role configuration file can be passed as well via the `redis_dynamic_role_config_json` or `redis_static_role_config_json` flag.
 
 ## Test Parameters (minimum 1 required)
-- `pct_redis_dynamic_read`: percent of requests that are redis dynamic credential generations
-- `pct_redis_static_read`: percent of requests that are redis static credential generations
+- `pct_redis_dynamic_read`: percent of requests that are Redis dynamic credential generations
+- `pct_redis_static_read`: percent of requests that are Redis static credential generations
 
 
 ## Additional Parameters
