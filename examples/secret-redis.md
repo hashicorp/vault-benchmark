@@ -31,7 +31,7 @@ In order to use this test, configuration for the Redis instance MUST be provided
 
  Defaults for static role configuration are:
  ```
- 	"role_name": "benchmark-role",
+    "role_name": "benchmark-role",
     "username": "vault-admin",
     "rotation_period": "5m"
 ```
