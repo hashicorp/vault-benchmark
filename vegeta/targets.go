@@ -490,6 +490,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: redis.pathPrefix,
 			percent:    spec.PctRedisDynamicRead,
 			target:     redis.readDynamic,
+			cleanup:    redis.cleanup,
 		})
 	}
 
@@ -505,6 +506,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			pathPrefix: redis.pathPrefix,
 			percent:    spec.PctRedisStaticRead,
 			target:     redis.readStatic,
+			cleanup:    redis.cleanup,
 		})
 	}
 
