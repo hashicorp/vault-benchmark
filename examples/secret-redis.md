@@ -16,7 +16,7 @@ In order to use this test, configuration for the Redis instance MUST be provided
 
 - `redis_config_json` _(required)_: path to JSON file containing Vault redis configuration.  Configuration options can be found in the [Redis Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/databases/redis).  Example configuration files can be found in the [redis configuration directory](/configs/redis/).
 - `redis_dynamic_role_config_json`: path to a JSON file containing the redis dynamic role configuration.
-- `redis_static_role_config_json`: path to a JSON file containing the redis static role configuration.
+- `redis_static_role_config_json`: path to a JSON file containing the Redis static role configuration.
 
 
 ### Default Redis Role Configuration
