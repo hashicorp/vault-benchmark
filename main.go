@@ -63,6 +63,7 @@ func main() {
 		mongoDBRoleConfigJSON      = flag.String("mongodb_role_config_json", "", "when specified, path to MongoDB benchmark role configuration JSON file to use")
 		redisConfigJSON            = flag.String("redis_config_json", "", "path to JSON file containing Vault redis configuration")
 		redisDynamicRoleConfigJSON = flag.String("redis_dynamic_role_config_json", "", "when specified, path to redis dynamic role configuration JSON file to use")
+		redisStaticRoleConfigJSON  = flag.String("redis_static_role_config_json", "", "when specified, path to redis static role configuration JSON file to use")
 		rabbitMQConfigJSON         = flag.String("rabbitmq_config_json", "", "path to JSON file containing Vault RabbitMQ configuration")
 		rabbitMQRoleConfigJSON     = flag.String("rabbitmq_role_config_json", "", "when specified, path to RabbitMQ benchmark role configuration JSON file to use")
 		postgresqlDBConfigJSON     = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
@@ -106,6 +107,7 @@ func main() {
 	flag.IntVar(&spec.PctLDAPDynamicRead, "pct_ldap_dynamic_role_read", 0, "percent of requests that are LDAP dynamic reads")
 	flag.IntVar(&spec.PctMongoRead, "pct_mongodb_read", 0, "percent of requests that are MongoDB credential generations")
 	flag.IntVar(&spec.PctRedisDynamicRead, "pct_redis_dynamic_read", 0, "percent of requests that are redis dynamic credential generations")
+	flag.IntVar(&spec.PctRedisStaticRead, "pct_redis_static_read", 0, "percent of requests that are redis static credential generations")
 	flag.IntVar(&spec.PctRabbitRead, "pct_rabbitmq_read", 0, "percent of requests that are RabbitMQ credential generations")
 	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
@@ -193,6 +195,16 @@ func main() {
 		}
 
 		if err := spec.RedisDynamicRoleConfigJSON.FromJSON(*redisDynamicRoleConfigJSON); err != nil {
+			log.Printf("no role config present, default role config used")
+		}
+	}
+
+	if spec.PctRedisStaticRead > 0 {
+		if err := spec.RedisConfig.FromJSON(*redisConfigJSON); err != nil {
+			log.Fatalf("unable to parse redis config at %v: %v", *redisConfigJSON, err)
+		}
+
+		if err := spec.RedisStaticRoleConfigJSON.FromJSON(*redisStaticRoleConfigJSON); err != nil {
 			log.Printf("no role config present, default role config used")
 		}
 	}
