@@ -56,6 +56,8 @@ func (c *RedisConfig) FromJSON(path string) error {
 		return err
 	}
 
+	defer file.Close()
+
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(c); err != nil {
 		return err
@@ -118,6 +120,8 @@ func (r *RedisDynamicRoleConfig) FromJSON(path string) error {
 		return err
 	}
 
+	defer file.Close()
+
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(r); err != nil {
 		return err
@@ -159,6 +163,8 @@ func (r *RedisStaticRoleConfig) FromJSON(path string) error {
 	if err != nil {
 		return err
 	}
+
+	defer file.Close()
 
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(r); err != nil {
