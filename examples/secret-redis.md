@@ -51,7 +51,13 @@ redis dynamic cred retrieval  7077   707.659551  706.959286  14.137498ms  25.264
 
 
 ```bash
-$ ./dist/benchmark-vault -vault_addr=http://localhost:8200 -vault_token=dev -pct_redis_static_read=100 -redis_config_json=./configs/redis/redis_config.json -redis_static_role_config_json=./configs/redis/redis_static_role_config.json -cleanup=false
+$ benchmark-vault \
+    -vault_addr=http://localhost:8200 \
+    -vault_token=dev \
+    -pct_redis_static_read=100 \
+    -redis_config_json=/path/to/redis_config.json \
+    -redis_static_role_config_json=path/to/redis_static_role_config.json \
+    -cleanup=false
 op                           count   rate          throughput    mean       95th%       99th%       successRatio
 redis static cred retrieval  116183  11618.136135  11616.705220  856.629µs  1.863952ms  2.903061ms  100.00%
 ```
