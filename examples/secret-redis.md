@@ -1,6 +1,6 @@
 # Redis Secret Configuration Options
 
-This benchmark will test the dynamic generation of redis credentials. 
+This benchmark will test the dynamic generation of Redis credentials. 
 
 In order to use this test, configuration for the redis instance MUST be provided as a JSON file using the `redis_config_json` flag. The primary required fields are the `host`, `port`, `username` and `password` of the redis instance. If `tls` and `insecure_tls` are not specified, configuration will default to `tls=false` and `insecure_tls=true`. Additional defaults include `allowed_roles=["*"]` and `db_name="redis"`.
 
