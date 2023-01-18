@@ -113,6 +113,8 @@ func main() {
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
 	flag.IntVar(&spec.PctSSHSign, "pct_ssh_sign", 0, "percent of requests that are SSH Client Key Sign operations")
+	flag.IntVar(&spec.PctServiceTokenCreate, "pct_service_token_create", 0, "percent of requests to create service token ")
+	flag.IntVar(&spec.PctBatchTokenCreate, "pct_batch_token_create", 0, "percent of requests to create batch tokens")
 
 	// Config Options
 	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")

@@ -112,6 +112,8 @@ type TestSpecification struct {
 	KVSize                     int
 	RandomMounts               bool
 	TokenTTL                   time.Duration
+	PctServiceTokenCreate      int
+	PctBatchTokenCreate        int
 	PctKvv1Read                int
 	PctKvv1Write               int
 	PctKvv2Read                int
@@ -220,7 +222,23 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			cleanup:    kvv2.cleanup,
 		})
 	}
-
+	if spec.PctServiceTokenCreate > 0 || spec.PctBatchTokenCreate > 0 {
+		tokenCreate := setupToken(client)
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:    "service token",
+			method:  "POST",
+			percent: spec.PctServiceTokenCreate,
+			target:  tokenCreate.createService,
+			cleanup: tokenCreate.cleanup,
+		})
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:    "batch token",
+			method:  "POST",
+			percent: spec.PctBatchTokenCreate,
+			target:  tokenCreate.createBatch,
+			cleanup: tokenCreate.cleanup,
+		})
+	}
 	if spec.PctApproleLogin > 0 {
 		approle, err := setupApprole(client, spec.RandomMounts, spec.TokenTTL)
 		if err != nil {
