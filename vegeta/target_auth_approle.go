@@ -1,11 +1,12 @@
 package vegeta
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -18,6 +19,66 @@ type approletest struct {
 	roleID     string
 	header     http.Header
 	secretID   string
+}
+
+type AppRoleConfig struct {
+	RoleName      string   `json:"role_name"`
+	SecretIDTTL   string   `json:"secret_id_ttl"`
+	TokenTTL      string   `json:"token_ttl"`
+	TokenMaxTTL   string   `json:"token_max_ttl"`
+	TokenPolicies []string `json:"token_policies"`
+	TokenType     string   `json:"token_type"`
+}
+
+func (a *AppRoleConfig) FromJSON(path string) error {
+	if path == "" {
+		return nil
+	}
+
+	// Load JSON config
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(a); err != nil {
+		return err
+	}
+
+	// Set defaults
+	defaultRoleName := "benchmark-role"
+	defaultTTL := "0s"
+	defaultTokenPolicies := []string{"default"}
+	defaultTokenType := "default"
+
+	if a.RoleName == "" {
+		a.RoleName = defaultRoleName
+	}
+
+	if a.SecretIDTTL == "" {
+		a.SecretIDTTL = defaultTTL
+	}
+
+	if a.TokenMaxTTL == "" {
+		a.TokenMaxTTL = defaultTTL
+	}
+
+	if a.TokenTTL == "" {
+		a.TokenTTL = defaultTTL
+	}
+
+	if len(a.TokenPolicies) == 0 {
+		a.TokenPolicies = defaultTokenPolicies
+	}
+
+	if a.TokenType == "" {
+		a.TokenType = defaultTokenType
+	}
+
+	return nil
 }
 
 func (a *approletest) login(client *api.Client) vegeta.Target {
@@ -38,7 +99,7 @@ func (a *approletest) cleanup(client *api.Client) error {
 	return nil
 }
 
-func setupApprole(client *api.Client, randomMounts bool, ttl time.Duration) (*approletest, error) {
+func setupApprole(client *api.Client, randomMounts bool, config *AppRoleConfig) (*approletest, error) {
 	authPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -54,15 +115,16 @@ func setupApprole(client *api.Client, randomMounts bool, ttl time.Duration) (*ap
 		return nil, fmt.Errorf("error enabling approle: %v", err)
 	}
 
-	role := "role1"
-	rolePath := filepath.Join("auth", authPath, "role", role)
+	rolePath := filepath.Join("auth", authPath, "role", config.RoleName)
 	_, err = client.Logical().Write(rolePath, map[string]interface{}{
-		"token_ttl":     int(ttl.Seconds()),
-		"token_max_ttl": int(ttl.Seconds()),
-		"secret_id_ttl": int((1000 * time.Hour).Seconds()),
+		"token_ttl":      config.TokenTTL,
+		"token_max_ttl":  config.TokenMaxTTL,
+		"secret_id_ttl":  config.SecretIDTTL,
+		"token_policies": config.TokenPolicies,
+		"token_type":     config.TokenType,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error creating approle role %q: %v", role, err)
+		return nil, fmt.Errorf("error creating approle role %q: %v", config.RoleName, err)
 	}
 
 	secretRole, err := client.Logical().Read(rolePath + "/role-id")
@@ -79,7 +141,7 @@ func setupApprole(client *api.Client, randomMounts bool, ttl time.Duration) (*ap
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleID:     secretRole.Data["role_id"].(string),
-		role:       role,
+		role:       config.RoleName,
 		secretID:   secretId.Data["secret_id"].(string),
 	}, nil
 }

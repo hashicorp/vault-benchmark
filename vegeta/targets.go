@@ -171,6 +171,7 @@ type TestSpecification struct {
 	RedisDynamicRoleConfigJSON RedisDynamicRoleConfig
 	RedisStaticRoleConfigJSON  RedisStaticRoleConfig
 	Timeout                    time.Duration
+	AppRoleConfig              AppRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -222,7 +223,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 	}
 
 	if spec.PctApproleLogin > 0 {
-		approle, err := setupApprole(client, spec.RandomMounts, spec.TokenTTL)
+		approle, err := setupApprole(client, spec.RandomMounts, &spec.AppRoleConfig)
 		if err != nil {
 			return nil, err
 		}
