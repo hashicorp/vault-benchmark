@@ -31,7 +31,20 @@ type AppRoleConfig struct {
 }
 
 func (a *AppRoleConfig) FromJSON(path string) error {
+	// defaults
+	defaultRoleName := "benchmark-role"
+	defaultTTL := "0s"
+	defaultTokenPolicies := []string{"default"}
+	defaultTokenType := "default"
+
 	if path == "" {
+		a.RoleName = defaultRoleName
+		a.SecretIDTTL = defaultTTL
+		a.TokenMaxTTL = defaultTTL
+		a.TokenTTL = defaultTTL
+		a.TokenPolicies = defaultTokenPolicies
+		a.TokenType = defaultTokenType
+
 		return nil
 	}
 
@@ -47,12 +60,6 @@ func (a *AppRoleConfig) FromJSON(path string) error {
 	if err := decoder.Decode(a); err != nil {
 		return err
 	}
-
-	// Set defaults
-	defaultRoleName := "benchmark-role"
-	defaultTTL := "0s"
-	defaultTokenPolicies := []string{"default"}
-	defaultTokenType := "default"
 
 	if a.RoleName == "" {
 		a.RoleName = defaultRoleName
