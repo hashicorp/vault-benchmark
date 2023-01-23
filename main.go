@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -74,6 +73,7 @@ func main() {
 		kubernetesRoleConfigJSON   = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
 		sshSignerCAConfigJSON      = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
 		sshSignerRoleConfigJSON    = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
+		appRoleConfig              = flag.String("approle_role_config", "", "when specified, path to approle Config JSON file to use")
 	)
 
 	// test-related settings
@@ -209,6 +209,12 @@ func main() {
 		}
 	}
 
+	if spec.PctApproleLogin > 0 {
+		if err := spec.AppRoleConfig.FromJSON(*appRoleConfig); err != nil {
+			log.Printf("no approle config present, default config used")
+		}
+	}
+
 	if spec.PctRabbitRead > 0 {
 		if err := spec.RabbitMQConfig.FromJSON(*rabbitMQConfigJSON); err != nil {
 			log.Fatalf("unable to parse RabbitMQ config at %v: %v", *rabbitMQConfigJSON, err)
@@ -312,7 +318,7 @@ func main() {
 	case *clusterJson != "" && *vaultAddr != "":
 		log.Fatalf("cannot specify both cluster_json and vault_addr")
 	case *clusterJson != "":
-		b, err := ioutil.ReadFile(*clusterJson)
+		b, err := os.ReadFile(*clusterJson)
 		if err != nil {
 			log.Fatalf("error reading cluster_json file %q: %v", *clusterJson, err)
 		}
@@ -453,7 +459,7 @@ func main() {
 
 	var caPEM string
 	if *caPEMFile != "" {
-		b, err := ioutil.ReadFile(*caPEMFile)
+		b, err := os.ReadFile(*caPEMFile)
 		if err != nil {
 			log.Fatal(err)
 		}
