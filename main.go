@@ -73,7 +73,7 @@ func main() {
 		kubernetesRoleConfigJSON   = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
 		sshSignerCAConfigJSON      = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
 		sshSignerRoleConfigJSON    = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
-		appRoleConfig              = flag.String("app_role_config", "", "when specified, path to approle Config JSON file to use")
+		appRoleConfig              = flag.String("approle_role_config", "", "when specified, path to approle Config JSON file to use")
 	)
 
 	// test-related settings
