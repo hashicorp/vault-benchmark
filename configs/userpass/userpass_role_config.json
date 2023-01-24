@@ -1,0 +1,9 @@
+{
+    "username": "benchmark-role",
+    "password": "password",
+    "token_ttl": "1h",
+    "token_max_ttl": "2h",
+    "token_policies": ["root"],
+    "token_explicit_max_ttl": "3h",
+    "token_type": "service"
+}
