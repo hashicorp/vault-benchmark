@@ -54,6 +54,7 @@ kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
 - [Approle Configurations](/examples/auth-approle.md)
 - [Certificate Configurations](/examples/auth-certificate.md)
 - [LDAP Configurations](/examples/auth-ldap.md)
+- [Userpass Configurations](/examples/auth-userpass.md)
 
 ## Secret Engines
 

@@ -22,7 +22,6 @@ type userpasstest struct {
 
 type UserpassRoleConfig struct {
 	RoleName            string   `json:"role_name"`
-	Username            string   `json:"username"`
 	Password            string   `json:"password"`
 	TokenTTL            string   `json:"token_ttl"`
 	TokenMaxTTL         string   `json:"token_max_ttl"`
@@ -33,7 +32,7 @@ type UserpassRoleConfig struct {
 
 func (u *UserpassRoleConfig) FromJSON(path string) error {
 	if path == "" {
-		return fmt.Errorf("no redis config passed but is required")
+		return fmt.Errorf("no userpass config passed but is required")
 	}
 
 	// defaults
@@ -55,11 +54,8 @@ func (u *UserpassRoleConfig) FromJSON(path string) error {
 		return err
 	}
 
-	// Check for required fields in RedisConfig
-	switch {
-	case u.Username == "":
-		return fmt.Errorf("no username passed but is required")
-	case u.Password == "":
+	// Check for required fields in UserpassRoleConfig
+	if u.Password == "" {
 		return fmt.Errorf("no password passed but is required")
 	}
 
@@ -125,7 +121,10 @@ func setupUserpass(client *api.Client, randomMounts bool, config *UserpassRoleCo
 	}
 
 	rolePath := filepath.Join("auth", authPath, "users", config.RoleName)
+
 	_, err = client.Logical().Write(rolePath, map[string]interface{}{
+		"role":                   config.RoleName,
+		"password":               config.Password,
 		"token_ttl":              config.TokenTTL,
 		"token_max_ttl":          config.TokenMaxTTL,
 		"token_explicit_max_ttl": config.TokenExplicitMaxTTL,
