@@ -89,6 +89,10 @@ The main use case for `json` is to preserve the metrics, such that later
 benchmark_vault can be invoked with the `input_results` option in order to get
 either terse or verbose reports.
 
+## Troubleshooting
+If you see unexpected results, for example `successRatio: 0.00%`, when you are expecting `100%`. 
+Use the debug flag `-debug=true` to get more information around any potential issues.
+
 ## Profiling
 
 `pprof_interval` runs the `vault debug` command to gather pprof data; this
