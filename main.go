@@ -487,6 +487,7 @@ func main() {
 				l.Unlock()
 			}
 
+			fmt.Println("Starting benchmark tests. Will run for " + duration.String() + "...")
 			rpt, err := vegeta.Attack(tm, client, *duration, *rps, *workers)
 			if err != nil {
 				log.Fatal("attack error", err)
@@ -497,7 +498,9 @@ func main() {
 			results[client.Address()] = rpt
 			l.Unlock()
 
+			fmt.Println("Benchmark complete!")
 			if spec.Cleanup {
+				fmt.Println("Cleaning up...")
 				err := tm.Cleanup(client)
 				if err != nil {
 					log.Println("cleanup error", err)
@@ -512,7 +515,6 @@ func main() {
 	for _, client := range clients {
 		addr := client.Address()
 		rpt := results[addr]
-		fmt.Println(addr)
 		switch *reportMode {
 		case "json":
 			rpt.ReportJSON(os.Stdout)
