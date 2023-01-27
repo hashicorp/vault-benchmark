@@ -172,6 +172,8 @@ type TestSpecification struct {
 	RedisStaticRoleConfigJSON  RedisStaticRoleConfig
 	Timeout                    time.Duration
 	AppRoleConfig              AppRoleConfig
+	UserpassRoleConfig         UserpassRoleConfig
+	PctUserpassLogin           int
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -236,6 +238,22 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			cleanup:    approle.cleanup,
 		})
 	}
+
+	if spec.PctUserpassLogin > 0 {
+		userpass, err := setupUserpass(client, spec.RandomMounts, &spec.UserpassRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "userpass login",
+			method:     "POST",
+			pathPrefix: userpass.pathPrefix,
+			percent:    spec.PctUserpassLogin,
+			target:     userpass.login,
+			cleanup:    userpass.cleanup,
+		})
+	}
+
 	if spec.PctCertLogin > 0 {
 		cert, err := setupCert(client, spec.RandomMounts, spec.TokenTTL, clientCAPem)
 		if err != nil {

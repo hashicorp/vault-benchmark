@@ -73,7 +73,8 @@ func main() {
 		kubernetesRoleConfigJSON   = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
 		sshSignerCAConfigJSON      = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
 		sshSignerRoleConfigJSON    = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
-		appRoleConfig              = flag.String("approle_role_config", "", "when specified, path to approle Config JSON file to use")
+		appRoleConfig              = flag.String("approle_role_config", "", "when specified, path to approle role Config JSON file to use")
+		userpassRoleConfig         = flag.String("userpass_role_config", "", "when specified, path to userpass role Config JSON file to use")
 	)
 
 	// test-related settings
@@ -113,6 +114,7 @@ func main() {
 	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
 	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
 	flag.IntVar(&spec.PctSSHSign, "pct_ssh_sign", 0, "percent of requests that are SSH Client Key Sign operations")
+	flag.IntVar(&spec.PctUserpassLogin, "pct_userpass_login", 0, "percent of requests that are userpass logins")
 
 	// Config Options
 	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")
@@ -212,6 +214,12 @@ func main() {
 	if spec.PctApproleLogin > 0 {
 		if err := spec.AppRoleConfig.FromJSON(*appRoleConfig); err != nil {
 			log.Printf("no approle config present, default config used")
+		}
+	}
+
+	if spec.PctUserpassLogin > 0 {
+		if err := spec.UserpassRoleConfig.FromJSON(*userpassRoleConfig); err != nil {
+			log.Fatalf("unable to parse userpass config at %v: %v", *redisConfigJSON, err)
 		}
 	}
 
