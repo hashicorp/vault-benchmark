@@ -3,6 +3,6 @@
     "allowed_roles": "internally-defined-role,my-vault-role",
     "url": "https://localhost:9200",
     "username": "elastic",
-    "password": "{{password}}",
+    "password": "sV5vpZQdDwU5ibY6ygTP",
     "insecure": true
 }  
