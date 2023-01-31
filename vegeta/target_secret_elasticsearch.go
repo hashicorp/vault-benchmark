@@ -41,7 +41,7 @@ type ElasticSearchRoleConfig struct {
 
 func (c *ElasticSearchDBConfig) FromJSON(path string) error {
 	if path == "" {
-		return fmt.Errorf("no elastic search config passed but is required")
+		return fmt.Errorf("no Elasticsearch db config passed but is required")
 	}
 
 	// Load JSON config
@@ -64,7 +64,7 @@ func (c *ElasticSearchDBConfig) FromJSON(path string) error {
 	case c.Password == "":
 		return fmt.Errorf("no password passed but is required")
 	case c.URL == "":
-		return fmt.Errorf("no password passed but is required")
+		return fmt.Errorf("no elasticsearch url passed but is required")
 	}
 
 	// Set defaults
