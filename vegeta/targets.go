@@ -174,6 +174,9 @@ type TestSpecification struct {
 	AppRoleConfig              AppRoleConfig
 	UserpassRoleConfig         UserpassRoleConfig
 	PctUserpassLogin           int
+	PctElasticSearchRead       int
+	ElasticSearchDBConfig      ElasticSearchDBConfig
+	ElasticSearchRoleConfig    ElasticSearchRoleConfig
 }
 
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
@@ -221,6 +224,21 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			percent:    spec.PctKvv2Write,
 			target:     kvv2.write,
 			cleanup:    kvv2.cleanup,
+		})
+	}
+
+	if spec.PctElasticSearchRead > 0 {
+		es, err := setupElasticSearch(client, spec.RandomMounts, &spec.ElasticSearchDBConfig, &spec.ElasticSearchRoleConfig)
+		if err != nil {
+			return nil, err
+		}
+		tm.fractions = append(tm.fractions, targetFraction{
+			name:       "elasticsearch read",
+			method:     "GET",
+			pathPrefix: es.pathPrefix,
+			percent:    spec.PctElasticSearchRead,
+			target:     es.read,
+			cleanup:    es.cleanup,
 		})
 	}
 

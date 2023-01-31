@@ -1,0 +1,8 @@
+{
+    "db_name": "benchmark-elasticsearch",
+    "allowed_roles": "my-vault-role",
+    "url": "https://localhost:9200",
+    "username": "elastic",
+    "password": "EwnhdkiSPQrLbmmcYBF-",
+    "insecure": true
+}  
