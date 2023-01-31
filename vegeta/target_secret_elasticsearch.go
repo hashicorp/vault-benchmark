@@ -192,7 +192,7 @@ func setupElasticSearch(client *api.Client, randomMounts bool, config *ElasticSe
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error writing elasticsearch db config: %v", err)
+		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
 	}
 
 	// Create Role
@@ -205,7 +205,7 @@ func setupElasticSearch(client *api.Client, randomMounts bool, config *ElasticSe
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error writing elasticsearch db role: %v", err)
+		return nil, fmt.Errorf("error writing Elasticsearch db role: %v", err)
 	}
 
 	return &elasticsearchtest{
