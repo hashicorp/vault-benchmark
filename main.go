@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/vault-tools/benchmark-vault/benchmark_tests"
 	"github.com/hashicorp/vault-tools/benchmark-vault/vegeta"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +29,7 @@ func init() {
 
 func main() {
 	var (
+		bvCoreConfig = flag.String("config", "", "benchmark vault configuration file location")
 		// Vault related settings
 		vaultAddr   = flag.String("vault_addr", "", "vault address, overrides VAULT_ADDR")
 		clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
@@ -73,7 +75,6 @@ func main() {
 		kubernetesRoleConfigJSON   = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
 		sshSignerCAConfigJSON      = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
 		sshSignerRoleConfigJSON    = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
-		appRoleConfig              = flag.String("approle_role_config", "", "when specified, path to approle role Config JSON file to use")
 		userpassRoleConfig         = flag.String("userpass_role_config", "", "when specified, path to userpass role Config JSON file to use")
 	)
 
@@ -89,7 +90,6 @@ func main() {
 	flag.IntVar(&spec.PctKvv1Read, "pct_kvv1_read", 0, "percent of requests that are kvv1 reads")
 	flag.IntVar(&spec.PctKvv2Write, "pct_kvv2_write", 0, "percent of requests that are kvv2 writes")
 	flag.IntVar(&spec.PctKvv2Read, "pct_kvv2_read", 0, "percent of requests that are kvv2 reads")
-	flag.IntVar(&spec.PctApproleLogin, "pct_approle_login", 0, "percent of requests that are approle logins")
 	flag.IntVar(&spec.PctCertLogin, "pct_cert_login", 0, "percent of requests that are cert logins")
 	flag.IntVar(&spec.PctPkiIssue, "pct_pki_issue", 0, "percent of requests that are pki issue certs")
 	flag.IntVar(&spec.PctPkiSign, "pct_pki_sign", 0, "percent of requests that are pki cert signings")
@@ -125,6 +125,12 @@ func main() {
 	flag.DurationVar(&spec.TransitDecryptConfig.SetupDelay, "transit_decrypt_setup_delay", 50*time.Millisecond, "When running Transit decrypt tests, delay after creating mount before attempting key creation")
 
 	flag.Parse()
+
+	conf, err := LoadConfig(*bvCoreConfig)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	// Only allow cleanup when random mounts is enabled
 	if !spec.RandomMounts && spec.Cleanup {
@@ -211,12 +217,6 @@ func main() {
 		}
 	}
 
-	if spec.PctApproleLogin > 0 {
-		if err := spec.AppRoleConfig.FromJSON(*appRoleConfig); err != nil {
-			log.Printf("no approle config present, default config used")
-		}
-	}
-
 	if spec.PctUserpassLogin > 0 {
 		if err := spec.UserpassRoleConfig.FromJSON(*userpassRoleConfig); err != nil {
 			log.Fatalf("unable to parse userpass config at %v: %v", *redisConfigJSON, err)
@@ -299,7 +299,7 @@ func main() {
 
 	// If input_results is true we're not running benchmarks, just transforming input results based on reportMode
 	if *inputResults {
-		rpt, err := vegeta.FromReader(os.Stdin)
+		rpt, err := benchmark_tests.FromReader(os.Stdin)
 		if err != nil {
 			log.Fatalf("error reading report: %v", err)
 		}
@@ -475,13 +475,13 @@ func main() {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	tm, err := vegeta.BuildTargets(spec, clients[0], caPEM, clientCert)
+	tm, err := benchmark_tests.BuildTargets(conf.Test, clients[0], caPEM, clientCert)
 	if err != nil {
 		log.Fatalf("target setup failed: %v", err)
 	}
 
 	var l sync.Mutex
-	results := make(map[string]*vegeta.Reporter)
+	results := make(map[string]*benchmark_tests.Reporter)
 	for _, client := range clients {
 		wg.Add(1)
 		go func(client *vaultapi.Client) {
@@ -496,7 +496,7 @@ func main() {
 			}
 
 			fmt.Println("Starting benchmark tests. Will run for " + duration.String() + "...")
-			rpt, err := vegeta.Attack(tm, client, *duration, *rps, *workers)
+			rpt, err := benchmark_tests.Attack(tm, client, *duration, *rps, *workers)
 			if err != nil {
 				log.Fatal("attack error", err)
 			}

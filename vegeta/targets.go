@@ -171,7 +171,6 @@ type TestSpecification struct {
 	RedisDynamicRoleConfigJSON RedisDynamicRoleConfig
 	RedisStaticRoleConfigJSON  RedisStaticRoleConfig
 	Timeout                    time.Duration
-	AppRoleConfig              AppRoleConfig
 	UserpassRoleConfig         UserpassRoleConfig
 	PctUserpassLogin           int
 }
@@ -221,21 +220,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			percent:    spec.PctKvv2Write,
 			target:     kvv2.write,
 			cleanup:    kvv2.cleanup,
-		})
-	}
-
-	if spec.PctApproleLogin > 0 {
-		approle, err := setupApprole(client, spec.RandomMounts, &spec.AppRoleConfig)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "approle login",
-			method:     "POST",
-			pathPrefix: approle.pathPrefix,
-			percent:    spec.PctApproleLogin,
-			target:     approle.login,
-			cleanup:    approle.cleanup,
 		})
 	}
 

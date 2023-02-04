@@ -30,40 +30,57 @@ type approle_auth struct {
 	secretID   string
 }
 
+type TestConfig struct {
+	Config ApproleAuthTestConfig `hcl:"config,block"`
+}
+
 type ApproleAuthTestConfig struct {
 	RoleConfig     *RoleConfig     `hcl:"role_config,block"`
 	SecretIDConfig *SecretIDConfig `hcl:"secret_id_config,block"`
 }
 
 type RoleConfig struct {
-	Name                 *string   `hcl:"role_name" json:"role_name"`
-	BindSecretID         *bool     `hcl:"bind_secret_id" json:"bind_secret_id"`
-	SecretIDBoundCIDRS   *[]string `hcl:"secret_id_bound_cidrs" json:"secret_id_bound_cidrs"`
-	SecredIDNumUses      *int      `hcl:"secret_id_num_uses" json:"secret_id_num_uses"`
-	SecretIDTTL          *string   `hcl:"secret_id_ttl" json:"secret_id_ttl"`
-	LocalSecretIDs       *bool     `hcl:"local_secret_ids" json:"local_secret_ids"`
-	TokenTTL             *string   `hcl:"token_ttl" json:"token_ttl"`
-	TokenMaxTTL          *string   `hcl:"token_max_ttl" json:"token_max_ttl"`
-	TokenPolicies        *[]string `hcl:"token_policies" json:"token_policies"`
-	Policies             *[]string `hcl:"policies" json:"policies"`
-	TokenBoundCIDRs      *[]string `hcl:"token_bound_cidrs" json:"token_bound_cidrs"`
-	TokenExplicitMaxTTL  *string   `hcl:"token_explicit_max_ttl" json:"token_explicit_max_ttl"`
-	TokenNoDefaultPolicy *bool     `hcl:"token_no_default_policy" json:"token_no_default_policy"`
-	TokenNumUses         *int      `hcl:"token_num_uses" json:"token_num_uses"`
-	TokenPeriod          *string   `hcl:"token_period" json:"token_period"`
-	TokenType            *string   `hcl:"token_type" json:"token_type"`
+	Name                 string   `hcl:"role_name" json:"role_name"`
+	BindSecretID         bool     `hcl:"bind_secret_id,optional" json:"bind_secret_id"`
+	SecretIDBoundCIDRS   []string `hcl:"secret_id_bound_cidrs,optional" json:"secret_id_bound_cidrs"`
+	SecredIDNumUses      int      `hcl:"secret_id_num_uses,optional" json:"secret_id_num_uses"`
+	SecretIDTTL          string   `hcl:"secret_id_ttl,optional" json:"secret_id_ttl"`
+	LocalSecretIDs       bool     `hcl:"local_secret_ids,optional" json:"local_secret_ids"`
+	TokenTTL             string   `hcl:"token_ttl,optional" json:"token_ttl"`
+	TokenMaxTTL          string   `hcl:"token_max_ttl,optional" json:"token_max_ttl"`
+	TokenPolicies        []string `hcl:"token_policies,optional" json:"token_policies"`
+	Policies             []string `hcl:"policies,optional" json:"policies"`
+	TokenBoundCIDRs      []string `hcl:"token_bound_cidrs,optional" json:"token_bound_cidrs"`
+	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional" json:"token_explicit_max_ttl"`
+	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional" json:"token_no_default_policy"`
+	TokenNumUses         int      `hcl:"token_num_uses,optional" json:"token_num_uses"`
+	TokenPeriod          string   `hcl:"token_period,optional" json:"token_period"`
+	TokenType            string   `hcl:"token_type,optional" json:"token_type"`
 }
 
 type SecretIDConfig struct {
-	Metadata        *string   `hcl:"metadata" json:"metadata"`
-	CIDRList        *[]string `hcl:"cidr_list" json:"cidr_list"`
-	NumUses         *int      `hcl:"num_uses" json:"num_uses"`
-	TTL             *string   `hcl:"ttl" json:"ttl"`
-	TokenBoundCIDRs *[]string `hcl:"token_bound_cidrs" json:"token_bound_cidrs"`
+	Metadata        string   `hcl:"metadata,optional" json:"metadata"`
+	CIDRList        []string `hcl:"cidr_list,optional" json:"cidr_list"`
+	NumUses         int      `hcl:"num_uses,optional" json:"num_uses"`
+	TTL             string   `hcl:"ttl,optional" json:"ttl"`
+	TokenBoundCIDRs []string `hcl:"token_bound_cidrs,optional" json:"token_bound_cidrs"`
+}
+
+func newRoleConfig() *RoleConfig {
+	// Setup Defaults for required values
+	roleConfig := &RoleConfig{
+		Name: "benchmark-role",
+	}
+	return roleConfig
 }
 
 func (a *approle_auth) ParseConfig(body hcl.Body) interface{} {
-	conf := &ApproleAuthTestConfig{}
+	conf := &TestConfig{
+		Config: ApproleAuthTestConfig{
+			RoleConfig: newRoleConfig(),
+		},
+	}
+
 	diags := gohcl.DecodeBody(body, nil, conf)
 	if diags.HasErrors() {
 		fmt.Println(diags)
@@ -97,7 +114,7 @@ func (a *approle_auth) Cleanup(client *api.Client) error {
 }
 
 func (a *approle_auth) Setup(client *api.Client, randomMountName bool, test_config interface{}) (BenchmarkTarget, error) {
-	config := test_config.(ApproleAuthTestConfig)
+	config := test_config.(*TestConfig).Config
 	authPath, err := uuid.GenerateUUID()
 	if err != nil {
 		panic("can't create UUID")
@@ -113,7 +130,7 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, test_conf
 		return nil, fmt.Errorf("error enabling approle: %v", err)
 	}
 
-	rolePath := filepath.Join("auth", authPath, "role", *config.RoleConfig.Name)
+	rolePath := filepath.Join("auth", authPath, "role", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, map[string]interface{}{
 		"token_ttl":      config.RoleConfig.TokenTTL,
 		"token_max_ttl":  config.RoleConfig.TokenMaxTTL,
@@ -139,7 +156,7 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, test_conf
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleID:     secretRole.Data["role_id"].(string),
-		role:       *config.RoleConfig.Name,
+		role:       config.RoleConfig.Name,
 		secretID:   secretId.Data["secret_id"].(string),
 	}, nil
 }
