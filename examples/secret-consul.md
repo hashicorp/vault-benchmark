@@ -21,6 +21,6 @@ benchmark-vault \
     -consul_config_json=/path/to/consul/config.json \
     -consul_role_config_json=/path/to/consul/role/config.json
 
-op                     count  rate        throughput  mean         95th%       99th%       successRatio
-consul cred retrieval  16333  505.071903  0.000000    19.796727ms  2.039453ms  3.982598ms  0.00%
+op                     count  rate        throughput  mean         95th%        99th%        successRatio
+consul cred retrieval  3495   349.497690  348.738915  28.620306ms  43.733521ms  49.873932ms  100.00%
 ```
