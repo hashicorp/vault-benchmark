@@ -8,7 +8,7 @@ This benchmark will test Consul secret engine operations. In order to use this t
 
 ## Additional Parameters
 
-- `consul_config_json` _(required)_: path to JSON file containing Vault Consul configuration.  The configuration options can be found in the [Consul Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/consul#configure-connection).  Example configuration files can be found in the [Consul configuration directory](/configs/consul/).
+- `consul_config_json` _(required)_: path to JSON file containing Vault Consul configuration.  The configuration options can be found in the [Consul Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/consul#configure-connection).  Example configuration files can be found in the [Consul configuration directory](/configs/consul/).  If a `token` is not provided, Vault will attempt to auto-bootstrap the ACL system.  Once this is done, (or if you have manually bootstrapped the ACL System) the token will need to be added to the configuration file.
 - `consul_role_config_json` _(required)_: path to a JSON file containing the Consul role configuration.  The configuration options can be found in the [Consul Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/consul#create-update-role).  Example configuration files can be found in the [Consul configuration directory](/configs/consul/).
 
 ### Example Usage
