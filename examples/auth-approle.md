@@ -13,7 +13,7 @@ This benchmark tests the performance of logins using the AppRole auth method.
 ## Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -pct_approle_login=100 \
     -app_role_config=./configs/approle/approle_config.json \
 

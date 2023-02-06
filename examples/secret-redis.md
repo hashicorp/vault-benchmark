@@ -1,6 +1,6 @@
 # Redis Secret Configuration Options
 
-This benchmark will test the dynamic generation of Redis credentials. 
+This benchmark will test the dynamic generation of Redis credentials.
 
 In order to use this test, configuration for the Redis instance MUST be provided as a JSON file using the `redis_config_json` flag. The primary required fields are the `host`, `port`, `username` and `password` of the redis instance. If `tls` and `insecure_tls` are not specified, configuration will default to `tls=false` and `insecure_tls=true`. Additional defaults include `allowed_roles=["*"]` and `db_name="redis"`.
 
@@ -39,7 +39,7 @@ In order to use this test, configuration for the Redis instance MUST be provided
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_redis_dynamic_read=100 \
@@ -51,7 +51,7 @@ redis dynamic cred retrieval  7077   707.659551  706.959286  14.137498ms  25.264
 
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=dev \
     -pct_redis_static_read=100 \

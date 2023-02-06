@@ -24,7 +24,7 @@ This benchmark will test the dynamic generation of CassandraDB credentials. In o
 ### Example Usage
 
 ```bash
-$ benchmark-vault -pct_cassandradb_read=100 \
+$ vault-benchmark -pct_cassandradb_read=100 \
     -cassandradb_config_json=/path/to/cassandradb/config.json \
     -cassandradb_role_config_json=/path/to/cassandradb/role.json
 op               count  rate       throughput  mean          95th%         99th%         successRatio

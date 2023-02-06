@@ -24,7 +24,7 @@ This benchmark will test the dynamic generation of PostgreSQL credentials. In or
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_postgresql_read=100 \

@@ -1,5 +1,5 @@
 REGISTRY_NAME?=docker.io/hashicorp
-IMAGE_NAME=benchmark-vault
+IMAGE_NAME=vault-benchmark
 VERSION?=0.0.0-dev
 IMAGE_TAG?=$(REGISTRY_NAME)/$(IMAGE_NAME):$(VERSION)
 LATEST_TAG?=$(REGISTRY_NAME)/$(IMAGE_NAME):latest
@@ -15,11 +15,7 @@ LDFLAGS?="-X '$(PKG).Version=v$(VERSION)'"
 all: build
 
 build:
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
-		-a \
-		-ldflags $(LDFLAGS) \
-		-o $(BUILD_DIR)/$(BIN_NAME) \
-		.
+	@$(CURDIR)/scripts/crt-build.sh build
 
 image: build
 	docker build --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .

@@ -1,6 +1,6 @@
-# benchmark-vault
+# vault-benchmark
 
-`benchmark-vault` is a tool designed to test the performance of Vault auth methods and secret engines.
+`vault-benchmark` is a tool designed to test the performance of Vault auth methods and secret engines.
 
 Vault configuration settings
 
@@ -21,7 +21,7 @@ The main generic options are:
 - `annotate` comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' fodashboard example
 - `debug` before running tests, execute each benchmark target and output request/response info
 
-benchmark-vault will create `workers` virtual users which will continuously
+vault-benchmark will create `workers` virtual users which will continuously
 generate requests to the Vault API.  The requests to generate are controlled
 by test options, which must sum to 100.
 
@@ -41,7 +41,7 @@ sufficient privileges to do that.
 ```
 $ vault server -dev-listen-address=0.0.0.0:8200 -dev -dev-root-token-id=devroot >/dev/null 2>&1 &
 [1] 67334
-$ ./benchmark-vault -vault_addr=http://localhost:8200 -vault_token=devroot -pct_kvv1_read=90 -pct_kvv1_write=10
+$ ./vault-benchmark -vault_addr=http://localhost:8200 -vault_token=devroot -pct_kvv1_read=90 -pct_kvv1_write=10
 op          mean       95th%       99th        successRatio
 kvv1 read   817.22µs   1.674553ms  2.437689ms  100.00%
 kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
@@ -102,9 +102,9 @@ is written to a folder named `vault-debug-X` where X is a timestamp.
 
 # Docker
 
-**Tip**: Create a Benchmark Vault image with the `make image` command.
+**Tip**: Create a Vault Benchmark image with the `make image` command.
 
-First, create a network that Vault and Benchmark Vault will share:
+First, create a network that Vault and Vault Benchmark will share:
 
 ```bash
 docker network create vault
@@ -127,15 +127,15 @@ docker run \
 docker logs -f vault
 ```
 
-Once Vault is running, create a Benchmark Vault container and watch the logs for the results:
+Once Vault is running, create a Vault Benchmark container and watch the logs for the results:
 
 ```bash
 docker run \
-  --name=benchmark-vault \
-  --hostname=benchmark-vault \
+  --name=vault-benchmark \
+  --hostname=vault-benchmark \
   --network=vault \
-  --detach hashicorp/benchmark-vault:0.0.0-dev \
-  benchmark-vault -vault_addr=http://vault:8200 -vault_token=root -pct_kvv1_read=90 -pct_kvv1_write=10
+  --detach hashicorp/vault-benchmark:0.0.0-dev \
+  vault-benchmark -vault_addr=http://vault:8200 -vault_token=root -pct_kvv1_read=90 -pct_kvv1_write=10
 
-docker logs -f benchmark-vault
+docker logs -f vault-benchmark
 ```

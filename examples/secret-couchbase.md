@@ -24,7 +24,7 @@ This benchmark will test the dynamic generation of Couchbase credentials. In ord
 ### Example Usage
 
 ```bash
-$ benchmark-vault -vault_addr=http://localhost:8200 \
+$ vault-benchmark -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_couchbase_read=100 \
     -couchbase_config_json=/path/to/couchbase/config.json
