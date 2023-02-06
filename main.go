@@ -54,6 +54,8 @@ func main() {
 		transitDecryptConfigJSON   = flag.String("transit_decrypt_config_json", "", "when specified, path to Transit decrypt benchmark configuration JSON file to use")
 		cassandraDBConfigJSON      = flag.String("cassandradb_config_json", "", "path to JSON file containing Vault CassandraDB configuration")
 		cassandraDBRoleConfigJSON  = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
+		consulConfigJSON           = flag.String("consul_config_json", "", "path to JSON file containing Consul configuration")
+		consulRoleConfigJSON       = flag.String("consul_role_config_json", "", "when specified, path to Consul benchmark role configuration JSON file to use")
 		ldapConfigJSON             = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth/Secrets configuration")
 		ldapTestUserCredsJSON      = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
 		ldapStaticRoleConfigJSON   = flag.String("ldap_static_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine static role benchmarking")
@@ -102,6 +104,7 @@ func main() {
 	flag.IntVar(&spec.PctTransitEncrypt, "pct_transit_encrypt", 0, "percent of requests that are encrypt requests to transit")
 	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
 	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
+	flag.IntVar(&spec.PctConsulRead, "pct_consul_read", 0, "percent of requests that are Consul credential generations")
 	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
 	flag.IntVar(&spec.PctLDAPStaticRead, "pct_ldap_static_role_read", 0, "percent of requests that are LDAP static role reads")
 	flag.IntVar(&spec.PctLDAPStaticRotate, "pct_ldap_static_role_rotate", 0, "percent of requests that are LDAP static role rotates")
@@ -168,6 +171,16 @@ func main() {
 
 		if err := spec.CassandraDBRoleConfig.FromJSON(*cassandraDBRoleConfigJSON); err != nil {
 			log.Fatalf("unable to parse CassandraDB Role config at %v: %v", *cassandraDBRoleConfigJSON, err)
+		}
+	}
+
+	if spec.PctConsulRead > 0 {
+		if err := spec.ConsulConfig.FromJSON(*consulConfigJSON); err != nil {
+			log.Fatalf("unable to parse Consul config at %v: %v", *consulConfigJSON, err)
+		}
+
+		if err := spec.ConsulRoleConfig.FromJSON(*consulRoleConfigJSON); err != nil {
+			log.Fatalf("unable to parse Consul Role config at %v: %v", *consulRoleConfigJSON, err)
 		}
 	}
 

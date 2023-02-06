@@ -59,6 +59,7 @@ kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
 ## Secret Engines
 
 - [CassandraDB Configurations](/examples/secret-cassandra.md)
+- [Consul Configurations](/examples/secret-consul.md)
 - [Couchbase Configurations](/examples/secret-couchbase.md)
 - [KV Configurations](/examples/secret-kv.md)
 - [LDAP Configurations](/examples/secret-ldap.md)
