@@ -475,7 +475,7 @@ func main() {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	tm, err := benchmark_tests.BuildTargets(conf.Test, clients[0], caPEM, clientCert)
+	tm, err := benchmark_tests.BuildTargets(conf.Tests, clients[0], caPEM, clientCert, conf.RandomMounts)
 	if err != nil {
 		log.Fatalf("target setup failed: %v", err)
 	}

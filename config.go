@@ -10,30 +10,30 @@ import (
 	"github.com/hashicorp/vault-tools/benchmark-vault/benchmark_tests"
 )
 
-type BenchmarkVaultCoreConfig struct {
-	VaultAddr     string                           `hcl:"vault_addr" json:"vault_addr"`
-	VaultToken    string                           `hcl:"vault_token" json:"vault_token"`
-	Workers       int                              `hcl:"workers,optional" json:"workers"`
-	Duration      string                           `hcl:"duration,optional" json:"duration"`
-	RPS           int                              `hcl:"rps,optional" json:"rps"`
-	ReportMode    string                           `hcl:"report_mode,optional" json:"report_mode"`
-	Annotate      string                           `hcl:"annotate,optional" json:"annotate"`
-	InputResults  bool                             `hcl:"input_results,optional" json:"input_results"`
-	ClusterJSON   string                           `hcl:"cluster_json,optional" json:"cluster_json"`
-	CAPEMFile     string                           `hcl:"ca_pem_file,optional" json:"ca_pem_file"`
-	PPROFInterval string                           `hcl:"pprof_interval,optional" json:"pprof_interval"`
-	AuditPath     string                           `hcl:"audit_path,optional" json:"audit_path"`
-	Debug         bool                             `hcl:"debug,optional" json:"debug"`
-	RandomMounts  bool                             `hcl:"random_mounts,optional"`
-	Test          []*benchmark_tests.BenchmarkTest `hcl:"test,block"`
-	Remain        hcl.Body                         `hcl:",remain"`
+type VaultBenchmarkCoreConfig struct {
+	Remain        hcl.Body                           `hcl:",remain"`
+	VaultAddr     string                             `hcl:"vault_addr" json:"vault_addr"`
+	VaultToken    string                             `hcl:"vault_token" json:"vault_token"`
+	Duration      string                             `hcl:"duration,optional" json:"duration"`
+	ReportMode    string                             `hcl:"report_mode,optional" json:"report_mode"`
+	AuditPath     string                             `hcl:"audit_path,optional" json:"audit_path"`
+	Annotate      string                             `hcl:"annotate,optional" json:"annotate"`
+	ClusterJSON   string                             `hcl:"cluster_json,optional" json:"cluster_json"`
+	CAPEMFile     string                             `hcl:"ca_pem_file,optional" json:"ca_pem_file"`
+	PPROFInterval string                             `hcl:"pprof_interval,optional" json:"pprof_interval"`
+	Tests         []*benchmark_tests.BenchmarkTarget `hcl:"test,block"`
+	RPS           int                                `hcl:"rps,optional" json:"rps"`
+	Workers       int                                `hcl:"workers,optional" json:"workers"`
+	Debug         bool                               `hcl:"debug,optional" json:"debug"`
+	RandomMounts  bool                               `hcl:"random_mounts,optional"`
+	InputResults  bool                               `hcl:"input_results,optional" json:"input_results"`
 }
 
-func NewConfig() *BenchmarkVaultCoreConfig {
-	return &BenchmarkVaultCoreConfig{}
+func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
+	return &VaultBenchmarkCoreConfig{}
 }
 
-func LoadConfig(path string) (*BenchmarkVaultCoreConfig, error) {
+func LoadConfig(path string) (*VaultBenchmarkCoreConfig, error) {
 	// File Validity checking
 	f, err := os.Stat(path)
 	if err != nil {
@@ -55,8 +55,8 @@ func LoadConfig(path string) (*BenchmarkVaultCoreConfig, error) {
 		fmt.Println(diags)
 	}
 
-	// Decode HCL Body into Config Struct
-	c := NewConfig()
+	// Decode HCL Body into Core Config Struct
+	c := NewVaultBenchmarkCoreConfig()
 	moreDiags := gohcl.DecodeBody(confFile.Body, nil, c)
 	diags = append(diags, moreDiags...)
 	if diags.HasErrors() {
@@ -65,14 +65,16 @@ func LoadConfig(path string) (*BenchmarkVaultCoreConfig, error) {
 	}
 
 	// Loop through all found tests and check if they are part of the test list
-	// and parse test config based on provided test structs
-	for i, bvTest := range c.Test {
+	// then parse each test config based on provided test structs
+	for i, bvTest := range c.Tests {
 		for testType, testObject := range benchmark_tests.TestList {
 			if bvTest.Type == testType {
 				// Found test in list, parse config
-				c.Test[i].Config = testObject().ParseConfig(bvTest.Remain)
-				c.Test[i].Builder = testObject()
+				currTest := testObject()
+				currTest.ParseConfig(bvTest.Remain)
+				c.Tests[i].Builder = currTest
 			}
+			//TODO: What do we do if we don't find the test?
 		}
 	}
 	return c, nil

@@ -6,15 +6,22 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// TODO:
-// genericTest interface will be for generic tests to cover anything new or
-// more generic in nature that we can't easily put into and auth/secrets bucket
-type GenericTest interface{}
-
-type BenchmarkTarget interface {
+type BenchmarkBuilder interface {
+	// Target generates and returns a vegeta.Target struct which is used for the attack
 	Target(client *api.Client) vegeta.Target
-	Setup(client *api.Client, randomMountName bool, config interface{}) (BenchmarkTarget, error)
+
+	// Setup uses the passed in client and configuration to create the necessary test resources
+	// in Vault, and retrieve any necessary information needed to perform the test itself. Setup
+	// returns a test struct type which satisfies this BenchmarkBuilder interface.
+	Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error)
+
+	// Cleanup uses the passed in client to clean up any created resources used as part of the test
 	Cleanup(client *api.Client) error
-	ParseConfig(body hcl.Body) interface{}
-	createTargetFraction() targetFraction
+
+	// ParseConfig accepts an hcl.Body struct and parses the config setting it as a field in the underlying
+	// test struct
+	ParseConfig(body hcl.Body)
+
+	// GetTargetInfo retrieves specific Target information required to pass on to Attack
+	GetTargetInfo() TargetInfo
 }

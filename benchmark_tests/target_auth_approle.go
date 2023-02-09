@@ -11,34 +11,40 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
+	"github.com/mitchellh/mapstructure"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Flags
+// Override flags
 var PctApproleLogin = flag.Int("pct_approle_login", 0, "percent of requests that are approle logins")
 
 func init() {
-	// Add to test list
-	TestList["approle_auth"] = func() BenchmarkTarget { return &approle_auth{} }
+	// "Register" this test to the main test registry
+	TestList["approle_auth"] = func() BenchmarkBuilder { return &approle_auth{} }
 }
 
+// Approle Auth Test Struct
 type approle_auth struct {
 	pathPrefix string
 	role       string
 	roleID     string
 	header     http.Header
 	secretID   string
+	config     *TestConfig
 }
 
+// Main Config Struct
 type TestConfig struct {
-	Config ApproleAuthTestConfig `hcl:"config,block"`
+	Config *ApproleAuthTestConfig `hcl:"config,block"`
 }
 
+// Intermediary struct to assist with HCL decoding
 type ApproleAuthTestConfig struct {
 	RoleConfig     *RoleConfig     `hcl:"role_config,block"`
 	SecretIDConfig *SecretIDConfig `hcl:"secret_id_config,block"`
 }
 
+// AppRole Role Config
 type RoleConfig struct {
 	Name                 string   `hcl:"role_name" json:"role_name"`
 	BindSecretID         bool     `hcl:"bind_secret_id,optional" json:"bind_secret_id"`
@@ -58,6 +64,7 @@ type RoleConfig struct {
 	TokenType            string   `hcl:"token_type,optional" json:"token_type"`
 }
 
+// AppRole SecretID Config
 type SecretIDConfig struct {
 	Metadata        string   `hcl:"metadata,optional" json:"metadata"`
 	CIDRList        []string `hcl:"cidr_list,optional" json:"cidr_list"`
@@ -66,26 +73,23 @@ type SecretIDConfig struct {
 	TokenBoundCIDRs []string `hcl:"token_bound_cidrs,optional" json:"token_bound_cidrs"`
 }
 
-func newRoleConfig() *RoleConfig {
-	// Setup Defaults for required values
-	roleConfig := &RoleConfig{
-		Name: "benchmark-role",
-	}
-	return roleConfig
-}
-
-func (a *approle_auth) ParseConfig(body hcl.Body) interface{} {
-	conf := &TestConfig{
-		Config: ApproleAuthTestConfig{
-			RoleConfig: newRoleConfig(),
+// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
+// test configuration in Vault. Any default configuration definitions for required
+// parameters will be set here.
+func (a *approle_auth) ParseConfig(body hcl.Body) {
+	a.config = &TestConfig{
+		Config: &ApproleAuthTestConfig{
+			RoleConfig: &RoleConfig{
+				Name: "benchmark-role",
+			},
+			SecretIDConfig: &SecretIDConfig{},
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, conf)
+	diags := gohcl.DecodeBody(body, nil, a.config)
 	if diags.HasErrors() {
 		fmt.Println(diags)
 	}
-	return conf
 }
 
 func (a *approle_auth) Target(client *api.Client) vegeta.Target {
@@ -94,13 +98,6 @@ func (a *approle_auth) Target(client *api.Client) vegeta.Target {
 		URL:    client.Address() + a.pathPrefix + "/login",
 		Header: a.header,
 		Body:   []byte(fmt.Sprintf(`{"role_id": "%s", "secret_id": "%s"}`, a.roleID, a.secretID)),
-	}
-}
-
-func (a *approle_auth) createTargetFraction() targetFraction {
-	return targetFraction{
-		pathPrefix: a.pathPrefix,
-		method:     "POST",
 	}
 }
 
@@ -113,14 +110,23 @@ func (a *approle_auth) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (a *approle_auth) Setup(client *api.Client, randomMountName bool, test_config interface{}) (BenchmarkTarget, error) {
-	config := test_config.(*TestConfig).Config
-	authPath, err := uuid.GenerateUUID()
-	if err != nil {
-		panic("can't create UUID")
+func (a *approle_auth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     "POST",
+		pathPrefix: a.pathPrefix,
 	}
-	if !randomMountName {
-		authPath = "approle"
+}
+
+func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+	var err error
+	authPath := mountName
+	config := a.config.Config
+
+	if randomMountName {
+		authPath, err = uuid.GenerateUUID()
+		if err != nil {
+			panic("can't create UUID")
+		}
 	}
 
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
@@ -130,14 +136,14 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, test_conf
 		return nil, fmt.Errorf("error enabling approle: %v", err)
 	}
 
+	roleData := make(map[string]interface{})
+	err = mapstructure.Decode(config.RoleConfig, &roleData)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+	}
+
 	rolePath := filepath.Join("auth", authPath, "role", config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, map[string]interface{}{
-		"token_ttl":      config.RoleConfig.TokenTTL,
-		"token_max_ttl":  config.RoleConfig.TokenMaxTTL,
-		"secret_id_ttl":  config.RoleConfig.SecretIDTTL,
-		"token_policies": config.RoleConfig.TokenPolicies,
-		"token_type":     config.RoleConfig.TokenType,
-	})
+	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating approle role %q: %v", config.RoleConfig.Name, err)
 	}
@@ -147,7 +153,13 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, test_conf
 		return nil, fmt.Errorf("error reading approle role_id: %v", err)
 	}
 
-	secretId, err := client.Logical().Write(rolePath+"/secret-id", nil)
+	secretData := make(map[string]interface{})
+	err = mapstructure.Decode(config.SecretIDConfig, &secretData)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding secretID config from struct: %v", err)
+	}
+
+	secretId, err := client.Logical().Write(rolePath+"/secret-id", secretData)
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle secret_id: %v", err)
 	}

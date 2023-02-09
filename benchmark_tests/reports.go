@@ -46,22 +46,22 @@ func FromReader(r io.Reader) (*Reporter, error) {
 
 func newReporter(tm *TargetMulti, client *api.Client) *Reporter {
 	r := &Reporter{tm: tm, clientAddr: client.Address()}
-	r.metrics = make(map[string]*vegeta.Metrics, len(tm.fractions)+1)
+	r.metrics = make(map[string]*vegeta.Metrics, len(tm.targets)+1)
 	r.metrics["total"] = &vegeta.Metrics{}
-	for _, f := range tm.fractions {
-		r.metrics[f.name] = &vegeta.Metrics{}
+	for _, t := range tm.targets {
+		r.metrics[t.Name] = &vegeta.Metrics{}
 	}
 	return r
 }
 
 func (r *Reporter) Add(result *vegeta.Result) {
 	r.metrics["total"].Add(result)
-	for _, fraction := range r.tm.fractions {
-		if result.Method == fraction.method && strings.HasPrefix(result.URL, r.clientAddr+fraction.pathPrefix) {
-			r.metrics[fraction.name].Add(result)
-			attackResult.WithLabelValues(fraction.name).Observe(result.Latency.Seconds())
+	for _, target := range r.tm.targets {
+		if result.Method == target.Method && strings.HasPrefix(result.URL, r.clientAddr+target.PathPrefix) {
+			r.metrics[target.Name].Add(result)
+			attackResult.WithLabelValues(target.Name).Observe(result.Latency.Seconds())
 			if result.Error != "" {
-				attackErrors.WithLabelValues(fraction.name, result.Error).Inc()
+				attackErrors.WithLabelValues(target.Name, result.Error).Inc()
 			}
 			break
 		}

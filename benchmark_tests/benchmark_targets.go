@@ -11,37 +11,42 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-var TestList = make(map[string]func() BenchmarkTarget)
+var TestList = make(map[string]func() BenchmarkBuilder)
 
-type targetFraction struct {
-	name       string
-	method     string
-	pathPrefix string
-	percent    int // e.g. 30 is 30%
-	target     func(*api.Client) vegeta.Target
-	cleanup    func(*api.Client) error
+type BenchmarkTarget struct {
+	Builder    BenchmarkBuilder
+	Target     vegeta.Target
+	Remain     hcl.Body `hcl:",remain"`
+	Name       string   `hcl:"name,label"`
+	Type       string   `hcl:"type,label"`
+	MountName  string   `hcl:"mount_name,optional"`
+	Method     string
+	PathPrefix string
+	Weight     int `hcl:"weight,optional"`
 }
 
-type BenchmarkTest struct {
-	Builder BenchmarkTarget
-	Name    string `hcl:"name,label"`
-	Type    string `hcl:"type,label"`
-	Weight  int    `hcl:"weight,optional"`
-	Config  interface{}
-	Target  *vegeta.Target
-	Remain  hcl.Body `hcl:",remain"`
+type TargetInfo struct {
+	method     string
+	pathPrefix string
+}
+
+func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
+	bt.Target = bt.Builder.Target(client)
+	tInfo := bt.Builder.GetTargetInfo()
+	bt.PathPrefix = tInfo.pathPrefix
+	bt.Method = tInfo.method
 }
 
 // TargetMulti allows building a vegeta targetter that chooses between various
 // operations randomly following a specified distribution.
 type TargetMulti struct {
-	fractions []targetFraction
+	targets []BenchmarkTarget
 }
 
 func (tm TargetMulti) validate() error {
 	total := 0
-	for _, fraction := range tm.fractions {
-		total += fraction.percent
+	for _, bTest := range tm.targets {
+		total += bTest.Weight
 	}
 	if total != 100 {
 		return fmt.Errorf("test percentage total comes to %d, should be 100", total)
@@ -49,25 +54,30 @@ func (tm TargetMulti) validate() error {
 	return nil
 }
 
-func (tm TargetMulti) choose(i int) targetFraction {
+func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 	if i > 99 || i < 0 {
 		panic("i must be between 0 and 99")
 	}
 
 	total := 0
-	for _, fraction := range tm.fractions {
-		total += fraction.percent
+	for _, target := range tm.targets {
+		total += target.Weight
 		if i < total {
-			return fraction
+			return &target
 		}
 	}
 
 	panic("unreachable")
 }
 
+// TODO:
+// Should probably spawn these as goroutines and use a
+// waitgroup to help speed these up as this doesn't
+// scale very well
 func (tm TargetMulti) Cleanup(client *api.Client) error {
-	for _, fraction := range tm.fractions {
-		if err := fraction.cleanup(client); err != nil {
+	for _, target := range tm.targets {
+		currTargetBuilder := target.Builder
+		if err := currTargetBuilder.Cleanup(client); err != nil {
 			return err
 		}
 	}
@@ -83,18 +93,18 @@ func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
 			return vegeta.ErrNilTarget
 		}
 		rnd := int(rand.Int31n(100))
-		f := tm.choose(rnd)
-		*tgt = f.target(client)
+		t := tm.choose(rnd)
+		*tgt = t.Target
 		return nil
 	}, nil
 }
 
 func (tm TargetMulti) DebugInfo(client *api.Client) {
-	for index, fraction := range tm.fractions {
-		fmt.Printf("Target %d: %v\n", index, fraction.name)
-		fmt.Printf("\tMethod: %v\n", fraction.method)
-		fmt.Printf("\tPath Prefix: %v\n", string(fraction.pathPrefix))
-		target := fraction.target(client)
+	for index, benchTarget := range tm.targets {
+		fmt.Printf("Target %d: %v\n", index, benchTarget.Name)
+		fmt.Printf("\tMethod: %v\n", benchTarget.Method)
+		fmt.Printf("\tPath Prefix: %v\n", benchTarget.PathPrefix)
+		target := benchTarget.Target
 		req, err := target.Request()
 		if err != nil {
 			panic(fmt.Sprintf("Got err building target: %v", err))
@@ -118,29 +128,25 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 	}
 }
 
-func BuildTargets(tests []*BenchmarkTest, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
+func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, clientCAPem string, randomMounts bool) (*TargetMulti, error) {
 	var tm TargetMulti
+	var err error
 
 	for _, bvTest := range tests {
-		currTest, err := bvTest.Builder.Setup(client, true, bvTest.Config)
+		bvTest.Builder, err = bvTest.Builder.Setup(client, randomMounts, bvTest.MountName)
 		if err != nil {
 			return nil, err
 		}
-		currTargetFraction := currTest.createTargetFraction()
-		currTargetFraction.name = bvTest.Name
-		currTargetFraction.percent = bvTest.Weight
-		currTargetFraction.target = currTest.Target
-		currTargetFraction.cleanup = currTest.Cleanup
-
-		tm.fractions = append(tm.fractions, currTargetFraction)
+		bvTest.ConfigureTarget(client)
+		tm.targets = append(tm.targets, *bvTest)
 	}
 
 	// Put the biggest fractions first as an optimization
-	sort.Slice(tm.fractions, func(i, j int) bool {
-		return tm.fractions[j].percent < tm.fractions[i].percent
+	sort.Slice(tm.targets, func(i, j int) bool {
+		return tm.targets[j].Weight < tm.targets[i].Weight
 	})
 
-	err := tm.validate()
+	err = tm.validate()
 	if err != nil {
 		return nil, err
 	}
