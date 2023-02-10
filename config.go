@@ -27,6 +27,7 @@ type VaultBenchmarkCoreConfig struct {
 	Debug         bool                               `hcl:"debug,optional" json:"debug"`
 	RandomMounts  bool                               `hcl:"random_mounts,optional"`
 	InputResults  bool                               `hcl:"input_results,optional" json:"input_results"`
+	Cleanup       bool                               `hcl:"cleanup,optional" json:"cleanup"`
 }
 
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {

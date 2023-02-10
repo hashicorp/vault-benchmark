@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault-tools/benchmark-vault/benchmark_tests"
-	"github.com/hashicorp/vault-tools/benchmark-vault/vegeta"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -46,249 +44,35 @@ func main() {
 		inputResults  = flag.Bool("input_results", false, "instead of running tests, read a JSON file from a previous test run")
 		annotate      = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
 		debug         = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
-
-		pkiSignConfigJSON          = flag.String("pki_sign_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
-		pkiConfigJSON              = flag.String("pki_config_json", "", "when specified, path to PKI benchmark configuration JSON file to use")
-		sshCaConfigJSON            = flag.String("ssh_ca_config_json", "", "when specified, path to SSH CA benchmark configuration JSON file to use")
-		transitSignConfigJSON      = flag.String("transit_sign_config_json", "", "when specified, path to Transit sign benchmark configuration JSON file to use")
-		transitVerifyConfigJSON    = flag.String("transit_verify_config_json", "", "when specified, path to Transit verify benchmark configuration JSON file to use")
-		transitEncryptConfigJSON   = flag.String("transit_encrypt_config_json", "", "when specified, path to Transit encrypt benchmark configuration JSON file to use")
-		transitDecryptConfigJSON   = flag.String("transit_decrypt_config_json", "", "when specified, path to Transit decrypt benchmark configuration JSON file to use")
-		cassandraDBConfigJSON      = flag.String("cassandradb_config_json", "", "path to JSON file containing Vault CassandraDB configuration")
-		cassandraDBRoleConfigJSON  = flag.String("cassandradb_role_config_json", "", "when specified, path to CassandraDB benchmark role configuration JSON file to use")
-		ldapConfigJSON             = flag.String("ldap_config_json", "", "path to JSON file containing Vault LDAP Auth/Secrets configuration")
-		ldapTestUserCredsJSON      = flag.String("ldap_test_user_creds_json", "", "path to JSON file containing test user credentials for LDAP Auth benchmarking")
-		ldapStaticRoleConfigJSON   = flag.String("ldap_static_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine static role benchmarking")
-		ldapDynamicRoleConfigJSON  = flag.String("ldap_dynamic_role_json", "", "path to JSON file containing test secret for LDAP Secret Engine dynamic role benchmarking")
-		mongoDBConfigJSON          = flag.String("mongodb_config_json", "", "path to JSON file containing Vault MongoDB configuration")
-		mongoDBRoleConfigJSON      = flag.String("mongodb_role_config_json", "", "when specified, path to MongoDB benchmark role configuration JSON file to use")
-		redisConfigJSON            = flag.String("redis_config_json", "", "path to JSON file containing Vault redis configuration")
-		redisDynamicRoleConfigJSON = flag.String("redis_dynamic_role_config_json", "", "when specified, path to redis dynamic role configuration JSON file to use")
-		redisStaticRoleConfigJSON  = flag.String("redis_static_role_config_json", "", "when specified, path to redis static role configuration JSON file to use")
-		rabbitMQConfigJSON         = flag.String("rabbitmq_config_json", "", "path to JSON file containing Vault RabbitMQ configuration")
-		rabbitMQRoleConfigJSON     = flag.String("rabbitmq_role_config_json", "", "when specified, path to RabbitMQ benchmark role configuration JSON file to use")
-		postgresqlDBConfigJSON     = flag.String("postgresql_config_json", "", "path to JSON file containing Vault PostgreSQLDB configuration")
-		postgresqlRoleConfigJSON   = flag.String("postgresql_role_config_json", "", "when specified, path to PostgreSQLDB benchmark role configuration JSON file to use")
-		couchbaseConfigJSON        = flag.String("couchbase_config_json", "", "path to JSON file containing Vault Couchbase configuration")
-		couchbaseRoleConfigJSON    = flag.String("couchbase_role_config_json", "", "when specified, path to Couchbase benchmark role configuration JSON file to use")
-		kubernetesConfigJSON       = flag.String("k8s_config_json", "", "path to JSON file containing Vault Kubernetes Auth configuration")
-		kubernetesRoleConfigJSON   = flag.String("k8s_role_config_json", "", "path to JSON file containing Kubernetes Role configuration to use for Kubernetes Auth benchmarking")
-		sshSignerCAConfigJSON      = flag.String("ssh_signer_ca_config_json", "", "when specified, path to SSH Signer CA Config JSON file to use")
-		sshSignerRoleConfigJSON    = flag.String("ssh_signer_role_config_json", "", "when specified, path to SSH Signer Role Config JSON file to use")
-		userpassRoleConfig         = flag.String("userpass_role_config", "", "when specified, path to userpass role Config JSON file to use")
+		randomMounts  = flag.Bool("random_mounts", true, "use random mount names")
+		cleanup       = flag.Bool("cleanup", false, "cleanup after test run")
 	)
-
-	// test-related settings
-	var spec = vegeta.TestSpecification{}
-	flag.BoolVar(&spec.RandomMounts, "random_mounts", true, "use random mount path names for each test")
-	flag.BoolVar(&spec.Cleanup, "cleanup", true, "cleanup after test run")
-	flag.IntVar(&spec.NumKVs, "numkvs", 1000, "num KVs to use for KV operations")
-	flag.IntVar(&spec.KVSize, "kvsize", 1, "num KVs to use for KV operations")
-	flag.DurationVar(&spec.TokenTTL, "token_ttl", time.Hour, "ttl to use for logins")
-	flag.DurationVar(&spec.Timeout, "timeout", time.Second*60, "length of timeout for Vault client")
-	flag.IntVar(&spec.PctKvv1Write, "pct_kvv1_write", 0, "percent of requests that are kvv1 writes")
-	flag.IntVar(&spec.PctKvv1Read, "pct_kvv1_read", 0, "percent of requests that are kvv1 reads")
-	flag.IntVar(&spec.PctKvv2Write, "pct_kvv2_write", 0, "percent of requests that are kvv2 writes")
-	flag.IntVar(&spec.PctKvv2Read, "pct_kvv2_read", 0, "percent of requests that are kvv2 reads")
-	flag.IntVar(&spec.PctCertLogin, "pct_cert_login", 0, "percent of requests that are cert logins")
-	flag.IntVar(&spec.PctPkiIssue, "pct_pki_issue", 0, "percent of requests that are pki issue certs")
-	flag.IntVar(&spec.PctPkiSign, "pct_pki_sign", 0, "percent of requests that are pki cert signings")
-	flag.IntVar(&spec.PctSshCaIssue, "pct_ssh_ca_issue", 0, "percent of requests that are ssh issue certs")
-	flag.IntVar(&spec.PctHAStatus, "pct_ha_status", 0, "percent of requests that are ha status requests (/sys/ha-status)")
-	flag.IntVar(&spec.PctSealStatus, "pct_seal_status", 0, "percent of requests that are seal status requests (/sys/seal-status)")
-	flag.IntVar(&spec.PctMetrics, "pct_metrics", 0, "percent of requests that are read requests to metrics (/sys/metrics)")
-	flag.IntVar(&spec.PctTransitSign, "pct_transit_sign", 0, "percent of requests that are sign requests to transit")
-	flag.IntVar(&spec.PctTransitVerify, "pct_transit_verify", 0, "percent of requests that are verify requests to transit")
-	flag.IntVar(&spec.PctTransitEncrypt, "pct_transit_encrypt", 0, "percent of requests that are encrypt requests to transit")
-	flag.IntVar(&spec.PctTransitDecrypt, "pct_transit_decrypt", 0, "percent of requests that are decrypt requests to transit")
-	flag.IntVar(&spec.PctCassandraRead, "pct_cassandradb_read", 0, "percent of requests that are CassandraDB credential generations")
-	flag.IntVar(&spec.PctLDAPLogin, "pct_ldap_login", 0, "percent of requests that are LDAP logins")
-	flag.IntVar(&spec.PctLDAPStaticRead, "pct_ldap_static_role_read", 0, "percent of requests that are LDAP static role reads")
-	flag.IntVar(&spec.PctLDAPStaticRotate, "pct_ldap_static_role_rotate", 0, "percent of requests that are LDAP static role rotates")
-	flag.IntVar(&spec.PctLDAPDynamicRead, "pct_ldap_dynamic_role_read", 0, "percent of requests that are LDAP dynamic reads")
-	flag.IntVar(&spec.PctMongoRead, "pct_mongodb_read", 0, "percent of requests that are MongoDB credential generations")
-	flag.IntVar(&spec.PctRedisDynamicRead, "pct_redis_dynamic_read", 0, "percent of requests that are redis dynamic credential generations")
-	flag.IntVar(&spec.PctRedisStaticRead, "pct_redis_static_read", 0, "percent of requests that are redis static credential generations")
-	flag.IntVar(&spec.PctRabbitRead, "pct_rabbitmq_read", 0, "percent of requests that are RabbitMQ credential generations")
-	flag.IntVar(&spec.PctPostgreSQLRead, "pct_postgresql_read", 0, "percent of requests that are PostgreSQL credential generations")
-	flag.IntVar(&spec.PctCouchbaseRead, "pct_couchbase_read", 0, "percent of requests that are Couchbase dynamic credential generations")
-	flag.IntVar(&spec.PctKubernetesLogin, "pct_k8s_login", 0, "percent of requests that are Kubernetes logins")
-	flag.IntVar(&spec.PctSSHSign, "pct_ssh_sign", 0, "percent of requests that are SSH Client Key Sign operations")
-	flag.IntVar(&spec.PctUserpassLogin, "pct_userpass_login", 0, "percent of requests that are userpass logins")
-
-	// Config Options
-	flag.DurationVar(&spec.PkiConfig.SetupDelay, "pki_setup_delay", 50*time.Millisecond, "When running PKI tests, delay after creating mount before attempting issuer creation")
-	flag.DurationVar(&spec.SshCaConfig.SetupDelay, "ssh_ca_setup_delay", 50*time.Millisecond, "When running SSH CA tests, delay after creating mount before attempting issuer creation")
-	flag.DurationVar(&spec.TransitSignConfig.SetupDelay, "transit_sign_setup_delay", 50*time.Millisecond, "When running Transit sign tests, delay after creating mount before attempting key creation")
-	flag.DurationVar(&spec.TransitVerifyConfig.SetupDelay, "transit_verify_setup_delay", 50*time.Millisecond, "When running Transit verify tests, delay after creating mount before attempting key creation")
-	flag.DurationVar(&spec.TransitEncryptConfig.SetupDelay, "transit_encrypt_setup_delay", 50*time.Millisecond, "When running Transit encrypt tests, delay after creating mount before attempting key creation")
-	flag.DurationVar(&spec.TransitDecryptConfig.SetupDelay, "transit_decrypt_setup_delay", 50*time.Millisecond, "When running Transit decrypt tests, delay after creating mount before attempting key creation")
 
 	flag.Parse()
 
+	// Load config from File
 	conf, err := LoadConfig(*bvCoreConfig)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// Only allow cleanup when random mounts is enabled
-	if !spec.RandomMounts && spec.Cleanup {
+	// TODO: See how to neatly handle override flags withoout needing to manually
+	// type out and handle every single flag. There probably won't be a lot, but
+	// this would be nice to do dynamically.
+
+	/*
+		// Check if we have any override flags
+		flag.Visit(func(f *flag.Flag) {
+			// Walk all the keys of the config struct
+			r := reflect.ValueOf(&conf).Elem()
+			currField := r.FieldByName(f.Name)
+			currField.Set(f.Value)
+		})
+	*/
+
+	if (!conf.RandomMounts || !*randomMounts) && (conf.Cleanup || *cleanup) {
 		log.Fatal("Cleanup can only be enabled when random mounts is enabled")
-	}
-
-	if err := spec.PkiConfig.FromJSON(*pkiConfigJSON); err != nil {
-		log.Fatalf("unable to parse PKI config at %v: %v", *pkiConfigJSON, err)
-	}
-
-	if err := spec.PkiSignConfig.FromJSON(*pkiSignConfigJSON); err != nil {
-		log.Fatalf("unable to parse PKI config at %v: %v", *pkiSignConfigJSON, err)
-	}
-
-	if err := spec.SshCaConfig.FromJSON(*sshCaConfigJSON); err != nil {
-		log.Fatalf("unable to parse SSH CA config at %v: %v", *sshCaConfigJSON, err)
-	}
-
-	if err := spec.TransitSignConfig.FromJSON(*transitSignConfigJSON); err != nil {
-		log.Fatalf("unable to parse Transit sign config at %v: %v", *transitSignConfigJSON, err)
-	}
-
-	if err := spec.TransitVerifyConfig.FromJSON(*transitVerifyConfigJSON); err != nil {
-		log.Fatalf("unable to parse Transit verify config at %v: %v", *transitVerifyConfigJSON, err)
-	}
-
-	if err := spec.TransitEncryptConfig.FromJSON(*transitEncryptConfigJSON); err != nil {
-		log.Fatalf("unable to parse Transit encrypt config at %v: %v", *transitEncryptConfigJSON, err)
-	}
-
-	if err := spec.TransitDecryptConfig.FromJSON(*transitDecryptConfigJSON); err != nil {
-		log.Fatalf("unable to parse Transit decrypt config at %v: %v", *transitDecryptConfigJSON, err)
-	}
-
-	// Only attempt to load/generate config if actually testing
-	// This is only needed since we are requiring configs for these tests
-	if spec.PctCassandraRead > 0 {
-		if err := spec.CassandraDBConfig.FromJSON(*cassandraDBConfigJSON); err != nil {
-			log.Fatalf("unable to parse CassandraDB config at %v: %v", *cassandraDBConfigJSON, err)
-		}
-
-		if err := spec.CassandraDBRoleConfig.FromJSON(*cassandraDBRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse CassandraDB Role config at %v: %v", *cassandraDBRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctLDAPLogin > 0 {
-		if err := spec.LDAPAuthConfig.FromJSON(*ldapConfigJSON); err != nil {
-			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
-		}
-
-		if err := spec.LDAPTestUserConfig.FromJSON(*ldapTestUserCredsJSON); err != nil {
-			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapTestUserCredsJSON, err)
-		}
-	}
-
-	if spec.PctMongoRead > 0 {
-		if err := spec.MongoDBConfig.FromJSON(*mongoDBConfigJSON); err != nil {
-			log.Fatalf("unable to parse MongoDB config at %v: %v", *mongoDBConfigJSON, err)
-		}
-
-		if err := spec.MongoDBRoleConfig.FromJSON(*mongoDBRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse MongoDB Role config at %v: %v", *mongoDBRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctRedisDynamicRead > 0 {
-		if err := spec.RedisConfig.FromJSON(*redisConfigJSON); err != nil {
-			log.Fatalf("unable to parse redis config at %v: %v", *redisConfigJSON, err)
-		}
-
-		if err := spec.RedisDynamicRoleConfigJSON.FromJSON(*redisDynamicRoleConfigJSON); err != nil {
-			log.Printf("no role config present, default role config used")
-		}
-	}
-
-	if spec.PctRedisStaticRead > 0 {
-		if err := spec.RedisConfig.FromJSON(*redisConfigJSON); err != nil {
-			log.Fatalf("unable to parse redis config at %v: %v", *redisConfigJSON, err)
-		}
-
-		if err := spec.RedisStaticRoleConfigJSON.FromJSON(*redisStaticRoleConfigJSON); err != nil {
-			log.Printf("no role config present, default role config used")
-		}
-	}
-
-	if spec.PctUserpassLogin > 0 {
-		if err := spec.UserpassRoleConfig.FromJSON(*userpassRoleConfig); err != nil {
-			log.Fatalf("unable to parse userpass config at %v: %v", *redisConfigJSON, err)
-		}
-	}
-
-	if spec.PctRabbitRead > 0 {
-		if err := spec.RabbitMQConfig.FromJSON(*rabbitMQConfigJSON); err != nil {
-			log.Fatalf("unable to parse RabbitMQ config at %v: %v", *rabbitMQConfigJSON, err)
-		}
-
-		if err := spec.RabbitMQRoleConfig.FromJSON(*rabbitMQRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse RabbitMQ Role config at %v: %v", *rabbitMQRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctLDAPStaticRead > 0 || spec.PctLDAPStaticRotate > 0 {
-		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {
-			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
-		}
-
-		if err := spec.LDAPStaticRoleConfig.FromJSON(*ldapStaticRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapStaticRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctLDAPDynamicRead > 0 {
-		if err := spec.LDAPSecretConfig.FromJSON(*ldapConfigJSON); err != nil {
-			log.Fatalf("unable to parse LDAP Config at %v: %v", *ldapConfigJSON, err)
-		}
-
-		if err := spec.LDAPDynamicRoleConfig.FromJSON(*ldapDynamicRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse test LDAP user credentials at %v: %v", *ldapDynamicRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctPostgreSQLRead > 0 {
-		if err := spec.PostgreSQLDBConfig.FromJSON(*postgresqlDBConfigJSON); err != nil {
-			log.Fatalf("unable to parse PostgreSQL config at %v: %v", *postgresqlDBConfigJSON, err)
-		}
-
-		if err := spec.PostgreSQLRoleConfig.FromJSON(*postgresqlRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse PostgreSQL Role config at %v: %v", *postgresqlRoleConfigJSON, err)
-		}
-	}
-	if spec.PctCouchbaseRead > 0 {
-		if err := spec.CouchbaseConfig.FromJSON(*couchbaseConfigJSON); err != nil {
-			log.Fatalf("unable to parse Couchbase config at %v: %v", *couchbaseConfigJSON, err)
-		}
-
-		if err := spec.CouchbaseRoleConfig.FromJSON(*couchbaseRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse Couchbase role config at %v: %v", *couchbaseRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctKubernetesLogin > 0 {
-		if err := spec.KubernetesAuthConfig.FromJSON(*kubernetesConfigJSON); err != nil {
-			log.Fatalf("unable to parse Kubernetes config at %v: %v", *kubernetesConfigJSON, err)
-		}
-
-		if err := spec.KubernetesTestRoleConfig.FromJSON(*kubernetesRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse Kubernetes role config at %v: %v", *kubernetesRoleConfigJSON, err)
-		}
-	}
-
-	if spec.PctSSHSign > 0 {
-		if err := spec.SSHSignerCAConfig.FromJSON(*sshSignerCAConfigJSON); err != nil {
-			log.Fatalf("unable to parse SSH CA config at %v: %v", *sshSignerCAConfigJSON, err)
-		}
-		if err := spec.SSHSignerRoleConfig.FromJSON(*sshSignerRoleConfigJSON); err != nil {
-			log.Fatalf("unable to parse SSH CA config at %v: %v", *sshSignerRoleConfigJSON, err)
-		}
 	}
 
 	switch *reportMode {
@@ -385,33 +169,36 @@ func main() {
 
 	// Create vault clients
 	var clients []*vaultapi.Client
-	var clientCert, clientKey string
+	var clientCert string
+	//var clientKey string
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
 		if *caPEMFile != "" {
 			tlsCfg.CACert = *caPEMFile
 		}
-		if spec.PctCertLogin > 0 {
-			// Create self-signed CA
-			benchCA, err := vegeta.GenerateCA()
-			if err != nil {
-				log.Fatalf("error generating benchmark CA: %v", err)
-			}
+		/*
+			if spec.PctCertLogin > 0 {
+				// Create self-signed CA
+				benchCA, err := vegeta.GenerateCA()
+				if err != nil {
+					log.Fatalf("error generating benchmark CA: %v", err)
+				}
 
-			// Generate Client cert for Cert Auth
-			clientCert, clientKey, err = vegeta.GenerateCert(benchCA.Template, benchCA.Signer)
-			if err != nil {
-				log.Fatalf("error generating client cert: %v", err)
-			}
+				// Generate Client cert for Cert Auth
+				clientCert, clientKey, err = vegeta.GenerateCert(benchCA.Template, benchCA.Signer)
+				if err != nil {
+					log.Fatalf("error generating client cert: %v", err)
+				}
 
-			// Create X509 Key Pair
-			keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
-			if err != nil {
-				log.Fatalf("error generating client key pair: %v", err)
+				// Create X509 Key Pair
+				keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
+				if err != nil {
+					log.Fatalf("error generating client key pair: %v", err)
+				}
+				cfg.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
 			}
-			cfg.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
-		}
+		*/
 		err := cfg.ConfigureTLS(tlsCfg)
 		if err != nil {
 			log.Fatalf("error creating vault client: %v", err)
@@ -507,7 +294,7 @@ func main() {
 			l.Unlock()
 
 			fmt.Println("Benchmark complete!")
-			if spec.Cleanup {
+			if *cleanup {
 				fmt.Println("Cleaning up...")
 				err := tm.Cleanup(client)
 				if err != nil {

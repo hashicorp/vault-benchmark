@@ -46,31 +46,31 @@ type ApproleAuthTestConfig struct {
 
 // AppRole Role Config
 type RoleConfig struct {
-	Name                 string   `hcl:"role_name" json:"role_name"`
-	BindSecretID         bool     `hcl:"bind_secret_id,optional" json:"bind_secret_id"`
-	SecretIDBoundCIDRS   []string `hcl:"secret_id_bound_cidrs,optional" json:"secret_id_bound_cidrs"`
-	SecredIDNumUses      int      `hcl:"secret_id_num_uses,optional" json:"secret_id_num_uses"`
-	SecretIDTTL          string   `hcl:"secret_id_ttl,optional" json:"secret_id_ttl"`
-	LocalSecretIDs       bool     `hcl:"local_secret_ids,optional" json:"local_secret_ids"`
-	TokenTTL             string   `hcl:"token_ttl,optional" json:"token_ttl"`
-	TokenMaxTTL          string   `hcl:"token_max_ttl,optional" json:"token_max_ttl"`
-	TokenPolicies        []string `hcl:"token_policies,optional" json:"token_policies"`
-	Policies             []string `hcl:"policies,optional" json:"policies"`
-	TokenBoundCIDRs      []string `hcl:"token_bound_cidrs,optional" json:"token_bound_cidrs"`
-	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional" json:"token_explicit_max_ttl"`
-	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional" json:"token_no_default_policy"`
-	TokenNumUses         int      `hcl:"token_num_uses,optional" json:"token_num_uses"`
-	TokenPeriod          string   `hcl:"token_period,optional" json:"token_period"`
-	TokenType            string   `hcl:"token_type,optional" json:"token_type"`
+	Name                 string   `hcl:"role_name" mapstructure:"role_name"`
+	BindSecretID         bool     `hcl:"bind_secret_id,optional" mapstructure:"bind_secret_id,omitempty"`
+	SecretIDBoundCIDRS   []string `hcl:"secret_id_bound_cidrs,optional" mapstructure:"secret_id_bound_cidrs,omitempty"`
+	SecredIDNumUses      int      `hcl:"secret_id_num_uses,optional" mapstructure:"secret_id_num_uses,omitempty"`
+	SecretIDTTL          string   `hcl:"secret_id_ttl,optional" mapstructure:"secret_id_ttl,omitempty"`
+	LocalSecretIDs       bool     `hcl:"local_secret_ids,optional" mapstructure:"local_secret_ids,omitempty"`
+	TokenTTL             string   `hcl:"token_ttl,optional" mapstructure:"token_ttl,omitempty"`
+	TokenMaxTTL          string   `hcl:"token_max_ttl,optional" mapstructure:"token_max_ttl,omitempty"`
+	TokenPolicies        []string `hcl:"token_policies,optional" mapstructure:"token_policies,omitempty"`
+	Policies             []string `hcl:"policies,optional" mapstructure:"policies,omitempty"`
+	TokenBoundCIDRs      []string `hcl:"token_bound_cidrs,optional" mapstructure:"token_bound_cidrs,omitempty"`
+	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional" mapstructure:"token_explicit_max_ttl,omitempty"`
+	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional" mapstructure:"token_no_default_policy,omitempty"`
+	TokenNumUses         int      `hcl:"token_num_uses,optional" mapstructure:"token_num_uses,omitempty"`
+	TokenPeriod          string   `hcl:"token_period,optional" mapstructure:"token_period,omitempty"`
+	TokenType            string   `hcl:"token_type,optional" mapstructure:"token_type,omitempty"`
 }
 
 // AppRole SecretID Config
 type SecretIDConfig struct {
-	Metadata        string   `hcl:"metadata,optional" json:"metadata"`
-	CIDRList        []string `hcl:"cidr_list,optional" json:"cidr_list"`
-	NumUses         int      `hcl:"num_uses,optional" json:"num_uses"`
-	TTL             string   `hcl:"ttl,optional" json:"ttl"`
-	TokenBoundCIDRs []string `hcl:"token_bound_cidrs,optional" json:"token_bound_cidrs"`
+	Metadata        string   `hcl:"metadata,optional" mapstructure:"metadata,omitempty"`
+	CIDRList        []string `hcl:"cidr_list,optional" mapstructure:"cidr_list,omitempty"`
+	NumUses         int      `hcl:"num_uses,optional" mapstructure:"num_uses,omitempty"`
+	TTL             string   `hcl:"ttl,optional" mapstructure:"ttl,omitempty"`
+	TokenBoundCIDRs []string `hcl:"token_bound_cidrs,optional" mapstructure:"token_bound_cidrs,omitempty"`
 }
 
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
@@ -129,6 +129,7 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 		}
 	}
 
+	// Create AppRole Auth Mount
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "approle",
 	})
@@ -136,30 +137,35 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error enabling approle: %v", err)
 	}
 
+	// Decode RoleConfig struct into mapstructure to pass with request
 	roleData := make(map[string]interface{})
 	err = mapstructure.Decode(config.RoleConfig, &roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
+	// Set Up Role
 	rolePath := filepath.Join("auth", authPath, "role", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating approle role %q: %v", config.RoleConfig.Name, err)
 	}
 
-	secretRole, err := client.Logical().Read(rolePath + "/role-id")
+	// Get Role ID
+	roleSecret, err := client.Logical().Read(rolePath + "/role-id")
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle role_id: %v", err)
 	}
 
-	secretData := make(map[string]interface{})
-	err = mapstructure.Decode(config.SecretIDConfig, &secretData)
+	// Decode SecretIDConfig struct into map to pass with request
+	secretIDData := make(map[string]interface{})
+	err = mapstructure.Decode(config.SecretIDConfig, &secretIDData)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding secretID config from struct: %v", err)
 	}
 
-	secretId, err := client.Logical().Write(rolePath+"/secret-id", secretData)
+	// Get SecretID
+	secretId, err := client.Logical().Write(rolePath+"/secret-id", secretIDData)
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle secret_id: %v", err)
 	}
@@ -167,7 +173,7 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 	return &approle_auth{
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		roleID:     secretRole.Data["role_id"].(string),
+		roleID:     roleSecret.Data["role_id"].(string),
 		role:       config.RoleConfig.Name,
 		secretID:   secretId.Data["secret_id"].(string),
 	}, nil
