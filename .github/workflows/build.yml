@@ -160,6 +160,8 @@ jobs:
           version: ${{ env.version }}
           target: release-default
           arch: ${{ matrix.arch }}
+          instructions: |
+            make image
           # The ECR tag used below is to allow us to test by pushing to a private ECR registry.
           # If you want to pubish to ECR use the following syntax instead - public.ecr.aws/hashicorp/${{env.repo}}:${{env.version}}.
           # Please note - if you haven't previously been publishing to ECR you will need to reach out to team-rel-eng
