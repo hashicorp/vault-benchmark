@@ -18,7 +18,7 @@ env:
 jobs:
   get-go-version:
     name: "Determine Go toolchain version"
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     outputs:
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
@@ -32,7 +32,7 @@ jobs:
           echo "go-version=$(cat .go-version)" >> $GITHUB_OUTPUT
 
   set-product-version:
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     outputs:
       product-version: ${{ steps.set-product-version.outputs.product-version }}
       product-base-version: ${{ steps.set-product-version.outputs.base-product-version }}
@@ -45,7 +45,7 @@ jobs:
 
   generate-metadata-file:
     needs: set-product-version
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     outputs:
       filepath: ${{ steps.generate-metadata-file.outputs.filepath }}
     steps:
@@ -63,39 +63,22 @@ jobs:
           name: metadata.json
           path: ${{ steps.generate-metadata-file.outputs.filepath }}
 
-  build:
-    name: "Go ${{ matrix.go }} ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.version_suffix }} build"
+  build-linux:
     needs:
       - get-go-version
       - set-product-version
-    runs-on: [self-hosted, "${{ matrix.runner }}"]
-    env:
-      repo: ${{github.event.repository.name}}
-      VERSION: ${{needs.set-product-version.outputs.product-version}}
-      BASE_VERSION: ${{ needs.set-product-version.outputs.product-base-version }}
-      PRERELEASE_VERSION: ${{ needs.set-product-version.outputs.product-prerelease-version}}
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
       matrix:
-        include:
-          # Most builds have CGO_ENABLED=0
-          - { runner: linux, os: linux,   arch: 386,   env: CGO_ENABLED=0 }
-          - { runner: linux, os: linux,   arch: amd64, env: CGO_ENABLED=0 }
-          - { runner: linux, os: linux,   arch: arm,   env: CGO_ENABLED=0 }
-          - { runner: linux, os: linux,   arch: arm64, env: CGO_ENABLED=0 }
-          - { runner: linux, os: freebsd, arch: 386,   env: CGO_ENABLED=0 }
-          - { runner: linux, os: freebsd, arch: amd64, env: CGO_ENABLED=0 }
-          - { runner: linux, os: windows, arch: 386,   env: CGO_ENABLED=0 }
-          - { runner: linux, os: windows, arch: amd64, env: CGO_ENABLED=0 }
-          - { runner: linux, os: solaris, arch: amd64, env: CGO_ENABLED=0 }
-          # Some extra builds with a complex version suffix to exercise handling of that.
-          - { runner: linux, os: linux,   arch: amd64, env: CGO_ENABLED=0, version_suffix: -complex.version1234 }
-          - { runner: linux, os: linux,   arch: arm64, env: CGO_ENABLED=0, version_suffix: -complex.version1234 }
-          # Darwin builds don't set CGO_ENABLED, but do use the 'netcgo' build tag and the macOS runner.
-          - { runner: macos, os: darwin,  arch: amd64, extra_build_tags: netcgo }
-          - { runner: macos, os: darwin,  arch: arm64, extra_build_tags: netcgo }
+        goos: [linux]
+        goarch: ["arm", "arm64", "386", "amd64"]
+
+      fail-fast: true
+
+    name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b #https://github.com/actions/checkout/releases/tag/v3.2.0
 
       - uses: hashicorp/actions-go-build@v0.1.7
         env:
@@ -103,21 +86,21 @@ jobs:
           PRERELEASE_VERSION: ${{ needs.set-product-version.outputs.product-prerelease-version}}
           METADATA_VERSION: ${{ env.METADATA }}
         with:
-          product_name: vault-benchmark
-          product_version: "${{ needs.set-product-version.outputs.product-version }}+${{ env.VERSION_METADATA }}"
+          product_name: ${{ env.PKG_NAME }}
+          product_version: ${{ needs.set-product-version.outputs.product-version }}
           go_version: ${{ needs.get-go-version.outputs.go-version }}
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          reproducible: assert
+          os: ${{ matrix.goos }}
+          arch: ${{ matrix.goarch }}
+          reproducible: report
           instructions: |
             make build
-
       - name: Package
-        if: ${{ matrix.os == 'linux' }}
+        if: ${{ matrix.goos == 'linux' }}
         uses: hashicorp/actions-packaging-linux@v1
         with:
           name: ${{ github.event.repository.name }}
-          arch: ${{ matrix.arch }}
+          description: "vault-benchmark is a template repo for oss products."
+          arch: ${{ matrix.goarch }}
           version: ${{ needs.set-product-version.outputs.product-version }}
           maintainer: "HashiCorp"
           homepage: "https://github.com/hashicorp/vault-benchmark"
@@ -127,18 +110,18 @@ jobs:
           rpm_depends: "openssl"
 
       - name: Set Package Names
-        if: ${{ matrix.os == 'linux' }}
+        if: ${{ matrix.goos == 'linux' }}
         run: |
-          echo "RPM_PACKAGE=$(basename out/*.rpm)" >> "$GITHUB_ENV"
-          echo "DEB_PACKAGE=$(basename out/*.deb)" >> "$GITHUB_ENV"
-      - uses: actions/upload-artifact@v2
-        if: ${{ matrix.os == 'linux' }}
+          echo "RPM_PACKAGE=$(basename out/*.rpm)" >> $GITHUB_ENV
+          echo "DEB_PACKAGE=$(basename out/*.deb)" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb #https://github.com/actions/upload-artifact/releases/tag/v3.1.1
+        if: ${{ matrix.goos == 'linux' }}
         with:
           name: ${{ env.RPM_PACKAGE }}
           path: out/${{ env.RPM_PACKAGE }}
 
-      - uses: actions/upload-artifact@v2
-        if: ${{ matrix.os == 'linux' }}
+      - uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb #https://github.com/actions/upload-artifact/releases/tag/v3.1.1
+        if: ${{ matrix.goos == 'linux' }}
         with:
           name: ${{ env.DEB_PACKAGE }}
           path: out/${{ env.DEB_PACKAGE }}
@@ -148,7 +131,7 @@ jobs:
     needs:
       - set-product-version
       - build
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         arch: [arm, arm64, 386, amd64]
