@@ -130,7 +130,7 @@ jobs:
     name: Docker ${{ matrix.arch }} build
     needs:
       - set-product-version
-      - build
+      - build-linux
     runs-on: ubuntu-latest
     strategy:
       matrix:
