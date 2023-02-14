@@ -14,7 +14,8 @@ project "vault-benchmark" {
     // "release ready" state.
     release_branches = [
       "main",
-      "release/**"
+      "release/**",
+      "crt-pipeline"
     ]
   }
 }
@@ -58,21 +59,7 @@ event "trigger-staging" {
 // and is required - do not delete.
 }
 
-event "enos-run" {
-    depends = ["trigger-staging"]
-      action "enos-run" {
-        organization = "hashicorp"
-        repository = "vault-benchmark"
-        workflow = "enos-run"
-      }
-
-      notification {
-        on = "fail"
-      }
-}
-
 event "promote-staging" {
-  depends = ["enos-run"]
   action "promote-staging" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
