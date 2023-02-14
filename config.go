@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/hashicorp/hcl/v2"
@@ -31,18 +32,26 @@ type VaultBenchmarkCoreConfig struct {
 }
 
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
-	return &VaultBenchmarkCoreConfig{}
+	// Default Vault Benchmark Config Values
+	return &VaultBenchmarkCoreConfig{
+		Workers:      10,
+		RPS:          0,
+		Duration:     "10s",
+		ReportMode:   "terse",
+		RandomMounts: true,
+		Cleanup:      false,
+	}
 }
 
-func LoadConfig(path string) (*VaultBenchmarkCoreConfig, error) {
+func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
 	// File Validity checking
 	f, err := os.Stat(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if f.IsDir() {
-		return nil, fmt.Errorf("location is a directory, not a file")
+		return fmt.Errorf("location is a directory, not a file")
 	}
 
 	// HCL V2 Parsing
@@ -57,7 +66,6 @@ func LoadConfig(path string) (*VaultBenchmarkCoreConfig, error) {
 	}
 
 	// Decode HCL Body into Core Config Struct
-	c := NewVaultBenchmarkCoreConfig()
 	moreDiags := gohcl.DecodeBody(confFile.Body, nil, c)
 	diags = append(diags, moreDiags...)
 	if diags.HasErrors() {
@@ -67,16 +75,15 @@ func LoadConfig(path string) (*VaultBenchmarkCoreConfig, error) {
 
 	// Loop through all found tests and check if they are part of the test list
 	// then parse each test config based on provided test structs
+
 	for i, bvTest := range c.Tests {
-		for testType, testObject := range benchmark_tests.TestList {
-			if bvTest.Type == testType {
-				// Found test in list, parse config
-				currTest := testObject()
-				currTest.ParseConfig(bvTest.Remain)
-				c.Tests[i].Builder = currTest
-			}
-			//TODO: What do we do if we don't find the test?
+		if currTest, ok := benchmark_tests.TestList[c.Tests[i].Type]; ok {
+			currBuilder := currTest()
+			currBuilder.ParseConfig(bvTest.Remain)
+			c.Tests[i].Builder = currBuilder
+		} else {
+			log.Fatalf("invalid test type found: %v", c.Tests[i].Type)
 		}
 	}
-	return c, nil
+	return nil
 }

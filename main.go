@@ -29,65 +29,74 @@ func main() {
 	var (
 		bvCoreConfig = flag.String("config", "", "benchmark vault configuration file location")
 		// Vault related settings
-		vaultAddr   = flag.String("vault_addr", "", "vault address, overrides VAULT_ADDR")
+		_           = flag.String("vault_addr", "", "vault address, overrides VAULT_ADDR")
+		_           = flag.String("vault_token", "", "vault token, overrides VAULT_TOKEN")
 		clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
-		vaultToken  = flag.String("vault_token", "", "vault token, overrides VAULT_TOKEN")
 		auditPath   = flag.String("audit_path", "", "when creating vault cluster, path to file for audit log")
 		caPEMFile   = flag.String("ca_pem_file", "", "when using external vault with HTTPS, path to its CA file in PEM format")
 
 		// benchmark-vault settings
-		workers       = flag.Int("workers", 10, "number of workers aka virtual users")
-		rps           = flag.Int("rps", 0, "requests per second, or 0 for as fast as we can")
-		duration      = flag.Duration("duration", 10*time.Second, "test duration")
-		reportMode    = flag.String("report_mode", "terse", "reporting mode: terse, verbose, json")
-		pprofInterval = flag.Duration("pprof_interval", 0, "collection interval for vault debug pprof profiling")
-		inputResults  = flag.Bool("input_results", false, "instead of running tests, read a JSON file from a previous test run")
-		annotate      = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
-		debug         = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
-		randomMounts  = flag.Bool("random_mounts", true, "use random mount names")
-		cleanup       = flag.Bool("cleanup", false, "cleanup after test run")
+		_ = flag.Int("workers", 10, "number of workers aka virtual users")
+		_ = flag.Int("rps", 0, "requests per second, or 0 for as fast as we can")
+		_ = flag.Duration("duration", 10*time.Second, "test duration")
+		_ = flag.String("report_mode", "terse", "reporting mode: terse, verbose, json")
+		_ = flag.Duration("pprof_interval", 0, "collection interval for vault debug pprof profiling")
+		_ = flag.Bool("input_results", false, "instead of running tests, read a JSON file from a previous test run")
+		_ = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
+		// I think this should probably be only available via flag or env variable
+		_ = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
+		_ = flag.Bool("random_mounts", true, "use random mount names")
+		_ = flag.Bool("cleanup", false, "cleanup after test run")
 	)
-
+	conf := NewVaultBenchmarkCoreConfig()
 	flag.Parse()
 
 	// Load config from File
-	conf, err := LoadConfig(*bvCoreConfig)
+	err := conf.LoadConfig(*bvCoreConfig)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// TODO: See how to neatly handle override flags withoout needing to manually
-	// type out and handle every single flag. There probably won't be a lot, but
-	// this would be nice to do dynamically.
+	// This feels fragile...
+	// Check if we have any override flags
+	err = benchmark_tests.ConfigOverrides(conf)
+	if err != nil {
+		log.Fatalf("error overriding config options: %v", err)
+	}
 
-	/*
-		// Check if we have any override flags
-		flag.Visit(func(f *flag.Flag) {
-			// Walk all the keys of the config struct
-			r := reflect.ValueOf(&conf).Elem()
-			currField := r.FieldByName(f.Name)
-			currField.Set(f.Value)
-		})
-	*/
+	// Parse Duration from configuration string
+	parsedDuration, err := time.ParseDuration(conf.Duration)
+	if err != nil {
+		log.Fatalf("error parsing test duration from configuration: %v", err)
+	}
 
-	if (!conf.RandomMounts || !*randomMounts) && (conf.Cleanup || *cleanup) {
+	// Parse pprof Interval from configuration string
+	var parsedPPROFinterval time.Duration
+	if conf.PPROFInterval != "" {
+		parsedPPROFinterval, err = time.ParseDuration(conf.PPROFInterval)
+		if err != nil {
+			log.Fatalf("error parsing pprof interval from configuration: %v", err)
+		}
+	}
+
+	if (!conf.RandomMounts) && (conf.Cleanup) {
 		log.Fatal("Cleanup can only be enabled when random mounts is enabled")
 	}
 
-	switch *reportMode {
+	switch conf.ReportMode {
 	case "terse", "verbose", "json":
 	default:
 		log.Fatal("report_mode must be one of terse, verbose, or json")
 	}
 
 	// If input_results is true we're not running benchmarks, just transforming input results based on reportMode
-	if *inputResults {
+	if conf.InputResults {
 		rpt, err := benchmark_tests.FromReader(os.Stdin)
 		if err != nil {
 			log.Fatalf("error reading report: %v", err)
 		}
-		switch *reportMode {
+		switch conf.ReportMode {
 		case "json":
 			err = fmt.Errorf("asked to report JSON on JSON input")
 		case "terse":
@@ -107,7 +116,7 @@ func main() {
 		VaultAddrs []string `json:"vault_addrs"`
 	}
 	switch {
-	case *clusterJson != "" && *vaultAddr != "":
+	case *clusterJson != "" && conf.VaultAddr != "":
 		log.Fatalf("cannot specify both cluster_json and vault_addr")
 	case *clusterJson != "":
 		b, err := os.ReadFile(*clusterJson)
@@ -118,8 +127,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("error decoding cluster_json file %q: %v", *clusterJson, err)
 		}
-	case *vaultAddr != "":
-		cluster.VaultAddrs = []string{*vaultAddr}
+	case conf.VaultAddr != "":
+		cluster.VaultAddrs = []string{conf.VaultAddr}
 	case os.Getenv("VAULT_ADDR") != "":
 		cluster.VaultAddrs = []string{os.Getenv("VAULT_ADDR")}
 	default:
@@ -127,8 +136,8 @@ func main() {
 	}
 
 	switch {
-	case *vaultToken != "":
-		cluster.Token = *vaultToken
+	case conf.VaultToken != "":
+		cluster.Token = conf.VaultToken
 	case cluster.Token == "" && os.Getenv("VAULT_TOKEN") != "":
 		cluster.Token = os.Getenv("VAULT_TOKEN")
 	}
@@ -143,11 +152,11 @@ func main() {
 	// Setup annotations and testRunning metric
 	var annoLabels []string
 	var annoValues []string
-	if *annotate != "" {
-		for _, kv := range strings.Split(*annotate, ",") {
+	if conf.Annotate != "" {
+		for _, kv := range strings.Split(conf.Annotate, ",") {
 			kvPair := strings.SplitN(kv, "=", 2)
 			if len(kvPair) != 2 || kvPair[0] == "" {
-				log.Fatalf("annotate should contain comma-separated list of name=value pairs, got: %s", *annotate)
+				log.Fatalf("annotate should contain comma-separated list of name=value pairs, got: %s", conf.Annotate)
 			}
 			annoLabels = append(annoLabels, kvPair[0])
 			annoValues = append(annoValues, kvPair[1])
@@ -214,14 +223,14 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	if *pprofInterval != 0 {
+	if parsedPPROFinterval.Seconds() != 0 {
 		_ = os.Setenv("VAULT_ADDR", cluster.VaultAddrs[0])
 		_ = os.Setenv("VAULT_TOKEN", cluster.Token)
 		if *caPEMFile != "" {
 			_ = os.Setenv("VAULT_CACERT", *caPEMFile)
 		}
-		cmd := exec.Command("vault", "debug", "-duration", (2 * *duration).String(),
-			"-interval", pprofInterval.String(), "-compress=false")
+		cmd := exec.Command("vault", "debug", "-duration", (2 * parsedDuration).String(),
+			"-interval", parsedPPROFinterval.String(), "-compress=false")
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -274,7 +283,7 @@ func main() {
 		go func(client *vaultapi.Client) {
 			defer wg.Done()
 
-			if *debug {
+			if conf.Debug {
 				l.Lock()
 				fmt.Println("=== Debug Info ===")
 				fmt.Printf("Client: %s\n", client.Address())
@@ -282,8 +291,8 @@ func main() {
 				l.Unlock()
 			}
 
-			fmt.Println("Starting benchmark tests. Will run for " + duration.String() + "...")
-			rpt, err := benchmark_tests.Attack(tm, client, *duration, *rps, *workers)
+			fmt.Println("Starting benchmark tests. Will run for " + parsedDuration.String() + "...")
+			rpt, err := benchmark_tests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
 			if err != nil {
 				log.Fatal("attack error", err)
 			}
@@ -294,7 +303,7 @@ func main() {
 			l.Unlock()
 
 			fmt.Println("Benchmark complete!")
-			if *cleanup {
+			if conf.Cleanup {
 				fmt.Println("Cleaning up...")
 				err := tm.Cleanup(client)
 				if err != nil {
@@ -310,7 +319,7 @@ func main() {
 	for _, client := range clients {
 		addr := client.Address()
 		rpt := results[addr]
-		switch *reportMode {
+		switch conf.ReportMode {
 		case "json":
 			rpt.ReportJSON(os.Stdout)
 		case "verbose":

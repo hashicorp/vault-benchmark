@@ -137,8 +137,6 @@ type TestSpecification struct {
 	CassandraDBConfig          CassandraDBConfig
 	CassandraDBRoleConfig      CassandraRoleConfig
 	PctLDAPLogin               int
-	LDAPAuthConfig             LDAPAuthConfig
-	LDAPTestUserConfig         LDAPTestUserConfig
 	PctMongoRead               int
 	MongoDBConfig              MongoDBConfig
 	MongoDBRoleConfig          MongoRoleConfig
@@ -250,20 +248,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			percent:    spec.PctCertLogin,
 			target:     cert.login,
 			cleanup:    cert.cleanup,
-		})
-	}
-	if spec.PctLDAPLogin > 0 {
-		ldap, err := setupLDAPAuth(client, spec.RandomMounts, &spec.LDAPAuthConfig, &spec.LDAPTestUserConfig)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "LDAP login",
-			method:     "POST",
-			pathPrefix: ldap.pathPrefix,
-			percent:    spec.PctLDAPLogin,
-			target:     ldap.login,
-			cleanup:    ldap.cleanup,
 		})
 	}
 	if spec.PctLDAPStaticRead > 0 {
