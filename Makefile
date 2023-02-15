@@ -1,5 +1,5 @@
 REGISTRY_NAME?=docker.io/hashicorp
-IMAGE_NAME=benchmark-vault
+IMAGE_NAME=vault-benchmark
 VERSION?=0.0.0-dev
 IMAGE_TAG?=$(REGISTRY_NAME)/$(IMAGE_NAME):$(VERSION)
 LATEST_TAG?=$(REGISTRY_NAME)/$(IMAGE_NAME):latest

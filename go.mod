@@ -1,4 +1,4 @@
-module github.com/hashicorp/vault-tools/benchmark-vault
+module github.com/hashicorp/vault-tools/vault-benchmark
 
 go 1.18
 

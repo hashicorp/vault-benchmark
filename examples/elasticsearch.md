@@ -1,5 +1,5 @@
 # Elasticsearch Secret Configuration Options
-This benchmark will test the dynamic generation of Elasticsearch credentials. In order to use this test, configuration for the Elasticsearch instance MUST be provided as a JSON file using the `elasticsearch_db_config` flag. The primary required fields are the `username` and `password` for the user configured in Elasticsearch for Vault to use, as well as the `url` field that defines the Elasticsearch address to be used. In addition, arole configuration file can also be passed via the `elasticsearch_role_config` flag. To summarize, `elasticsearch_db_config` configures the Elasticsearch database plugin and connection, while `elasticsearch_role_config` configures the role that maps a name in Vault to a role definition in Elasticsearch. 
+This benchmark will test the dynamic generation of Elasticsearch credentials. In order to use this test, configuration for the Elasticsearch instance MUST be provided as a JSON file using the `elasticsearch_db_config` flag. The primary required fields are the `username` and `password` for the user configured in Elasticsearch for Vault to use, as well as the `url` field that defines the Elasticsearch address to be used. In addition, arole configuration file can also be passed via the `elasticsearch_role_config` flag. To summarize, `elasticsearch_db_config` configures the Elasticsearch database plugin and connection, while `elasticsearch_role_config` configures the role that maps a name in Vault to a role definition in Elasticsearch.
 
 ## Test Parameters (minimum 1 required)
 - `pct_elasticsearch_read`: percent of requests that are Elasticsearch Dynamic Credential generations
@@ -21,7 +21,7 @@ This benchmark will test the dynamic generation of Elasticsearch credentials. In
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_elasticsearch_read=100 \

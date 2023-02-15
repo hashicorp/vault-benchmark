@@ -1,7 +1,7 @@
 dist/
 
 # Disallow checking-in the executable
-/benchmark-vault
+/vault-benchmark
 
 # IDE specific stuff
 .idea/

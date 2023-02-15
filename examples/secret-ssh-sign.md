@@ -43,7 +43,7 @@ Please refer to the [SSH Secrets Engine](https://developer.hashicorp.com/vault/a
 ## Example Usage
 
 ```bash
-$ benchmark-vault -pct_ssh_sign=100
+$ vault-benchmark -pct_ssh_sign=100
 op                count  rate         throughput   mean        95th%        99th%        successRatio
 ssh pub key sign  12946  1294.587852  1293.681384  7.720743ms  10.379888ms  13.079202ms  100.00%
 ```

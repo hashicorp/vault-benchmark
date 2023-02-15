@@ -2,13 +2,13 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: benchmark-vault
+  name: vault-benchmark
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: benchmark-vault-configmap
+  name: vault-benchmark-configmap
 data:
   k8s_config.json: |
     {
@@ -16,8 +16,8 @@ data:
     }
   k8s_role_config.json: |
     {
-      "name":"benchmark-vault-role",
-      "bound_service_account_names":["benchmark-vault"],
+      "name":"vault-benchmark-role",
+      "bound_service_account_names":["vault-benchmark"],
       "bound_service_account_namespaces":["*"],
       "token_max_ttl":"24h",
       "token_ttl":"1h"
@@ -27,20 +27,20 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: benchmark-vault
+  name: vault-benchmark
 spec:
   backoffLimit: 0
   template:
     metadata:
-      name: benchmark-vault
+      name: vault-benchmark
       labels:
-        app: benchmark-vault
+        app: vault-benchmark
     spec:
       containers:
-      - name: benchmark-vault
-        image: hashicorp/benchmark-vault:latest
+      - name: vault-benchmark
+        image: hashicorp/vault-benchmark:latest
         imagePullPolicy: IfNotPresent
-        command: ["benchmark-vault"]
+        command: ["vault-benchmark"]
         args: [
           "-vault_addr=http://vault:8200",
           "-vault_token=root",
@@ -53,8 +53,8 @@ spec:
           mountPath: "/config"
           readOnly: true
       restartPolicy: Never
-      serviceAccountName: benchmark-vault
+      serviceAccountName: vault-benchmark
       volumes:
       - name: benchmark-config
         configMap:
-          name: benchmark-vault-configmap
+          name: vault-benchmark-configmap

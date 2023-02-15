@@ -32,7 +32,7 @@ Additional configuration examples can be found in the [pki configuration directo
 ## Example Usage
 
 ```bash
-$ benchmark-vault -pct_pki_issue=100
+$ vault-benchmark -pct_pki_issue=100
 op         count  rate       throughput  mean          95th%         99th%         successRatio
 pki issue  770    76.912068  75.437967   130.886886ms  281.848785ms  424.038003ms  100.00%
 ```

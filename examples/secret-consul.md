@@ -14,7 +14,7 @@ This benchmark will test Consul secret engine operations. In order to use this t
 ### Example Usage
 
 ```bash
-benchmark-vault \
+vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_consul_read=100 \
