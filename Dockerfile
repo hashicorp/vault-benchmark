@@ -15,7 +15,7 @@
 # devbuild compiles the binary
 # -----------------------------------
 FROM golang:latest AS devbuild
-ARG BIN_NAME
+ARG BIN_NAME=vault-benchmark
 # Escape the GOPATH
 WORKDIR /build
 COPY . ./
@@ -25,7 +25,7 @@ RUN go build -o $BIN_NAME
 # dev runs the binary from devbuild
 # -----------------------------------
 FROM alpine:latest AS dev
-ARG BIN_NAME
+ARG BIN_NAME=vault-benchmark
 # Export BIN_NAME for the CMD below, it can't see ARGs directly.
 ENV BIN_NAME=$BIN_NAME
 COPY --from=devbuild /build/$BIN_NAME /bin/
@@ -43,7 +43,7 @@ CMD /bin/$BIN_NAME
 # -----------------------------------
 FROM alpine:latest AS release-default
 
-ARG BIN_NAME
+ARG BIN_NAME=vault-benchmark
 # Export BIN_NAME for the CMD below, it can't see ARGs directly.
 ENV BIN_NAME=$BIN_NAME
 ARG PRODUCT_VERSION
