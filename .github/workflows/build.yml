@@ -97,7 +97,7 @@ jobs:
           go_version: ${{ needs.get-go-version.outputs.go-version }}
           os: ${{ matrix.goos }}
           arch: ${{ matrix.goarch }}
-          reproducible: report
+          reproducible: assert
           instructions: |
             make build
 
@@ -129,7 +129,7 @@ jobs:
           go_version: ${{ needs.get-go-version.outputs.go-version }}
           os: ${{ matrix.goos }}
           arch: ${{ matrix.goarch }}
-          reproducible: report
+          reproducible: assert
           instructions: |
             make build
 
@@ -197,7 +197,7 @@ jobs:
           go_version: ${{ needs.get-go-version.outputs.go-version }}
           os: ${{ matrix.goos }}
           arch: ${{ matrix.goarch }}
-          reproducible: report
+          reproducible: assert
           instructions: |
             make build
 

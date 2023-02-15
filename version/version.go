@@ -12,21 +12,14 @@ var (
 	GitCommit string
 
 	// Version is the base version of the product repo
-	Version = "1.0.0"
-	// VersionPrerelease is the prerelease version of the product repo
-	VersionPrerelease = "dev"
-	// VersionMetadata is the metadata version of the product repo
-	VersionMetadata = ""
-
-	// Version is the base version of the product repo
 	// Example embed version usage: this reads contents from version/VERSION at build time and writes the contents to
 	// Version and VersionPrerelease
-	//
-	////go:embed VERSION
-	//fullVersion string
-	//
-	//Version, VersionPrerelease, _ = strings.Cut(fullVersion, "-")
-	//VersionMetadata               = ""
+
+	//go:embed VERSION
+	fullVersion string
+
+	Version, VersionPrerelease, _ = strings.Cut(fullVersion, "-")
+	VersionMetadata               = ""
 )
 
 // GetHumanVersion composes the parts of the version in a way that's suitable

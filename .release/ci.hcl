@@ -3,9 +3,6 @@ schema = "1"
 project "vault-benchmark" {
   // the team key is not used by CRT currently
   team = "vault-benchmark"
-  slack {
-    notification_channel = "C01A3A54G0L"
-  }
   github {
     organization = "hashicorp"
     repository = "vault-benchmark"
@@ -64,7 +61,7 @@ event "promote-staging" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
     workflow = "promote-staging"
-    config = "oss-release-metadata.hcl"
+    config = "release-metadata.hcl"
   }
 
   notification {
@@ -91,49 +88,49 @@ event "promote-staging-docker" {
 
 
 
-// event "trigger-production" {
-// // This event is dispatched by the bob trigger-promotion command
-// // and is required - do not delete.
-// }
+event "trigger-production" {
+// This event is dispatched by the bob trigger-promotion command
+// and is required - do not delete.
+}
 
-// event "promote-production" {
-//   depends = ["trigger-production"]
-//   action "promote-production" {
-//     organization = "hashicorp"
-//     repository = "crt-workflows-common"
-//     workflow = "promote-production"
-//   }
+event "promote-production" {
+  depends = ["trigger-production"]
+  action "promote-production" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "promote-production"
+  }
 
-//   notification {
-//     on = "always"
-//   }
-// }
+  notification {
+    on = "always"
+  }
+}
 
-// event "promote-production-docker" {
-//   depends = ["promote-production"]
-//   action "promote-production-docker" {
-//     organization = "hashicorp"
-//     repository = "crt-workflows-common"
-//     workflow = "promote-production-docker"
-//   }
+event "promote-production-docker" {
+  depends = ["promote-production"]
+  action "promote-production-docker" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "promote-production-docker"
+  }
 
-//   notification {
-//     on = "always"
-//   }
-// }
+  notification {
+    on = "always"
+  }
+}
 
-// event "promote-production-packaging" {
-//   depends = ["promote-production-docker"]
-//   action "promote-production-packaging" {
-//     organization = "hashicorp"
-//     repository = "crt-workflows-common"
-//     workflow = "promote-production-packaging"
-//   }
+event "promote-production-packaging" {
+  depends = ["promote-production-docker"]
+  action "promote-production-packaging" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "promote-production-packaging"
+  }
 
-//   notification {
-//     on = "always"
-//   }
-// }
+  notification {
+    on = "always"
+  }
+}
 
 
 // event "bump-version-patch" {
@@ -146,18 +143,5 @@ event "promote-staging-docker" {
 //
 //   notification {
 //     on = "fail"
-//   }
-// }
-
-// event "update-ironbank" {
-//   depends = ["bump-version-patch"]
-//   action "update-ironbank" {
-//     organization = "hashicorp"
-//     repository = "crt-workflows-common"
-//     workflow = "update-ironbank"
-//   }
-
-//   notification {
-//     on = "always"
 //   }
 // }
