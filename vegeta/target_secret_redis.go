@@ -205,13 +205,7 @@ func (c *redistest) readStatic(client *api.Client) vegeta.Target {
 func (r *redistest) cleanup(client *api.Client) error {
 	client.SetClientTimeout(r.timeout)
 
-	// Revoke all leases
-	_, err := client.Logical().Write(strings.Replace(r.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
-	if err != nil {
-		return fmt.Errorf("error cleaning up leases: %v", err)
-	}
-
-	_, err = client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
 
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
