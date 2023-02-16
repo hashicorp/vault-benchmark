@@ -1,6 +1,6 @@
 # Kubernetes Auth Configuration Options
 
-This benchmark will test Vault authentication using the Kubernetes Auth method. In order to use this test, configuration for the target Kubernetes cluster must be provided as a JSON file using the `k8s_config_json` flag. The primary required field is `kubernetes_host`. A role config also needs to be passed with the primary required fields being `name`, `bound_service_account_names`, and `bound_service_account_namespaces`. Included is an example `benchmark-vault-job.yaml` file which can be applied to use the benchmark-vault image in a Kubernetes cluster. This example assumes a Vault cluster deployed in a Kubernetes environment based on our [Vault Installation to Minikube via Helm with Integrated Storage](https://learn.hashicorp.com/tutorials/vault/kubernetes-minikube-raft?in=vault/kubernetes) learn guide. This file can be edited to suit a specific deployment methodology. Below is the ConfigMap snippet showing example configuration:
+This benchmark will test Vault authentication using the Kubernetes Auth method. In order to use this test, configuration for the target Kubernetes cluster must be provided as a JSON file using the `k8s_config_json` flag. The primary required field is `kubernetes_host`. A role config also needs to be passed with the primary required fields being `name`, `bound_service_account_names`, and `bound_service_account_namespaces`. Included is an example `vault-benchmark-job.yaml` file which can be applied to use the vault-benchmark image in a Kubernetes cluster. This example assumes a Vault cluster deployed in a Kubernetes environment based on our [Vault Installation to Minikube via Helm with Integrated Storage](https://learn.hashicorp.com/tutorials/vault/kubernetes-minikube-raft?in=vault/kubernetes) learn guide. This file can be edited to suit a specific deployment methodology. Below is the ConfigMap snippet showing example configuration:
 
 ## Test Parameters (minimum 1 required)
 
@@ -11,13 +11,13 @@ This benchmark will test Vault authentication using the Kubernetes Auth method. 
 - `k8s_config_json` _(required)_: path to JSON file containing Vault K8s configuration.  Configuration options can be found in the [Kubernetes Vault documentation](https://developer.hashicorp.com/vault/api-docs/auth/kubernetes#configure-method).
 - `k8s_role_config_json` _(required)_: path to JSON file containing test user credentials.
 
-### Example benchmark-vault-job.yaml
+### Example vault-benchmark-job.yaml
 
 ```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: benchmark-vault-configmap
+  name: vault-benchmark-configmap
 data:
   k8s_config.json: |
     {
@@ -25,8 +25,8 @@ data:
     }
   k8s_role_config.json: |
     {
-      "name":"benchmark-vault-role",
-      "bound_service_account_names":["benchmark-vault"],
+      "name":"vault-benchmark-role",
+      "bound_service_account_names":["vault-benchmark"],
       "bound_service_account_namespaces":["*"],
       "token_max_ttl":"24h",
       "token_ttl":"1h"
@@ -36,7 +36,7 @@ data:
 ## Example Usage
 
 ```bash
-$ benchmark-vault -vault_addr=http://localhost:8200 \
+$ vault-benchmark -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_k8s_login=100 \
     -k8s_config_json=/path/to/k8s/config.json \

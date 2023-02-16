@@ -24,12 +24,12 @@ This benchmark tests the performance of logins using the userpass auth method.
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=dev \
     -pct_userpass_login=100 \
     -userpass_role_config=./configs/userpass/userpass_role_config.json \
-    
+
 op              count  rate        throughput  mean         95th%       99th%        successRatio
 userpass login  1290   128.908289  128.017601  77.861585ms  88.85753ms  97.332523ms  100.00%
 ```

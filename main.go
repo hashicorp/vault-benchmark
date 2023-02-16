@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/vault-tools/benchmark-vault/vegeta"
+	"github.com/hashicorp/vault-tools/vault-benchmark/vegeta"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -35,7 +35,7 @@ func main() {
 		auditPath   = flag.String("audit_path", "", "when creating vault cluster, path to file for audit log")
 		caPEMFile   = flag.String("ca_pem_file", "", "when using external vault with HTTPS, path to its CA file in PEM format")
 
-		// benchmark-vault settings
+		// vault-benchmark settings
 		workers       = flag.Int("workers", 10, "number of workers aka virtual users")
 		rps           = flag.Int("rps", 0, "requests per second, or 0 for as fast as we can")
 		duration      = flag.Duration("duration", 10*time.Second, "test duration")

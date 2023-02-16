@@ -4,12 +4,12 @@ FROM docker.mirror.hashicorp.services/alpine:latest as default
 # PRODUCT_REVISION is the git hash built
 ARG PRODUCT_VERSION
 ARG PRODUCT_REVISION
-ARG PRODUCT_NAME=benchmark-vault
+ARG PRODUCT_NAME=vault-benchmark
 ARG TARGETOS TARGETARCH
 
 # Additional metadata labels used by container registries, platforms
 # and certification scanners.
-LABEL name="Benchmark Vault" \
+LABEL name="Vault Benchmark" \
       maintainer="Vault Team <vault@hashicorp.com>" \
       vendor="HashiCorp" \
       version=$PRODUCT_VERSION \
@@ -25,7 +25,7 @@ RUN set -eux && \
     apk update && apk upgrade libretls && \
     apk add --no-cache ca-certificates libcap su-exec iputils
 
-COPY dist/benchmark-vault /bin/
+COPY dist/vault-benchmark /bin/
 
 USER vault
-CMD ["/bin/benchmark-vault"]
+CMD ["/bin/vault-benchmark"]

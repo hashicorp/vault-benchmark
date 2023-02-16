@@ -25,7 +25,7 @@ _Note: The `creation_ldif` and `deletion_ldif` fields are base64 encoded LDIFs. 
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_ldap_dynamic_role_read=100 \

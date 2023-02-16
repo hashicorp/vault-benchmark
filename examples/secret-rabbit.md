@@ -23,7 +23,7 @@ This benchmark will test RabbitMQ secret engine operations. In order to use this
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
+$ vault-benchmark \
     -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_rabbitmq_read=100 \

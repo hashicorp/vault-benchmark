@@ -14,7 +14,7 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 ## Example Usage
 
 ```bash
-$ benchmark-vault -vault_addr=http://localhost:8200 \
+$ vault-benchmark -vault_addr=http://localhost:8200 \
     -vault_token=root \
     -pct_ldap_login=100 \
     -ldap_config_json=/path/to/ldap/config.json \
