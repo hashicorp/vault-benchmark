@@ -5,9 +5,9 @@ PRODUCT_NAME ?= $(REPO_NAME)
 BIN_NAME     ?= $(PRODUCT_NAME)
 VERSION      ?= $(shell echo $(CURDIR)/version/VERSION | xargs cat)
 
-# Get local ARCH; on Intel Mac, 'uname -m' returns x86_64 which we turn into amd64.
+# Get local ARCH; on Intel Mac, 'uname -m' returns x86_64 which we turn into arm64.
 # Not using 'go env GOOS/GOARCH' here so 'make docker' will work without local Go install.
-ARCH     = $(shell A=$$(uname -m); [ $$A = x86_64 ] && A=amd64; echo $$A)
+ARCH     = $(shell A=$$(uname -m); [ $$A = x86_64 ] && A=arm64; echo $$A)
 OS       = $(shell uname | tr [[:upper:]] [[:lower:]])
 PLATFORM = $(OS)/$(ARCH)
 DIST     = dist/$(PLATFORM)
@@ -24,9 +24,6 @@ BUILD_DIR=dist
 GOFMT_FILES?=$$(find . -name '*.go' | grep -v vendor)
 LDFLAGS?="-X '$(PKG).Version=v$(VERSION)'"
 
-.PHONY: all test build image clean version
-all: build
-
 dist:
 	mkdir -p $(DIST)
 	echo '*' > dist/.gitignore
@@ -35,16 +32,20 @@ dist:
 bin: dist
 	GOARCH=$(ARCH) GOOS=$(OS) go build -o $(BIN)
 
+.PHONY: build
 build:
 	@$(CURDIR)/scripts/crt-build.sh build
 
+.PHONY: image
 image:
-	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -o dist/linux/amd64/$(BIN_NAME)
-	docker build --platform linux/amd64 --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
+	CGO_ENABLED=0 GOARCH=arm64 GOOS=linux go build -a -ldflags $(LDFLAGS) -o dist/linux/arm64/$(BIN_NAME) .
+	docker build --platform linux/arm64 --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
 
+.PHONY: clean
 clean:
 	-rm -rf $(BUILD_DIR)
 
+.PHONY: test
 test: unit-test
 
 unit-test:
@@ -54,5 +55,6 @@ unit-test:
 mod:
 	@go mod tidy
 
+.PHONY: fmt
 fmt:
 	gofmt -w $(GOFMT_FILES)
