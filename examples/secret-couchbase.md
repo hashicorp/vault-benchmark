@@ -8,10 +8,10 @@ This benchmark will test the dynamic generation of Couchbase credentials. In ord
 
 ## Additional Parameters
 
-- `couchbase_config_json` _(required)_: path to JSON file containing Vault MongoDB configuration.  Configuration options can be found in the [MongoDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/couchbase#configure-connection).
-- `couchbase_role_config_json`: path to a JSON file containing the MongoDB role configuration. If this is not specified, a default configuration will be used (see below).
+- `couchbase_config_json` _(required)_: path to JSON file containing Vault CouchbaseDB configuration.  Configuration options can be found in the [CouchbaseDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/couchbase#configure-connection).
+- `couchbase_role_config_json`: path to a JSON file containing the CouchbaseDB role configuration. If this is not specified, a default configuration will be used (see below).
 
-### Default MongoDB Role Configuration
+### Default CouchbaseDB Role Configuration
 
 ```json
 {

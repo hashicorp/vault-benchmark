@@ -113,13 +113,7 @@ func (c *couchbasetest) read(client *api.Client) vegeta.Target {
 func (c *couchbasetest) cleanup(client *api.Client) error {
 	client.SetClientTimeout(c.timeout)
 
-	// Revoke all leases
-	_, err := client.Logical().Write(strings.Replace(c.pathPrefix, "/v1/", "/sys/leases/revoke-prefix/", 1), map[string]interface{}{})
-	if err != nil {
-		return fmt.Errorf("error cleaning up leases: %v", err)
-	}
-
-	_, err = client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
 
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
