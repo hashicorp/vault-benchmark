@@ -132,16 +132,15 @@ event "promote-production-packaging" {
   }
 }
 
+event "bump-version-patch" {
+  depends = ["promote-production-packaging"]
+  action "bump-version" {
+    organization = "hashicorp"
+    repository = "crt-workflows-common"
+    workflow = "bump-version"
+  }
 
-// event "bump-version-patch" {
-//   depends = ["promote-production-packaging"]
-//   action "bump-version" {
-//     organization = "HashiCorp-RelEng-Dev"
-//     repository = "crt-workflows-common"
-//     workflow = "bump-version"
-//   }
-//
-//   notification {
-//     on = "fail"
-//   }
-// }
+  notification {
+    on = "fail"
+  }
+}
