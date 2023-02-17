@@ -48,38 +48,38 @@ type LDAPAuthTestConfig struct {
 }
 
 type LDAPAuthConfig struct {
-	URL                  string   `hcl:"url" mapstructure:",omitempty"`
-	CaseSensitiveNames   bool     `hcl:"case_sensitive_names,optional" mapstructure:",omitempty"`
-	RequestTimeout       int      `hcl:"request_timeout,optional" mapstructure:",omitempty"`
-	StartTLS             bool     `hcl:"starttls,optional" mapstructure:",omitempty"`
-	TLSMinVersion        string   `hcl:"tls_min_version,optional" mapstructure:",omitempty"`
-	TLSMaxVersion        string   `hcl:"tls_max_version,optional" mapstructure:",omitempty"`
-	InsecureTLS          bool     `hcl:"insecure_tls,optional" mapstructure:",omitempty"`
-	Certificate          string   `hcl:"certificate,optional" mapstructure:",omitempty"`
-	ClientTLSCert        string   `hcl:"client_tls_cert,optional" mapstructure:",omitempty"`
-	ClientTLSKey         string   `hcl:"client_tls_key,optional" mapstructure:",omitempty"`
-	BindDN               string   `hcl:"binddn,optional" mapstructure:",omitempty"`
-	BindPass             string   `hcl:"bindpass,optional" mapstructure:",omitempty"`
-	UserDN               string   `hcl:"userdn,optional" mapstructure:",omitempty"`
-	UserAttr             string   `hcl:"userattr,optional" mapstructure:",omitempty"`
-	DiscoverDN           string   `hcl:"discoverdn,optional" mapstructure:",omitempty"`
-	DenyNullBind         bool     `hcl:"deny_null_bind,optional" mapstructure:",omitempty"`
-	UPNDomain            string   `hcl:"upndomain,optional" mapstructure:",omitempty"`
-	UserFilter           string   `hcl:"userfilter,optional" mapstructure:",omitempty"`
-	AnonymousGroupSearch bool     `hcl:"anonymous_group_search,optional" mapstructure:",omitempty"`
-	GroupFilter          string   `hcl:"group_filter,optional" mapstructure:",omitempty"`
-	GroupDN              string   `hcl:"groupdn,optional" mapstructure:",omitempty"`
-	GroupAttr            string   `hcl:"group_attr,optional" mapstructure:",omitempty"`
-	UsernameAsAlias      bool     `hcl:"username_as_alias,optional" mapstructure:",omitempty"`
-	TokenTTL             int      `hcl:"token_ttl,optional" mapstructure:",omitempty"`
-	TokenMaxTTL          int      `hcl:"token_max_ttl,optional" mapstructure:",omitempty"`
-	TokenPolicies        []string `hcl:"token_policies,optional" mapstructure:",omitempty"`
-	TokenBoundCIDRs      []string `hcl:"token_bound_cidrs,optional" mapstructure:",omitempty"`
-	TokenExplicitMaxTTL  int      `hcl:"token_explicit_max_ttl,optional" mapstructure:",omitempty"`
-	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional" mapstructure:",omitempty"`
-	TokenNumUses         int      `hcl:"token_num_uses,optional" mapstructure:",omitempty"`
-	TokenPeriod          int      `hcl:"token_period,optional" mapstructure:",omitempty"`
-	TokenType            string   `hcl:"token_type,optional" mapstructure:",omitempty"`
+	URL                  string   `hcl:"url"`
+	CaseSensitiveNames   bool     `hcl:"case_sensitive_names,optional"`
+	RequestTimeout       int      `hcl:"request_timeout,optional"`
+	StartTLS             bool     `hcl:"starttls,optional"`
+	TLSMinVersion        string   `hcl:"tls_min_version,optional"`
+	TLSMaxVersion        string   `hcl:"tls_max_version,optional"`
+	InsecureTLS          bool     `hcl:"insecure_tls,optional"`
+	Certificate          string   `hcl:"certificate,optional"`
+	ClientTLSCert        string   `hcl:"client_tls_cert,optional"`
+	ClientTLSKey         string   `hcl:"client_tls_key,optional"`
+	BindDN               string   `hcl:"binddn,optional"`
+	BindPass             string   `hcl:"bindpass,optional"`
+	UserDN               string   `hcl:"userdn,optional"`
+	UserAttr             string   `hcl:"userattr,optional"`
+	DiscoverDN           string   `hcl:"discoverdn,optional"`
+	DenyNullBind         bool     `hcl:"deny_null_bind,optional"`
+	UPNDomain            string   `hcl:"upndomain,optional"`
+	UserFilter           string   `hcl:"userfilter,optional"`
+	AnonymousGroupSearch bool     `hcl:"anonymous_group_search,optional"`
+	GroupFilter          string   `hcl:"group_filter,optional"`
+	GroupDN              string   `hcl:"groupdn,optional"`
+	GroupAttr            string   `hcl:"group_attr,optional"`
+	UsernameAsAlias      bool     `hcl:"username_as_alias,optional"`
+	TokenTTL             int      `hcl:"token_ttl,optional"`
+	TokenMaxTTL          int      `hcl:"token_max_ttl,optional"`
+	TokenPolicies        []string `hcl:"token_policies,optional"`
+	TokenBoundCIDRs      []string `hcl:"token_bound_cidrs,optional"`
+	TokenExplicitMaxTTL  int      `hcl:"token_explicit_max_ttl,optional"`
+	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional"`
+	TokenNumUses         int      `hcl:"token_num_uses,optional"`
+	TokenPeriod          int      `hcl:"token_period,optional"`
+	TokenType            string   `hcl:"token_type,optional"`
 }
 
 type LDAPTestUserConfig struct {

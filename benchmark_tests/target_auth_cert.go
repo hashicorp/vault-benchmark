@@ -46,27 +46,27 @@ type CertAuthTestConfig struct {
 
 // Cert Auth Role Config
 type CertAuthRoleConfig struct {
-	Name                       string   `hcl:"name" mapstructure:",omitempty"`
-	Certificate                string   `hcl:"certificate,optional" mapstructure:",omitempty"`
-	AllowedNames               string   `hcl:"allowed_names,optional" mapstructure:",omitempty"`
-	AllowedCommonNames         []string `hcl:"allowed_common_names,optional" mapstructure:",omitempty"`
-	AllowedDNSSANS             []string `hcl:"allowed_dns_sans,optional" mapstructure:",omitempty"`
-	AllowedEmailSANS           []string `hcl:"allowed_email_sans,optional" mapstructure:",omitempty"`
-	AllowedURISANS             []string `hcl:"allowed_uri_sans,optional" mapstructure:",omitempty"`
-	AllowedOrganizationalUnits []string `hcl:"allowed_organizational_units,optional" mapstructure:",omitempty"`
-	RequiredExtensions         []string `hcl:"required_extensions,optional" mapstructure:",omitempty"`
-	AllowedMetadataExtensions  []string `hcl:"allowed_metadata_extensions,optional" mapstructure:",omitempty"`
-	DisplayName                string   `hcl:"display_name,optional" mapstructure:",omitempty"`
-	TokenTTL                   string   `hcl:"token_ttl,optional" mapstructure:",omitempty"`
-	TokenMaxTTL                string   `hcl:"token_max_ttl,optional" mapstructure:",omitempty"`
-	TokenPolicies              []string `hcl:"token_policies,optional" mapstructure:",omitempty"`
-	Policies                   []string `hcl:"policies,optional" mapstructure:",omitempty"`
-	TokenBoundCIDRs            []string `hcl:"token_bound_cidrs,optional" mapstructure:",omitempty"`
-	TokenExplicitMaxTTL        string   `hcl:"token_explicit_max_ttl,optional" mapstructure:",omitempty"`
-	TokenNoDefaultPolicy       bool     `hcl:"token_no_default_policy,optional" mapstructure:",omitempty"`
-	TokenNumUses               int      `hcl:"token_num_uses,optional" mapstructure:",omitempty"`
-	TokenPeriod                string   `hcl:"token_period,optional" mapstructure:",omitempty"`
-	TokenType                  string   `hcl:"token_type,optional" mapstructure:",omitempty"`
+	Name                       string   `hcl:"name"`
+	Certificate                string   `hcl:"certificate,optional"`
+	AllowedNames               string   `hcl:"allowed_names,optional"`
+	AllowedCommonNames         []string `hcl:"allowed_common_names,optional"`
+	AllowedDNSSANS             []string `hcl:"allowed_dns_sans,optional"`
+	AllowedEmailSANS           []string `hcl:"allowed_email_sans,optional"`
+	AllowedURISANS             []string `hcl:"allowed_uri_sans,optional"`
+	AllowedOrganizationalUnits []string `hcl:"allowed_organizational_units,optional"`
+	RequiredExtensions         []string `hcl:"required_extensions,optional"`
+	AllowedMetadataExtensions  []string `hcl:"allowed_metadata_extensions,optional"`
+	DisplayName                string   `hcl:"display_name,optional"`
+	TokenTTL                   string   `hcl:"token_ttl,optional"`
+	TokenMaxTTL                string   `hcl:"token_max_ttl,optional"`
+	TokenPolicies              []string `hcl:"token_policies,optional"`
+	Policies                   []string `hcl:"policies,optional"`
+	TokenBoundCIDRs            []string `hcl:"token_bound_cidrs,optional"`
+	TokenExplicitMaxTTL        string   `hcl:"token_explicit_max_ttl,optional"`
+	TokenNoDefaultPolicy       bool     `hcl:"token_no_default_policy,optional"`
+	TokenNumUses               int      `hcl:"token_num_uses,optional"`
+	TokenPeriod                string   `hcl:"token_period,optional"`
+	TokenType                  string   `hcl:"token_type,optional"`
 }
 
 func (c *cert_auth) ParseConfig(body hcl.Body) {
