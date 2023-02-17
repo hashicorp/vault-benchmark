@@ -15,7 +15,6 @@ project "vault-benchmark" {
     release_branches = [
       "main",
       "release/**",
-      "crt-pipeline"
     ]
   }
 }
