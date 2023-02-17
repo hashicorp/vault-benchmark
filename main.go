@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/vault-tools/benchmark-vault/benchmark_tests"
+	"github.com/hashicorp/vault-tools/benchmark-vault/benchmarktests"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -59,7 +59,7 @@ func main() {
 
 	// This feels fragile...
 	// Check if we have any override flags
-	err = benchmark_tests.ConfigOverrides(conf)
+	err = benchmarktests.ConfigOverrides(conf)
 	if err != nil {
 		log.Fatalf("error overriding config options: %v", err)
 	}
@@ -91,7 +91,7 @@ func main() {
 
 	// If input_results is true we're not running benchmarks, just transforming input results based on reportMode
 	if conf.InputResults {
-		rpt, err := benchmark_tests.FromReader(os.Stdin)
+		rpt, err := benchmarktests.FromReader(os.Stdin)
 		if err != nil {
 			log.Fatalf("error reading report: %v", err)
 		}
@@ -248,13 +248,13 @@ func main() {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	tm, err := benchmark_tests.BuildTargets(conf.Tests, clients[0], caPEM, clientCert, conf.RandomMounts)
+	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], caPEM, clientCert, conf.RandomMounts)
 	if err != nil {
 		log.Fatalf("target setup failed: %v", err)
 	}
 
 	var l sync.Mutex
-	results := make(map[string]*benchmark_tests.Reporter)
+	results := make(map[string]*benchmarktests.Reporter)
 	for _, client := range clients {
 		wg.Add(1)
 		go func(client *vaultapi.Client) {
@@ -269,7 +269,7 @@ func main() {
 			}
 
 			fmt.Println("Starting benchmark tests. Will run for " + parsedDuration.String() + "...")
-			rpt, err := benchmark_tests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
+			rpt, err := benchmarktests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
 			if err != nil {
 				log.Fatal("attack error", err)
 			}

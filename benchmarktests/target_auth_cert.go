@@ -1,4 +1,4 @@
-package benchmark_tests
+package benchmarktests
 
 import (
 	"crypto"
