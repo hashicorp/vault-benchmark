@@ -3,6 +3,9 @@ schema = "1"
 project "vault-benchmark" {
   // the team key is not used by CRT currently
   team = "vault-benchmark"
+  slack {
+    notification_channel = "C037RP0BBQF"
+  }
   github {
     organization = "hashicorp"
     repository = "vault-benchmark"
@@ -57,6 +60,7 @@ event "trigger-staging" {
 }
 
 event "promote-staging" {
+  depends = ["trigger-staging"]
   action "promote-staging" {
     organization = "hashicorp"
     repository = "crt-workflows-common"
