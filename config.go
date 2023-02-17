@@ -25,7 +25,6 @@ type VaultBenchmarkCoreConfig struct {
 	Tests         []*benchmark_tests.BenchmarkTarget `hcl:"test,block"`
 	RPS           int                                `hcl:"rps,optional" json:"rps"`
 	Workers       int                                `hcl:"workers,optional" json:"workers"`
-	Debug         bool                               `hcl:"debug,optional" json:"debug"`
 	RandomMounts  bool                               `hcl:"random_mounts,optional"`
 	InputResults  bool                               `hcl:"input_results,optional" json:"input_results"`
 	Cleanup       bool                               `hcl:"cleanup,optional" json:"cleanup"`
@@ -43,6 +42,8 @@ func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
 	}
 }
 
+// TODO:
+// Move warnings and errors to proper logger
 func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
 	// File Validity checking
 	f, err := os.Stat(path)
@@ -73,9 +74,13 @@ func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
 		fmt.Println(diags)
 	}
 
+	// Check to see if we have more than one Cert auth and fail if we do
+	if moreThanOneCertAuth(c.Tests) {
+		return fmt.Errorf("only one cert auth test supported")
+	}
+
 	// Loop through all found tests and check if they are part of the test list
 	// then parse each test config based on provided test structs
-
 	for i, bvTest := range c.Tests {
 		if currTest, ok := benchmark_tests.TestList[c.Tests[i].Type]; ok {
 			currBuilder := currTest()
@@ -86,4 +91,16 @@ func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
 		}
 	}
 	return nil
+}
+
+func moreThanOneCertAuth(tests []*benchmark_tests.BenchmarkTarget) bool {
+	targetMap := make(map[string]interface{})
+	for _, target := range tests {
+		if _, ok := targetMap[benchmark_tests.CertAuthTestType]; !ok {
+			targetMap[target.Type] = nil
+			continue
+		}
+		return true
+	}
+	return false
 }

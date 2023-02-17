@@ -27,32 +27,31 @@ func init() {
 
 func main() {
 	var (
-		bvCoreConfig = flag.String("config", "", "benchmark vault configuration file location")
+		vbCoreConfig = flag.String("config", "", "benchmark vault configuration file location")
 		// Vault related settings
-		_           = flag.String("vault_addr", "", "vault address, overrides VAULT_ADDR")
-		_           = flag.String("vault_token", "", "vault token, overrides VAULT_TOKEN")
 		clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
 		auditPath   = flag.String("audit_path", "", "when creating vault cluster, path to file for audit log")
 		caPEMFile   = flag.String("ca_pem_file", "", "when using external vault with HTTPS, path to its CA file in PEM format")
+		_           = flag.String("vault_addr", "", "vault address, overrides VAULT_ADDR")
+		_           = flag.String("vault_token", "", "vault token, overrides VAULT_TOKEN")
 
 		// benchmark-vault settings
-		_ = flag.Int("workers", 10, "number of workers aka virtual users")
-		_ = flag.Int("rps", 0, "requests per second, or 0 for as fast as we can")
-		_ = flag.Duration("duration", 10*time.Second, "test duration")
-		_ = flag.String("report_mode", "terse", "reporting mode: terse, verbose, json")
-		_ = flag.Duration("pprof_interval", 0, "collection interval for vault debug pprof profiling")
-		_ = flag.Bool("input_results", false, "instead of running tests, read a JSON file from a previous test run")
-		_ = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
-		// I think this should probably be only available via flag or env variable
-		_ = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
-		_ = flag.Bool("random_mounts", true, "use random mount names")
-		_ = flag.Bool("cleanup", false, "cleanup after test run")
+		debug = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
+		_     = flag.Int("workers", 10, "number of workers aka virtual users")
+		_     = flag.Int("rps", 0, "requests per second, or 0 for as fast as we can")
+		_     = flag.Duration("duration", 10*time.Second, "test duration")
+		_     = flag.String("report_mode", "terse", "reporting mode: terse, verbose, json")
+		_     = flag.Duration("pprof_interval", 0, "collection interval for vault debug pprof profiling")
+		_     = flag.Bool("input_results", false, "instead of running tests, read a JSON file from a previous test run")
+		_     = flag.String("annotate", "", "comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' for dashboard example")
+		_     = flag.Bool("random_mounts", true, "use random mount names")
+		_     = flag.Bool("cleanup", false, "cleanup after test run")
 	)
 	conf := NewVaultBenchmarkCoreConfig()
 	flag.Parse()
 
 	// Load config from File
-	err := conf.LoadConfig(*bvCoreConfig)
+	err := conf.LoadConfig(*vbCoreConfig)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -163,7 +162,7 @@ func main() {
 		}
 	}
 
-	var testRunning = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	testRunning := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "bench_running",
 		Help: "is the benchmark attack executing",
 	}, annoLabels)
@@ -179,35 +178,13 @@ func main() {
 	// Create vault clients
 	var clients []*vaultapi.Client
 	var clientCert string
-	//var clientKey string
+	// var clientKey string
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
 		if *caPEMFile != "" {
 			tlsCfg.CACert = *caPEMFile
 		}
-		/*
-			if spec.PctCertLogin > 0 {
-				// Create self-signed CA
-				benchCA, err := vegeta.GenerateCA()
-				if err != nil {
-					log.Fatalf("error generating benchmark CA: %v", err)
-				}
-
-				// Generate Client cert for Cert Auth
-				clientCert, clientKey, err = vegeta.GenerateCert(benchCA.Template, benchCA.Signer)
-				if err != nil {
-					log.Fatalf("error generating client cert: %v", err)
-				}
-
-				// Create X509 Key Pair
-				keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
-				if err != nil {
-					log.Fatalf("error generating client key pair: %v", err)
-				}
-				cfg.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
-			}
-		*/
 		err := cfg.ConfigureTLS(tlsCfg)
 		if err != nil {
 			log.Fatalf("error creating vault client: %v", err)
@@ -283,7 +260,7 @@ func main() {
 		go func(client *vaultapi.Client) {
 			defer wg.Done()
 
-			if conf.Debug {
+			if *debug {
 				l.Lock()
 				fmt.Println("=== Debug Info ===")
 				fmt.Printf("Client: %s\n", client.Address())

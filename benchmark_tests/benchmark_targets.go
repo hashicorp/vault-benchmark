@@ -48,7 +48,6 @@ type BenchmarkTarget struct {
 type TargetInfo struct {
 	method     string
 	pathPrefix string
-	weight     int
 }
 
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
@@ -56,9 +55,6 @@ func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	tInfo := bt.Builder.GetTargetInfo()
 	bt.PathPrefix = tInfo.pathPrefix
 	bt.Method = tInfo.method
-	if tInfo.weight != 0 {
-		bt.Weight = tInfo.weight
-	}
 }
 
 // TargetMulti allows building a vegeta targetter that chooses between various
@@ -163,6 +159,7 @@ func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, cl
 		}
 		bvTest.Builder, err = bvTest.Builder.Setup(client, randomMounts, mountName)
 		if err != nil {
+			// TODO:
 			// We should look to implement a WAL so we can clean up the mounts we failed
 			// to setup so we don't leave cruft around.
 			return nil, err

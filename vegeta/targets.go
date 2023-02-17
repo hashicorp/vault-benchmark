@@ -119,7 +119,6 @@ type TestSpecification struct {
 	PctPkiIssue                int
 	PkiConfig                  PkiTestConfig
 	PctApproleLogin            int
-	PctCertLogin               int
 	PctSshCaIssue              int
 	SshCaConfig                SshCaTestConfig
 	PctHAStatus                int
@@ -236,20 +235,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 
-	if spec.PctCertLogin > 0 {
-		cert, err := setupCert(client, spec.RandomMounts, spec.TokenTTL, clientCAPem)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "cert login",
-			method:     "POST",
-			pathPrefix: cert.pathPrefix,
-			percent:    spec.PctCertLogin,
-			target:     cert.login,
-			cleanup:    cert.cleanup,
-		})
-	}
 	if spec.PctLDAPStaticRead > 0 {
 		ldapsecret, err := setupLDAPStaticSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPStaticRoleConfig)
 		if err != nil {

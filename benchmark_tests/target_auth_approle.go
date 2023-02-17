@@ -1,7 +1,6 @@
 package benchmark_tests
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -13,12 +12,6 @@ import (
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
-
-// Override flags
-// This won't work when having more than one of the same test
-// This can work if the percentages are split across all of tests of the same type
-// I think this flag should just go away as it doesn't make sense really...
-var PctApproleLogin = flag.Int("pct_approle_login", 0, "percent of requests that are approle logins")
 
 // Constants for test
 const ApproleAuthTestMethod = "POST"
@@ -108,7 +101,6 @@ func (a *approle_auth) Target(client *api.Client) vegeta.Target {
 
 func (a *approle_auth) Cleanup(client *api.Client) error {
 	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -119,9 +111,6 @@ func (a *approle_auth) GetTargetInfo() TargetInfo {
 	tInfo := TargetInfo{
 		method:     ApproleAuthTestMethod,
 		pathPrefix: a.pathPrefix,
-	}
-	if *PctApproleLogin != 0 {
-		tInfo.weight = *PctApproleLogin
 	}
 	return tInfo
 }
@@ -143,7 +132,7 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 		Type: "approle",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error enabling approle: %v", err)
+		return nil, fmt.Errorf("error enabling approle auth: %v", err)
 	}
 
 	// Decode RoleConfig struct into mapstructure to pass with request
