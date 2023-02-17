@@ -27,7 +27,7 @@ func init() {
 
 func main() {
 	var (
-		vbCoreConfig = flag.String("config", "", "benchmark vault configuration file location")
+		vbCoreConfigPath = flag.String("config", "", "benchmark vault configuration file location")
 		// Vault related settings
 		clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
 		auditPath   = flag.String("audit_path", "", "when creating vault cluster, path to file for audit log")
@@ -51,7 +51,7 @@ func main() {
 	flag.Parse()
 
 	// Load config from File
-	err := conf.LoadConfig(*vbCoreConfig)
+	err := conf.LoadConfig(*vbCoreConfigPath)
 	if err != nil {
 		fmt.Println(err)
 		return
