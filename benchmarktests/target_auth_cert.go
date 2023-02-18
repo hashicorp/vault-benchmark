@@ -18,8 +18,10 @@ import (
 )
 
 // Constants for test
-const CertAuthTestType = "cert_auth"
-const CertAuthTestMethod = "POST"
+const (
+	CertAuthTestType   = "cert_auth"
+	CertAuthTestMethod = "POST"
+)
 
 func init() {
 	// "Register" this test to the main test registry

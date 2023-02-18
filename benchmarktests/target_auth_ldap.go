@@ -18,16 +18,17 @@ import (
 
 // Override flags
 var LDAPTestUserConfigJSON = flag.String("ldap_test_user_json", "", "when provided, the location of user credentials to test LDAP auth")
+var flagLDAPTestUserConfigJSON string
 
 // Constants for test
 const (
+	LDAPAuthTestType   = "ldap_auth"
 	LDAPAuthTestMethod = "POST"
-	LDAPAuthConfigTag  = "ldap_auth_config"
 )
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList["ldap_auth"] = func() BenchmarkBuilder { return &ldap_auth{} }
+	TestList[LDAPAuthTestType] = func() BenchmarkBuilder { return &ldap_auth{} }
 }
 
 type ldap_auth struct {

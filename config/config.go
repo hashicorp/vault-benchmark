@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -56,22 +56,16 @@ func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
 	}
 
 	// HCL V2 Parsing
-	var diags hcl.Diagnostics
 	parser := hclparse.NewParser()
 	confFile, confDiags := parser.ParseHCLFile(path)
-
-	diags = append(diags, confDiags...)
-	if diags.HasErrors() {
-		fmt.Println("File Parse Diags")
-		fmt.Println(diags)
+	if confDiags.HasErrors() {
+		fmt.Println(confDiags)
 	}
 
 	// Decode HCL Body into Core Config Struct
 	moreDiags := gohcl.DecodeBody(confFile.Body, nil, c)
-	diags = append(diags, moreDiags...)
-	if diags.HasErrors() {
-		fmt.Println("First pass decode diags")
-		fmt.Println(diags)
+	if moreDiags.HasErrors() {
+		fmt.Println(moreDiags)
 	}
 
 	// Check to see if we have more than one Cert auth and fail if we do
@@ -81,13 +75,13 @@ func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
 
 	// Loop through all found tests and check if they are part of the test list
 	// then parse each test config based on provided test structs
-	for i, bvTest := range c.Tests {
-		if currTest, ok := benchmarktests.TestList[c.Tests[i].Type]; ok {
+	for _, vbTest := range c.Tests {
+		if currTest, ok := benchmarktests.TestList[vbTest.Type]; ok {
 			currBuilder := currTest()
-			currBuilder.ParseConfig(bvTest.Remain)
-			c.Tests[i].Builder = currBuilder
+			currBuilder.ParseConfig(vbTest.Remain)
+			vbTest.Builder = currBuilder
 		} else {
-			log.Fatalf("invalid test type found: %v", c.Tests[i].Type)
+			log.Fatalf("invalid test type found: %v", vbTest.Type)
 		}
 	}
 	return nil

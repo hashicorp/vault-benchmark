@@ -14,11 +14,14 @@ import (
 )
 
 // Constants for test
-const ApproleAuthTestMethod = "POST"
+const (
+	ApproleAuthTestType   = "approle_auth"
+	ApproleAuthTestMethod = "POST"
+)
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList["approle_auth"] = func() BenchmarkBuilder { return &approle_auth{} }
+	TestList[ApproleAuthTestType] = func() BenchmarkBuilder { return &approle_auth{} }
 }
 
 // Approle Auth Test Struct
