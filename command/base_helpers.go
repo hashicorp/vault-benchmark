@@ -9,29 +9,12 @@ import (
 	"time"
 
 	kvbuilder "github.com/hashicorp/go-secure-stdlib/kv-builder"
-	"github.com/hashicorp/vault/api"
 	"github.com/kr/text"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"github.com/ryanuber/columnize"
 )
-
-// extractListData reads the secret and returns a typed list of data and a
-// boolean indicating whether the extraction was successful.
-func extractListData(secret *api.Secret) ([]interface{}, bool) {
-	if secret == nil || secret.Data == nil {
-		return nil, false
-	}
-
-	k, ok := secret.Data["keys"]
-	if !ok || k == nil {
-		return nil, false
-	}
-
-	i, ok := k.([]interface{})
-	return i, ok
-}
 
 // sanitizePath removes any leading or trailing things from a "path".
 func sanitizePath(s string) string {
@@ -187,15 +170,6 @@ func truncateToSeconds(d time.Duration) int {
 	return int(d.Seconds())
 }
 
-// printKeyStatus prints the KeyStatus response from the API.
-func printKeyStatus(ks *api.KeyStatus) string {
-	return columnOutput([]string{
-		fmt.Sprintf("Key Term | %d", ks.Term),
-		fmt.Sprintf("Install Time | %s", ks.InstallTime.UTC().Format(time.RFC822)),
-		fmt.Sprintf("Encryption Count | %d", ks.Encryptions),
-	}, nil)
-}
-
 // expandPath takes a filepath and returns the full expanded path, accounting
 // for user-relative things like ~/.
 func expandPath(s string) string {
@@ -224,22 +198,6 @@ func wrapAtLengthWithPadding(s string, pad int) string {
 // wrapAtLength wraps the given text to maxLineLength.
 func wrapAtLength(s string) string {
 	return wrapAtLengthWithPadding(s, 0)
-}
-
-// ttlToAPI converts a user-supplied ttl into an API-compatible string. If
-// the TTL is 0, this returns the empty string. If the TTL is negative, this
-// returns "system" to indicate to use the system values. Otherwise, the
-// time.Duration ttl is used.
-func ttlToAPI(d time.Duration) string {
-	if d == 0 {
-		return ""
-	}
-
-	if d < 0 {
-		return "system"
-	}
-
-	return d.String()
 }
 
 // humanDuration prints the time duration without those pesky zeros.

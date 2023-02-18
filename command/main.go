@@ -17,7 +17,7 @@ import (
 
 var commonCommands = []string{
 	"run",
-	//"debug",
+	"review",
 }
 
 type VaultUI struct {
@@ -93,6 +93,13 @@ func RunCustom(args []string, runOpts *RunOptions) int {
 				},
 			}, nil
 		},
+		"review": func() (cli.Command, error) {
+			return &ReviewCommand{
+				BaseCommand: &BaseCommand{
+					UI: ui,
+				},
+			}, nil
+		},
 	}
 
 	hiddenCommands := []string{"version"}
@@ -126,7 +133,7 @@ func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 		tw := tabwriter.NewWriter(&b, 0, 2, 6, ' ', 0)
 
 		fmt.Fprintf(tw, "Usage: vault-benchmark <command> [args]\n\n")
-		fmt.Fprintf(tw, "Common commands:\n")
+		fmt.Fprintf(tw, "Command list:\n")
 		for _, v := range commonCommands {
 			printCommand(tw, v, commands[v])
 		}
@@ -149,10 +156,12 @@ func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 		sort.Strings(otherCommands)
 
 		fmt.Fprintf(tw, "\n")
-		fmt.Fprintf(tw, "Other commands:\n")
-		for _, v := range otherCommands {
-			printCommand(tw, v, commands[v])
-		}
+		/*
+			fmt.Fprintf(tw, "Other commands:\n")
+			for _, v := range otherCommands {
+				printCommand(tw, v, commands[v])
+			}
+		*/
 		tw.Flush()
 
 		return strings.TrimSpace(b.String())

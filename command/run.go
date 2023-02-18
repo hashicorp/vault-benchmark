@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
-	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +31,8 @@ const (
 
 var (
 	_ cli.Command = (*RunCommand)(nil)
-	//_ cli.CommandAutocomplete = (*RunCommand)(nil)
+
+	_ cli.CommandAutocomplete = (*RunCommand)(nil)
 
 	// Vault related settings
 	clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
@@ -53,7 +53,6 @@ type RunCommand struct {
 	flagDuration         time.Duration
 	flagReportMode       string
 	flagPPROFInterval    time.Duration
-	flagInputResults     bool
 	flagAnnotate         string
 	flagRandomMounts     bool
 	flagCleanup          bool
@@ -151,13 +150,6 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Collection interval for vault debug pprof profiling.",
 	})
 
-	f.BoolVar(&BoolVar{
-		Name:    "input_results",
-		Target:  &r.flagInputResults,
-		Default: false,
-		Usage:   "Instead of running tests, read a JSON file from a previous test run.",
-	})
-
 	f.StringVar(&StringVar{
 		Name:    "annotate",
 		Target:  &r.flagAnnotate,
@@ -179,32 +171,28 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Cleanup benchmark artifacts after run.",
 	})
 
-	// Pull in all flags from included tests
-	flag.VisitAll(func(fl *flag.Flag) {
-		flValType := reflect.TypeOf(fl.Value)
-		baseValType := flValType.Elem()
-
-		switch baseValType.Kind() {
-		case reflect.String:
-			f.StringVar(&StringVar{
-				Name: fl.Name,
-			})
-		}
-	})
+	// Add any additional flags from tests
+	for _, vbTest := range benchmarktests.TestList {
+		vbTest().Flags(f.mainSet)
+	}
 
 	return set
 }
 
 func (r *RunCommand) Run(args []string) int {
-
-	conf := vbConfig.NewVaultBenchmarkCoreConfig()
-	flag.Parse()
 	f := r.Flags()
 
 	if err := f.Parse(args); err != nil {
 		r.UI.Error(err.Error())
 		return 1
 	}
+
+	if r.flagVBCoreConfigPath == "" {
+		r.UI.Error("no config file location passed")
+		return 1
+	}
+
+	conf := vbConfig.NewVaultBenchmarkCoreConfig()
 
 	// Load config from File
 	err := conf.LoadConfig(r.flagVBCoreConfigPath)
@@ -213,12 +201,7 @@ func (r *RunCommand) Run(args []string) int {
 		return 1
 	}
 
-	// This feels fragile...
-	// Check if we have any override flags
-	err = benchmarktests.ConfigOverrides(conf)
-	if err != nil {
-		r.UI.Error(fmt.Sprintf("error overriding config options: %v", err))
-	}
+	r.applyConfigOverrides(f, conf)
 
 	// Parse Duration from configuration string
 	parsedDuration, err := time.ParseDuration(conf.Duration)
@@ -231,39 +214,20 @@ func (r *RunCommand) Run(args []string) int {
 	if conf.PPROFInterval != "" {
 		parsedPPROFinterval, err = time.ParseDuration(conf.PPROFInterval)
 		if err != nil {
-			log.Fatalf("error parsing pprof interval from configuration: %v", err)
+			r.UI.Error(fmt.Sprintf("error parsing pprof interval from configuration: %v", err))
+			return 1
 		}
 	}
 
 	if (!conf.RandomMounts) && (conf.Cleanup) {
-		log.Fatal("Cleanup can only be enabled when random mounts is enabled")
+		r.UI.Error("Cleanup can only be enabled when random mounts is enabled")
+		return 1
 	}
 
 	switch conf.ReportMode {
 	case "terse", "verbose", "json":
 	default:
-		log.Fatal("report_mode must be one of terse, verbose, or json")
-	}
-
-	// If input_results is true we're not running benchmarks, just transforming input results based on reportMode
-	if conf.InputResults {
-		rpt, err := benchmarktests.FromReader(os.Stdin)
-		if err != nil {
-			log.Fatalf("error reading report: %v", err)
-		}
-		switch conf.ReportMode {
-		case "json":
-			err = fmt.Errorf("asked to report JSON on JSON input")
-		case "terse":
-			err = rpt.ReportTerse(os.Stdout)
-		case "verbose":
-			err = rpt.ReportVerbose(os.Stdout)
-		}
-		if err != nil {
-			log.Fatalf("error writing report: %v", err)
-		}
-
-		os.Exit(0)
+		r.UI.Error("report_mode must be one of terse, verbose, or json")
 	}
 
 	var cluster struct {
@@ -272,22 +236,23 @@ func (r *RunCommand) Run(args []string) int {
 	}
 	switch {
 	case *clusterJson != "" && conf.VaultAddr != "":
-		log.Fatalf("cannot specify both cluster_json and vault_addr")
+		r.UI.Error("cannot specify both cluster_json and vault_addr")
+		return 1
 	case *clusterJson != "":
 		b, err := os.ReadFile(*clusterJson)
 		if err != nil {
-			log.Fatalf("error reading cluster_json file %q: %v", *clusterJson, err)
+			r.UI.Error(fmt.Sprintf("error reading cluster_json file %q: %v", *clusterJson, err))
 		}
 		err = json.Unmarshal(b, &cluster)
 		if err != nil {
-			log.Fatalf("error decoding cluster_json file %q: %v", *clusterJson, err)
+			r.UI.Error(fmt.Sprintf("error decoding cluster_json file %q: %v", *clusterJson, err))
 		}
 	case conf.VaultAddr != "":
 		cluster.VaultAddrs = []string{conf.VaultAddr}
 	case os.Getenv("VAULT_ADDR") != "":
 		cluster.VaultAddrs = []string{os.Getenv("VAULT_ADDR")}
 	default:
-		log.Fatalf("must specify one of cluster_json, vault_addr, or $VAULT_ADDR")
+		r.UI.Error("must specify one of cluster_json, vault_addr, or $VAULT_ADDR")
 	}
 
 	switch {
@@ -297,7 +262,8 @@ func (r *RunCommand) Run(args []string) int {
 		cluster.Token = os.Getenv("VAULT_TOKEN")
 	}
 	if cluster.Token == "" {
-		log.Fatal("must specify one of cluster_json, vault_token, or $VAULT_TOKEN")
+		r.UI.Error("must specify one of cluster_json, vault_token, or $VAULT_TOKEN")
+		return 1
 	}
 
 	if *caPEMFile == "" {
@@ -311,7 +277,8 @@ func (r *RunCommand) Run(args []string) int {
 		for _, kv := range strings.Split(conf.Annotate, ",") {
 			kvPair := strings.SplitN(kv, "=", 2)
 			if len(kvPair) != 2 || kvPair[0] == "" {
-				log.Fatalf("annotate should contain comma-separated list of name=value pairs, got: %s", conf.Annotate)
+				r.UI.Error(fmt.Sprintf("annotate should contain comma-separated list of name=value pairs, got: %s", conf.Annotate))
+				return 1
 			}
 			annoLabels = append(annoLabels, kvPair[0])
 			annoValues = append(annoValues, kvPair[1])
@@ -343,12 +310,14 @@ func (r *RunCommand) Run(args []string) int {
 		}
 		err := cfg.ConfigureTLS(tlsCfg)
 		if err != nil {
-			log.Fatalf("error creating vault client: %v", err)
+			r.UI.Error(fmt.Sprintf("error creating vault client: %v", err))
+			return 1
 		}
 		cfg.Address = addr
 		client, err := vaultapi.NewClient(cfg)
 		if err != nil {
-			log.Fatalf("error creating vault client: %v", err)
+			r.UI.Error(fmt.Sprintf("error creating vault client: %v", err))
+			return 1
 		}
 		client.SetToken(cluster.Token)
 		clients = append(clients, client)
@@ -369,15 +338,15 @@ func (r *RunCommand) Run(args []string) int {
 			defer wg.Done()
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				log.Printf("error running pprof: %v", err)
+				r.UI.Error(fmt.Sprintf("error running pprof: %v", err))
 			}
-			log.Printf("pprof: %s", out)
+			r.UI.Info(fmt.Sprintf("pprof: %s", out))
 		}()
 
 		defer func() {
 			// We can't use CommandContext because that uses sigkill, and we
 			// want the debug process to wrap things up and write indexes/etc.
-			log.Println("stopping pprof")
+			r.UI.Info("stopping pprof")
 			cmd.Process.Signal(os.Interrupt)
 		}()
 	}
@@ -390,7 +359,8 @@ func (r *RunCommand) Run(args []string) int {
 			},
 		})
 		if err != nil {
-			log.Fatalf("error enabling audit device: %v", err)
+			r.UI.Error(fmt.Sprintf("error enabling audit device: %v", err))
+			return 1
 		}
 	}
 
@@ -398,7 +368,8 @@ func (r *RunCommand) Run(args []string) int {
 	if *caPEMFile != "" {
 		b, err := os.ReadFile(*caPEMFile)
 		if err != nil {
-			log.Fatal(err)
+			r.UI.Error(err.Error())
+			return 1
 		}
 		caPEM = string(b)
 	}
@@ -406,7 +377,8 @@ func (r *RunCommand) Run(args []string) int {
 	testRunning.WithLabelValues(annoValues...).Set(1)
 	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], caPEM, clientCert, conf.RandomMounts)
 	if err != nil {
-		log.Fatalf("target setup failed: %v", err)
+		r.UI.Error(fmt.Sprintf("target setup failed: %v", err))
+		return 1
 	}
 
 	var l sync.Mutex
@@ -427,7 +399,8 @@ func (r *RunCommand) Run(args []string) int {
 			fmt.Println("Starting benchmark tests. Will run for " + parsedDuration.String() + "...")
 			rpt, err := benchmarktests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
 			if err != nil {
-				log.Fatal("attack error", err)
+				r.UI.Error(fmt.Sprint("attack error", err))
+				os.Exit(1)
 			}
 
 			l.Lock()
@@ -440,7 +413,7 @@ func (r *RunCommand) Run(args []string) int {
 				fmt.Println("Cleaning up...")
 				err := tm.Cleanup(client)
 				if err != nil {
-					log.Println("cleanup error", err)
+					r.UI.Error(fmt.Sprint("cleanup error", err))
 				}
 			}
 		}(client)
@@ -463,4 +436,175 @@ func (r *RunCommand) Run(args []string) int {
 		fmt.Println()
 	}
 	return 0
+}
+
+func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBenchmarkCoreConfig) {
+	r.setDurationFlag(f, config.PPROFInterval, &DurationVar{
+		Name:    "pprof_interval",
+		Target:  &r.flagPPROFInterval,
+		Default: 0,
+	})
+	config.PPROFInterval = r.flagPPROFInterval.String()
+	r.setDurationFlag(f, config.Duration, &DurationVar{
+		Name:    "duration",
+		Target:  &r.flagDuration,
+		Default: 10 * time.Second,
+	})
+	config.Duration = r.flagDuration.String()
+	r.setIntFlag(f, config.RPS, &IntVar{
+		Name:    "rps",
+		Target:  &r.flagRPS,
+		Default: 0,
+	})
+	config.RPS = r.flagRPS
+	r.setIntFlag(f, config.Workers, &IntVar{
+		Name:    "workers",
+		Target:  &r.flagWorkers,
+		Default: 10,
+	})
+	config.Workers = r.flagWorkers
+	r.setStringFlag(f, config.VaultToken, &StringVar{
+		Name:    "vault_token",
+		EnvVar:  "VAULT_TOKEN",
+		Target:  &r.flagVaultToken,
+		Default: "",
+	})
+	config.VaultToken = r.flagVaultToken
+	r.setStringFlag(f, config.VaultAddr, &StringVar{
+		Name:    "vault_addr",
+		EnvVar:  "VAULT_ADDR",
+		Target:  &r.flagVaultAddr,
+		Default: "http://127.0.0.1:8200",
+	})
+	config.VaultAddr = r.flagVaultAddr
+	r.setStringFlag(f, config.ReportMode, &StringVar{
+		Name:    "report_mode",
+		Target:  &r.flagReportMode,
+		Default: "terse",
+	})
+	config.ReportMode = r.flagReportMode
+	r.setStringFlag(f, config.Annotate, &StringVar{
+		Name:    "annotate",
+		Target:  &r.flagAnnotate,
+		Default: "",
+	})
+	config.Annotate = r.flagAnnotate
+	r.setBoolFlag(f, config.Cleanup, &BoolVar{
+		Name:    "cleanup",
+		Target:  &r.flagCleanup,
+		Default: false,
+	})
+	config.Cleanup = r.flagCleanup
+	r.setBoolFlag(f, config.RandomMounts, &BoolVar{
+		Name:    "random_mounts",
+		Target:  &r.flagRandomMounts,
+		Default: false,
+	})
+	config.RandomMounts = r.flagRandomMounts
+}
+
+func (r *RunCommand) setBoolFlag(f *FlagSets, configVal bool, fVar *BoolVar) {
+	var isFlagSet bool
+	f.Visit(func(f *flag.Flag) {
+		if f.Name == fVar.Name {
+			isFlagSet = true
+		}
+	})
+
+	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
+	switch {
+	case isFlagSet:
+		// Don't do anything as the flag is already set from the command line
+	case flagEnvSet:
+		// Use value from env var
+		*fVar.Target = flagEnvValue != ""
+	case configVal:
+		// Use value from config
+		*fVar.Target = configVal
+	default:
+		// Use the default value
+		*fVar.Target = fVar.Default
+	}
+}
+
+func (r *RunCommand) setStringFlag(f *FlagSets, configVal string, fVar *StringVar) {
+	var isFlagSet bool
+	f.Visit(func(f *flag.Flag) {
+		if f.Name == fVar.Name {
+			isFlagSet = true
+		}
+	})
+
+	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
+	switch {
+	case isFlagSet:
+		// Don't do anything as the flag is already set from the command line
+	case flagEnvSet:
+		// Use value from env var
+		*fVar.Target = flagEnvValue
+	case configVal != "":
+		// Use value from config
+		*fVar.Target = configVal
+	default:
+		// Use the default value
+		*fVar.Target = fVar.Default
+	}
+}
+
+func (r *RunCommand) setIntFlag(f *FlagSets, configVal int, fVar *IntVar) {
+	var isFlagSet bool
+	f.Visit(func(f *flag.Flag) {
+		if f.Name == fVar.Name {
+			isFlagSet = true
+		}
+	})
+
+	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
+	switch {
+	case isFlagSet:
+		// Don't do anything as the flag is already set from the command line
+	case flagEnvSet:
+		// Use value from env var
+		tVal, err := strconv.Atoi(flagEnvValue)
+		if err != nil {
+			return
+		}
+		*fVar.Target = tVal
+	case configVal != 0:
+		*fVar.Target = configVal
+	default:
+		// Use the default value
+		*fVar.Target = fVar.Default
+	}
+}
+
+func (r *RunCommand) setDurationFlag(f *FlagSets, configVal string, fVar *DurationVar) {
+	var isFlagSet bool
+	f.Visit(func(f *flag.Flag) {
+		if f.Name == fVar.Name {
+			isFlagSet = true
+		}
+	})
+
+	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
+	switch {
+	case isFlagSet:
+		// Don't do anything as the flag is already set from the command line
+	case flagEnvSet:
+		// Use value from env var
+		tVal, err := time.ParseDuration(flagEnvValue)
+		if err != nil {
+			return
+		}
+		*fVar.Target = tVal
+	case configVal != "":
+		tVal, err := time.ParseDuration(configVal)
+		if err != nil {
+			return
+		}
+		*fVar.Target = tVal
+	default:
+		// Use the default value
+		*fVar.Target = fVar.Default
+	}
 }

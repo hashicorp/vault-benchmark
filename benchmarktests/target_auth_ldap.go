@@ -17,7 +17,7 @@ import (
 )
 
 // Override flags
-var LDAPTestUserConfigJSON = flag.String("ldap_test_user_json", "", "when provided, the location of user credentials to test LDAP auth")
+// var LDAPTestUserConfigJSON = flag.String("ldap_test_user_json", "", "when provided, the location of user credentials to test LDAP auth")
 var flagLDAPTestUserConfigJSON string
 
 // Constants for test
@@ -102,8 +102,8 @@ func (l *ldap_auth) ParseConfig(body hcl.Body) {
 	}
 
 	// Handle passed in JSON config
-	if *LDAPTestUserConfigJSON != "" {
-		err := l.config.Config.LDAPTestUserConfig.FromJSON(*LDAPTestUserConfigJSON)
+	if flagLDAPTestUserConfigJSON != "" {
+		err := l.config.Config.LDAPTestUserConfig.FromJSON(flagLDAPTestUserConfigJSON)
 		if err != nil {
 			// Handle this error
 			return
@@ -201,4 +201,8 @@ func (l *ldap_auth) Setup(client *api.Client, randomMountName bool, mountName st
 		authUser:   config.LDAPTestUserConfig.Username,
 		authPass:   config.LDAPTestUserConfig.Password,
 	}, nil
+}
+
+func (l *ldap_auth) Flags(fs *flag.FlagSet) {
+	fs.StringVar(&flagLDAPTestUserConfigJSON, "ldap_test_user_json", "", "When provided, the location of user credentials to test LDAP auth.")
 }

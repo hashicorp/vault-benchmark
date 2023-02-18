@@ -1,6 +1,7 @@
 package benchmarktests
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -177,3 +178,5 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 		secretID:   secretId.Data["secret_id"].(string),
 	}, nil
 }
+
+func (l *approle_auth) Flags(fs *flag.FlagSet) {}

@@ -1,6 +1,7 @@
 package benchmarktests
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -29,6 +30,9 @@ type BenchmarkBuilder interface {
 
 	// GetTargetInfo retrieves specific Target information required to pass on to Attack
 	GetTargetInfo() TargetInfo
+
+	// Flags allows tests to define flags in the passed in command flag set
+	Flags(fs *flag.FlagSet)
 }
 
 var TestList = make(map[string]func() BenchmarkBuilder)

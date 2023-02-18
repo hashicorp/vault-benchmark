@@ -45,7 +45,11 @@ func FromReader(r io.Reader) (*Reporter, error) {
 }
 
 func newReporter(tm *TargetMulti, client *api.Client) *Reporter {
-	r := &Reporter{tm: tm, clientAddr: client.Address()}
+	clientAddress := "N/A"
+	if client != nil {
+		clientAddress = client.Address()
+	}
+	r := &Reporter{tm: tm, clientAddr: clientAddress}
 	r.metrics = make(map[string]*vegeta.Metrics, len(tm.targets)+1)
 	r.metrics["total"] = &vegeta.Metrics{}
 	for _, t := range tm.targets {

@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -186,3 +187,5 @@ func (c *cert_auth) Cleanup(client *api.Client) error {
 	}
 	return nil
 }
+
+func (c *cert_auth) Flags(fs *flag.FlagSet) {}
