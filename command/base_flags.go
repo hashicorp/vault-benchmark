@@ -252,7 +252,7 @@ func (i *intValue) Set(s string) error {
 		*i.target = v
 		return nil
 	}
-	return fmt.Errorf("Incorrect conversion of a 64-bit integer to a lower bit size. Value %d is not within bounds for int32", v)
+	return fmt.Errorf("incorrect conversion of a 64-bit integer to a lower bit size. Value %d is not within bounds for int32", v)
 }
 
 func (i *intValue) Get() interface{} { return *i.target }
@@ -383,7 +383,7 @@ func (i *uintValue) Set(s string) error {
 		return nil
 	}
 
-	return fmt.Errorf("Incorrect conversion of a 64-bit integer to a lower bit size. Value %d is not within bounds for uint32", v)
+	return fmt.Errorf("incorrect conversion of a 64-bit integer to a lower bit size. Value %d is not within bounds for uint32", v)
 }
 
 func (i *uintValue) Get() interface{} { return uint(*i.target) }
@@ -931,7 +931,7 @@ func parseTimeAlternatives(input string, allowedFormats TimeFormat) (time.Time, 
 		}
 	}
 
-	return time.Time{}, errors.New("Could not parse as absolute time.")
+	return time.Time{}, errors.New("could not parse as absolute time")
 }
 
 func (f *FlagSet) TimeVar(i *TimeVar) {
@@ -986,33 +986,3 @@ func (d *timeValue) Get() interface{} { return *d.target }
 func (d *timeValue) String() string   { return (*d.target).String() }
 func (d *timeValue) Example() string  { return "time" }
 func (d *timeValue) Hidden() bool     { return d.hidden }
-
-// -- helpers
-func envDefault(key, def string) string {
-	if v, exist := os.LookupEnv(key); exist {
-		return v
-	}
-	return def
-}
-
-func envBoolDefault(key string, def bool) bool {
-	if v, exist := os.LookupEnv(key); exist {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			panic(err)
-		}
-		return b
-	}
-	return def
-}
-
-func envDurationDefault(key string, def time.Duration) time.Duration {
-	if v, exist := os.LookupEnv(key); exist {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			panic(err)
-		}
-		return d
-	}
-	return def
-}

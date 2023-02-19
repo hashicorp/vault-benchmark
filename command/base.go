@@ -101,7 +101,7 @@ func (f *FlagSets) Parse(args []string, opts ...ParseOptions) error {
 	err := f.mainSet.Parse(args)
 
 	warnings := generateFlagWarnings(f.Args())
-	if warnings != "" && Format(f.ui) == "table" {
+	if warnings != "" {
 		f.ui.Warn(warnings)
 	}
 
