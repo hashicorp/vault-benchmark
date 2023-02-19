@@ -13,21 +13,22 @@ import (
 
 type VaultBenchmarkCoreConfig struct {
 	Remain        hcl.Body                          `hcl:",remain"`
-	VaultAddr     string                            `hcl:"vault_addr" json:"vault_addr"`
-	VaultToken    string                            `hcl:"vault_token" json:"vault_token"`
-	Duration      string                            `hcl:"duration,optional" json:"duration"`
-	ReportMode    string                            `hcl:"report_mode,optional" json:"report_mode"`
-	AuditPath     string                            `hcl:"audit_path,optional" json:"audit_path"`
-	Annotate      string                            `hcl:"annotate,optional" json:"annotate"`
-	ClusterJSON   string                            `hcl:"cluster_json,optional" json:"cluster_json"`
-	CAPEMFile     string                            `hcl:"ca_pem_file,optional" json:"ca_pem_file"`
-	PPROFInterval string                            `hcl:"pprof_interval,optional" json:"pprof_interval"`
+	VaultAddr     string                            `hcl:"vault_addr"`
+	VaultToken    string                            `hcl:"vault_token"`
+	Duration      string                            `hcl:"duration,optional"`
+	ReportMode    string                            `hcl:"report_mode,optional"`
+	AuditPath     string                            `hcl:"audit_path,optional"`
+	Annotate      string                            `hcl:"annotate,optional"`
+	ClusterJSON   string                            `hcl:"cluster_json,optional"`
+	CAPEMFile     string                            `hcl:"ca_pem_file,optional"`
+	PPROFInterval string                            `hcl:"pprof_interval,optional"`
 	Tests         []*benchmarktests.BenchmarkTarget `hcl:"test,block"`
-	RPS           int                               `hcl:"rps,optional" json:"rps"`
-	Workers       int                               `hcl:"workers,optional" json:"workers"`
+	RPS           int                               `hcl:"rps,optional"`
+	Workers       int                               `hcl:"workers,optional"`
 	RandomMounts  bool                              `hcl:"random_mounts,optional"`
-	InputResults  bool                              `hcl:"input_results,optional" json:"input_results"`
-	Cleanup       bool                              `hcl:"cleanup,optional" json:"cleanup"`
+	InputResults  bool                              `hcl:"input_results,optional"`
+	Cleanup       bool                              `hcl:"cleanup,optional"`
+	Debug         bool                              `hcl:"debug,optional"`
 }
 
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {

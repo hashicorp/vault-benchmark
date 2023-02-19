@@ -24,30 +24,23 @@ import (
 const (
 	// maxLineLength is the maximum width of any line.
 	maxLineLength int = 78
-
-	// notSetValue is a flag value for a not-set value
-	notSetValue = "(not set)"
 )
 
 var (
-	_ cli.Command = (*RunCommand)(nil)
-
+	_ cli.Command             = (*RunCommand)(nil)
 	_ cli.CommandAutocomplete = (*RunCommand)(nil)
 
 	// Vault related settings
 	clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
-	auditPath   = flag.String("audit_path", "", "when creating vault cluster, path to file for audit log")
-	caPEMFile   = flag.String("ca_pem_file", "", "when using external vault with HTTPS, path to its CA file in PEM format")
-
-	// benchmark-vault settings
-	debug = flag.Bool("debug", false, "before running tests, execute each benchmark target and output request/response info")
 )
 
 type RunCommand struct {
 	*BaseCommand
 	flagVaultAddr        string
 	flagVaultToken       string
+	flagAuditPath        string
 	flagVBCoreConfigPath string
+	flagCAPEMFile        string
 	flagWorkers          int
 	flagRPS              int
 	flagDuration         time.Duration
@@ -56,6 +49,7 @@ type RunCommand struct {
 	flagAnnotate         string
 	flagRandomMounts     bool
 	flagCleanup          bool
+	flagDebug            bool
 }
 
 func (r *RunCommand) Synopsis() string {
@@ -94,7 +88,7 @@ func (r *RunCommand) Flags() *FlagSets {
 		Name:    "vault_addr",
 		EnvVar:  "VAULT_ADDR",
 		Target:  &r.flagVaultAddr,
-		Default: "http://127.0.0.1:8200",
+		Default: "https://127.0.0.1:8200",
 		Usage:   "Target Vault API Address.",
 	})
 
@@ -157,6 +151,21 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Comma-separated name=value pairs include in bench_running prometheus metric. Try name 'testname' for dashboard example.",
 	})
 
+	f.StringVar(&StringVar{
+		Name:    "audit_path",
+		Target:  &r.flagAuditPath,
+		Default: "",
+		Usage:   "Path to file for audit log.",
+	})
+
+	f.StringVar(&StringVar{
+		Name:    "ca_pem_file",
+		Target:  &r.flagCAPEMFile,
+		EnvVar:  "VAULT_CACERT",
+		Default: "",
+		Usage:   "Path to PEM encoded CA file to verify external Vault.",
+	})
+
 	f.BoolVar(&BoolVar{
 		Name:    "random_mounts",
 		Target:  &r.flagRandomMounts,
@@ -169,6 +178,13 @@ func (r *RunCommand) Flags() *FlagSets {
 		Target:  &r.flagCleanup,
 		Default: false,
 		Usage:   "Cleanup benchmark artifacts after run.",
+	})
+
+	f.BoolVar(&BoolVar{
+		Name:    "debug",
+		Target:  &r.flagDebug,
+		Default: false,
+		Usage:   "Run vault-benchmark in Debug mode.",
 	})
 
 	// Add any additional flags from tests
@@ -266,10 +282,6 @@ func (r *RunCommand) Run(args []string) int {
 		return 1
 	}
 
-	if *caPEMFile == "" {
-		*caPEMFile = os.Getenv("VAULT_CACERT")
-	}
-
 	// Setup annotations and testRunning metric
 	var annoLabels []string
 	var annoValues []string
@@ -305,8 +317,8 @@ func (r *RunCommand) Run(args []string) int {
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
-		if *caPEMFile != "" {
-			tlsCfg.CACert = *caPEMFile
+		if conf.CAPEMFile != "" {
+			tlsCfg.CACert = conf.CAPEMFile
 		}
 		err := cfg.ConfigureTLS(tlsCfg)
 		if err != nil {
@@ -328,8 +340,8 @@ func (r *RunCommand) Run(args []string) int {
 	if parsedPPROFinterval.Seconds() != 0 {
 		_ = os.Setenv("VAULT_ADDR", cluster.VaultAddrs[0])
 		_ = os.Setenv("VAULT_TOKEN", cluster.Token)
-		if *caPEMFile != "" {
-			_ = os.Setenv("VAULT_CACERT", *caPEMFile)
+		if conf.CAPEMFile != "" {
+			_ = os.Setenv("VAULT_CACERT", conf.CAPEMFile)
 		}
 		cmd := exec.Command("vault", "debug", "-duration", (2 * parsedDuration).String(),
 			"-interval", parsedPPROFinterval.String(), "-compress=false")
@@ -351,11 +363,12 @@ func (r *RunCommand) Run(args []string) int {
 		}()
 	}
 
-	if *auditPath != "" {
+	// Enable file audit device at specified path if flag set
+	if conf.AuditPath != "" {
 		err := clients[0].Sys().EnableAuditWithOptions("bench-audit", &vaultapi.EnableAuditOptions{
 			Type: "file",
 			Options: map[string]string{
-				"file_path": *auditPath,
+				"file_path": conf.AuditPath,
 			},
 		})
 		if err != nil {
@@ -365,8 +378,8 @@ func (r *RunCommand) Run(args []string) int {
 	}
 
 	var caPEM string
-	if *caPEMFile != "" {
-		b, err := os.ReadFile(*caPEMFile)
+	if conf.CAPEMFile != "" {
+		b, err := os.ReadFile(conf.CAPEMFile)
 		if err != nil {
 			r.UI.Error(err.Error())
 			return 1
@@ -388,7 +401,7 @@ func (r *RunCommand) Run(args []string) int {
 		go func(client *vaultapi.Client) {
 			defer wg.Done()
 
-			if *debug {
+			if r.flagDebug {
 				l.Lock()
 				fmt.Println("=== Debug Info ===")
 				fmt.Printf("Client: %s\n", client.Address())
@@ -414,6 +427,12 @@ func (r *RunCommand) Run(args []string) int {
 				err := tm.Cleanup(client)
 				if err != nil {
 					r.UI.Error(fmt.Sprint("cleanup error", err))
+				}
+				if conf.AuditPath != "" {
+					_, err := client.Logical().Delete("/sys/audit/bench-audit")
+					if err != nil {
+						r.UI.Error("Error disabling bench-audit audit device! This may require manual intervention.")
+					}
 				}
 			}
 		}(client)
@@ -445,24 +464,28 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: 0,
 	})
 	config.PPROFInterval = r.flagPPROFInterval.String()
+
 	r.setDurationFlag(f, config.Duration, &DurationVar{
 		Name:    "duration",
 		Target:  &r.flagDuration,
 		Default: 10 * time.Second,
 	})
 	config.Duration = r.flagDuration.String()
+
 	r.setIntFlag(f, config.RPS, &IntVar{
 		Name:    "rps",
 		Target:  &r.flagRPS,
 		Default: 0,
 	})
 	config.RPS = r.flagRPS
+
 	r.setIntFlag(f, config.Workers, &IntVar{
 		Name:    "workers",
 		Target:  &r.flagWorkers,
 		Default: 10,
 	})
 	config.Workers = r.flagWorkers
+
 	r.setStringFlag(f, config.VaultToken, &StringVar{
 		Name:    "vault_token",
 		EnvVar:  "VAULT_TOKEN",
@@ -470,6 +493,7 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: "",
 	})
 	config.VaultToken = r.flagVaultToken
+
 	r.setStringFlag(f, config.VaultAddr, &StringVar{
 		Name:    "vault_addr",
 		EnvVar:  "VAULT_ADDR",
@@ -477,24 +501,43 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: "http://127.0.0.1:8200",
 	})
 	config.VaultAddr = r.flagVaultAddr
+
 	r.setStringFlag(f, config.ReportMode, &StringVar{
 		Name:    "report_mode",
 		Target:  &r.flagReportMode,
 		Default: "terse",
 	})
 	config.ReportMode = r.flagReportMode
+
 	r.setStringFlag(f, config.Annotate, &StringVar{
 		Name:    "annotate",
 		Target:  &r.flagAnnotate,
 		Default: "",
 	})
-	config.Annotate = r.flagAnnotate
+	config.AuditPath = r.flagAnnotate
+
+	r.setStringFlag(f, config.AuditPath, &StringVar{
+		Name:    "audit_path",
+		Target:  &r.flagAuditPath,
+		Default: "",
+	})
+	config.AuditPath = r.flagAuditPath
+
+	r.setStringFlag(f, config.CAPEMFile, &StringVar{
+		Name:    "ca_pem_file",
+		EnvVar:  "VAULT_CACERT",
+		Target:  &r.flagCAPEMFile,
+		Default: "",
+	})
+	config.CAPEMFile = r.flagCAPEMFile
+
 	r.setBoolFlag(f, config.Cleanup, &BoolVar{
 		Name:    "cleanup",
 		Target:  &r.flagCleanup,
 		Default: false,
 	})
 	config.Cleanup = r.flagCleanup
+
 	r.setBoolFlag(f, config.RandomMounts, &BoolVar{
 		Name:    "random_mounts",
 		Target:  &r.flagRandomMounts,

@@ -9,13 +9,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"flag"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/vault/sdk/helper/certutil"
@@ -54,55 +52,6 @@ func structToMap(in interface{}) (map[string]interface{}, error) {
 	omitEmpty(tMap)
 
 	return tMap, nil
-}
-
-// ConfigOverrides accepts a config interface and will walk through all passed in flags
-// and set the relevant config parameters that match based on hcl tag. This expects the
-// tag name and the flag name to match. By this point everything should have gone through
-// HCL parsing and flag parsing.
-func ConfigOverrides(conf interface{}) error {
-	var err error
-	flag.Visit(func(f *flag.Flag) {
-		// Walk all the keys of the config struct
-		r := reflect.ValueOf(conf).Elem()
-
-		for i := 0; i < r.NumField(); i++ {
-			// We expect the config flag so skip this one
-			if f.Name == "config" {
-				continue
-			}
-			// Get Field name match by tag
-			tag := r.Type().Field(i).Tag.Get("hcl")
-			if tag == "" || tag == "-" {
-				continue
-			}
-			args := strings.Split(tag, ",")
-
-			// Match the flag against the tag
-			if args[0] == f.Name {
-				if r.Field(i).CanSet() {
-					switch r.Field(i).Kind() {
-					case reflect.Bool:
-						r.Field(i).SetBool(f.Value.(flag.Getter).Get().(bool))
-					case reflect.String:
-						// Check if we need to grab the string value of a time.Duration flag
-						if t, ok := f.Value.(flag.Getter).Get().(time.Duration); ok {
-							r.Field(i).SetString(t.String())
-							continue
-						}
-						r.Field(i).SetString(f.Value.(flag.Getter).Get().(string))
-					case reflect.Int:
-						r.Field(i).SetInt(f.Value.(flag.Getter).Get().(int64))
-					}
-				} else {
-					// Unable to set
-					err = fmt.Errorf("unable to set field: %v", f.Name)
-				}
-			}
-			fmt.Printf("unable to find match for flag %v\n", f.Name)
-		}
-	})
-	return err
 }
 
 // GenerateCert creates a new leaf cert from provided CA template and signer

@@ -12,8 +12,7 @@ import (
 )
 
 var (
-	_ cli.Command = (*ReviewCommand)(nil)
-
+	_ cli.Command             = (*ReviewCommand)(nil)
 	_ cli.CommandAutocomplete = (*ReviewCommand)(nil)
 )
 
