@@ -24,9 +24,8 @@ type BenchmarkBuilder interface {
 	// Cleanup uses the passed in client to clean up any created resources used as part of the test
 	Cleanup(client *api.Client) error
 
-	// ParseConfig accepts an hcl.Body struct and parses the config setting it as a field in the underlying
-	// test struct
-	ParseConfig(body hcl.Body)
+	// ParseConfig accepts an hcl.Body and parses it into the underlying test struct
+	ParseConfig(body hcl.Body) error
 
 	// GetTargetInfo retrieves specific Target information required to pass on to Attack
 	GetTargetInfo() TargetInfo

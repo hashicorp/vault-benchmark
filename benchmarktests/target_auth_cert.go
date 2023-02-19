@@ -72,15 +72,16 @@ type CertAuthRoleConfig struct {
 	TokenType                  string   `hcl:"token_type,optional"`
 }
 
-func (c *cert_auth) ParseConfig(body hcl.Body) {
+func (c *cert_auth) ParseConfig(body hcl.Body) error {
 	c.config = &CertAuthTestConfig{
 		Config: &CertAuthRoleConfig{},
 	}
 
 	diags := gohcl.DecodeBody(body, nil, c.config)
 	if diags.HasErrors() {
-		fmt.Println(diags)
+		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	return nil
 }
 
 func (c *cert_auth) Target(client *api.Client) vegeta.Target {

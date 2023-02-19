@@ -78,7 +78,7 @@ type SecretIDConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
-func (a *approle_auth) ParseConfig(body hcl.Body) {
+func (a *approle_auth) ParseConfig(body hcl.Body) error {
 	a.config = &ApproleTestConfig{
 		Config: &ApproleAuthTestConfig{
 			RoleConfig: &RoleConfig{
@@ -90,8 +90,9 @@ func (a *approle_auth) ParseConfig(body hcl.Body) {
 
 	diags := gohcl.DecodeBody(body, nil, a.config)
 	if diags.HasErrors() {
-		fmt.Println(diags)
+		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	return nil
 }
 
 func (a *approle_auth) Target(client *api.Client) vegeta.Target {

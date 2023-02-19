@@ -91,7 +91,10 @@ func ParseConfig(hclBuf []byte, pathName string, configStruct *VaultBenchmarkCor
 	for _, vbTest := range configStruct.Tests {
 		if currTest, ok := benchmarktests.TestList[vbTest.Type]; ok {
 			currBuilder := currTest()
-			currBuilder.ParseConfig(vbTest.Remain)
+			err := currBuilder.ParseConfig(vbTest.Remain)
+			if err != nil {
+				return err
+			}
 			vbTest.Builder = currBuilder
 		} else {
 			return fmt.Errorf("invalid test type found: %v", vbTest.Type)

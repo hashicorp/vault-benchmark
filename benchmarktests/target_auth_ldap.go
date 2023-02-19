@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -88,7 +87,7 @@ type LDAPTestUserConfig struct {
 	Password string `hcl:"password"`
 }
 
-func (l *ldap_auth) ParseConfig(body hcl.Body) {
+func (l *ldap_auth) ParseConfig(body hcl.Body) error {
 	l.config = &LDAPTestConfig{
 		Config: &LDAPAuthTestConfig{
 			LDAPAuthConfig:     &LDAPAuthConfig{},
@@ -98,16 +97,17 @@ func (l *ldap_auth) ParseConfig(body hcl.Body) {
 
 	diags := gohcl.DecodeBody(body, nil, l.config)
 	if diags.HasErrors() {
-		fmt.Println(diags)
+		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
 	// Handle passed in JSON config
 	if flagLDAPTestUserConfigJSON != "" {
 		err := l.config.Config.LDAPTestUserConfig.FromJSON(flagLDAPTestUserConfigJSON)
 		if err != nil {
-			log.Fatalf("error loading test LDAP user config from JSON: %v", err)
+			return fmt.Errorf("error loading test LDAP user config from JSON: %v", err)
 		}
 	}
+	return nil
 }
 
 func (u *LDAPTestUserConfig) FromJSON(path string) error {
