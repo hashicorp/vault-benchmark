@@ -81,7 +81,7 @@ func (r *RunCommand) AutocompleteFlags() complete.Flags {
 }
 
 func (r *RunCommand) Flags() *FlagSets {
-	set := r.flagSet(FlagSetNone)
+	set := r.flagSet()
 	f := set.NewFlagSet("Command Options")
 
 	f.StringVar(&StringVar{

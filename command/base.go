@@ -23,27 +23,11 @@ type BaseCommand struct {
 	flagsOnce sync.Once
 }
 
-type FlagSetBit uint
-
-const (
-	FlagSetNone FlagSetBit = 1 << iota
-	FlagSetHTTP
-	FlagSetOutputField
-	FlagSetOutputFormat
-	FlagSetOutputDetailed
-)
-
 // flagSet creates the flags for this command. The result is cached on the
 // command to save performance on future calls.
-func (c *BaseCommand) flagSet(bit FlagSetBit) *FlagSets {
+func (c *BaseCommand) flagSet() *FlagSets {
 	c.flagsOnce.Do(func() {
 		set := NewFlagSets(c.UI)
-
-		// These flag sets will apply to all leaf subcommands.
-		// TODO: Optional, but FlagSetHTTP can be safely removed from the individual
-		// Flags() subcommands.
-		bit = bit | FlagSetHTTP
-
 		c.flags = set
 	})
 

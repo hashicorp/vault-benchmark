@@ -49,7 +49,7 @@ func (r *ReviewCommand) AutocompleteFlags() complete.Flags {
 }
 
 func (r *ReviewCommand) Flags() *FlagSets {
-	set := r.flagSet(FlagSetNone)
+	set := r.flagSet()
 	f := set.NewFlagSet("Command Options")
 
 	f.StringVar(&StringVar{
