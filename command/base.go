@@ -108,9 +108,7 @@ func (f *FlagSets) Parse(args []string, opts ...ParseOptions) error {
 	if err != nil {
 		return err
 	}
-
-	// Now surface any other errors.
-	return generateFlagErrors(f, opts...)
+	return nil
 }
 
 // Parsed reports whether the command-line flags have been parsed.
