@@ -163,8 +163,8 @@ func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, cl
 		bvTest.Builder, err = bvTest.Builder.Setup(client, randomMounts, mountName)
 		if err != nil {
 			// TODO:
-			// We should look to implement a WAL so we can clean up the mounts we failed
-			// to setup so we don't leave cruft around.
+			// We should look to implement some mechanism to clean up the mount if we
+			// fail to configure some aspect of it (config, role, etc.)
 			return nil, err
 		}
 		bvTest.ConfigureTarget(client)

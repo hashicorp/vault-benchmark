@@ -175,28 +175,6 @@ type TestSpecification struct {
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
 	var tm TargetMulti
 
-	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
-		kvv1, err := setupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv1 read",
-			method:     "GET",
-			pathPrefix: kvv1.pathPrefix,
-			percent:    spec.PctKvv1Read,
-			target:     kvv1.read,
-			cleanup:    kvv1.cleanup,
-		})
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv1 write",
-			method:     "POST",
-			pathPrefix: kvv1.pathPrefix,
-			percent:    spec.PctKvv1Write,
-			target:     kvv1.write,
-			cleanup:    kvv1.cleanup,
-		})
-	}
 	if spec.PctKvv2Read > 0 || spec.PctKvv2Write > 0 {
 		kvv2, err := setupKvv2(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
 		if err != nil {
