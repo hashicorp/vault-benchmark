@@ -80,8 +80,12 @@ func (r *Reporter) Close() {
 }
 
 func (r *Reporter) ReportJSON(w io.Writer) error {
+	jsonReport := map[string]interface{}{
+		"target_addr": r.clientAddr,
+		"metrics":     r.metrics,
+	}
 	j := json.NewEncoder(w)
-	return j.Encode(r.metrics)
+	return j.Encode(jsonReport)
 }
 
 func (r *Reporter) ReportVerbose(w io.Writer) error {
@@ -107,6 +111,7 @@ func (r *Reporter) ReportVerbose(w io.Writer) error {
 
 func (r *Reporter) ReportTerse(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+	fmt.Fprintf(tw, "Target: %v\n", r.clientAddr)
 	fmt.Fprintf(tw, "op\tcount\trate\tthroughput\tmean\t95th%%\t99th%%\tsuccessRatio\n")
 	const fmtstr = "%s\t%d\t%f\t%f\t%s\t%s\t%s\t%.2f%%\n"
 

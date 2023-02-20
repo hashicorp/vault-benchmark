@@ -82,7 +82,7 @@ func ParseConfig(hclBuf []byte, pathName string, configStruct *VaultBenchmarkCor
 	}
 
 	// Check to see if we have more than one Cert auth and fail if we do
-	if moreThanOneCertAuth(configStruct.Tests) {
+	if moreThanOneTest(configStruct.Tests, benchmarktests.CertAuthTestType) {
 		return fmt.Errorf("only one cert auth test supported")
 	}
 
@@ -103,14 +103,19 @@ func ParseConfig(hclBuf []byte, pathName string, configStruct *VaultBenchmarkCor
 	return nil
 }
 
-func moreThanOneCertAuth(tests []*benchmarktests.BenchmarkTarget) bool {
+// moreThanOneTest will fail out of config parsing we have more than one of the
+// specified testType provided. This is to account for scenarios where due to other
+// restrictions only one test type can be run for a given instance of vault-benchmark
+func moreThanOneTest(tests []*benchmarktests.BenchmarkTarget, testType string) bool {
 	targetMap := make(map[string]interface{})
 	for _, target := range tests {
-		if _, ok := targetMap[benchmarktests.CertAuthTestType]; !ok {
-			targetMap[target.Type] = nil
-			continue
+		if target.Type == testType {
+			if _, ok := targetMap[target.Type]; !ok {
+				targetMap[target.Type] = nil
+				continue
+			}
+			return true
 		}
-		return true
 	}
 	return false
 }

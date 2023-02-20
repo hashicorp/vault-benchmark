@@ -29,9 +29,6 @@ const (
 var (
 	_ cli.Command             = (*RunCommand)(nil)
 	_ cli.CommandAutocomplete = (*RunCommand)(nil)
-
-	// Vault related settings
-	clusterJson = flag.String("cluster_json", "", "path to cluster.json file")
 )
 
 type RunCommand struct {
@@ -50,6 +47,7 @@ type RunCommand struct {
 	flagRandomMounts     bool
 	flagCleanup          bool
 	flagDebug            bool
+	flagClusterJson      string
 }
 
 func (r *RunCommand) Synopsis() string {
@@ -88,7 +86,7 @@ func (r *RunCommand) Flags() *FlagSets {
 		Name:    "vault_addr",
 		EnvVar:  "VAULT_ADDR",
 		Target:  &r.flagVaultAddr,
-		Default: "https://127.0.0.1:8200",
+		Default: "http://127.0.0.1:8200",
 		Usage:   "Target Vault API Address.",
 	})
 
@@ -166,6 +164,13 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Path to PEM encoded CA file to verify external Vault.",
 	})
 
+	f.StringVar(&StringVar{
+		Name:    "cluster_json",
+		Target:  &r.flagClusterJson,
+		Default: "",
+		Usage:   "Path to cluster.json file",
+	})
+
 	f.BoolVar(&BoolVar{
 		Name:    "random_mounts",
 		Target:  &r.flagRandomMounts,
@@ -190,27 +195,27 @@ func (r *RunCommand) Flags() *FlagSets {
 	// Add any additional flags from tests
 	for _, vbTest := range benchmarktests.TestList {
 		vbTest().Flags(f.mainSet)
+		vbTest().Flags(f.flagSet)
 	}
 
 	return set
 }
 
 func (r *RunCommand) Run(args []string) int {
+	// Parse Flags
 	f := r.Flags()
-
 	if err := f.Parse(args); err != nil {
 		r.UI.Error(err.Error())
 		return 1
 	}
 
+	// Load config from File
 	if r.flagVBCoreConfigPath == "" {
 		r.UI.Error("no config file location passed")
 		return 1
 	}
 
 	conf := vbConfig.NewVaultBenchmarkCoreConfig()
-
-	// Load config from File
 	err := conf.LoadConfig(r.flagVBCoreConfigPath)
 	if err != nil {
 		r.UI.Error(err.Error())
@@ -250,34 +255,29 @@ func (r *RunCommand) Run(args []string) int {
 		Token      string   `json:"token"`
 		VaultAddrs []string `json:"vault_addrs"`
 	}
+
 	switch {
-	case *clusterJson != "" && conf.VaultAddr != "":
-		r.UI.Error("cannot specify both cluster_json and vault_addr")
-		return 1
-	case *clusterJson != "":
-		b, err := os.ReadFile(*clusterJson)
+	case conf.ClusterJSON != "":
+		b, err := os.ReadFile(conf.ClusterJSON)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error reading cluster_json file %q: %v", *clusterJson, err))
+			r.UI.Error(fmt.Sprintf("error reading cluster_json file %q: %v", conf.ClusterJSON, err))
+			return 1
 		}
 		err = json.Unmarshal(b, &cluster)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error decoding cluster_json file %q: %v", *clusterJson, err))
+			r.UI.Error(fmt.Sprintf("error decoding cluster_json file %q: %v", conf.ClusterJSON, err))
+			return 1
 		}
 	case conf.VaultAddr != "":
 		cluster.VaultAddrs = []string{conf.VaultAddr}
-	case os.Getenv("VAULT_ADDR") != "":
-		cluster.VaultAddrs = []string{os.Getenv("VAULT_ADDR")}
 	default:
 		r.UI.Error("must specify one of cluster_json, vault_addr, or $VAULT_ADDR")
 	}
 
-	switch {
-	case conf.VaultToken != "":
+	if conf.VaultToken != "" {
 		cluster.Token = conf.VaultToken
-	case cluster.Token == "" && os.Getenv("VAULT_TOKEN") != "":
-		cluster.Token = os.Getenv("VAULT_TOKEN")
 	}
-	if cluster.Token == "" {
+	if conf.VaultToken == "" && cluster.Token == "" {
 		r.UI.Error("must specify one of cluster_json, vault_token, or $VAULT_TOKEN")
 		return 1
 	}
@@ -313,7 +313,6 @@ func (r *RunCommand) Run(args []string) int {
 	// Create vault clients
 	var clients []*vaultapi.Client
 	var clientCert string
-	// var clientKey string
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
@@ -388,6 +387,7 @@ func (r *RunCommand) Run(args []string) int {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
+	r.UI.Info("Setting up targets...")
 	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], caPEM, clientCert, conf.RandomMounts)
 	if err != nil {
 		r.UI.Error(fmt.Sprintf("target setup failed: %v", err))
@@ -396,6 +396,7 @@ func (r *RunCommand) Run(args []string) int {
 
 	var l sync.Mutex
 	results := make(map[string]*benchmarktests.Reporter)
+	r.UI.Info(fmt.Sprintf("Starting benchmarks. Will run for %s...", parsedDuration.String()))
 	for _, client := range clients {
 		wg.Add(1)
 		go func(client *vaultapi.Client) {
@@ -409,7 +410,6 @@ func (r *RunCommand) Run(args []string) int {
 				l.Unlock()
 			}
 
-			fmt.Println("Starting benchmark tests. Will run for " + parsedDuration.String() + "...")
 			rpt, err := benchmarktests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
 			if err != nil {
 				r.UI.Error(fmt.Sprint("attack error", err))
@@ -421,7 +421,6 @@ func (r *RunCommand) Run(args []string) int {
 			results[client.Address()] = rpt
 			l.Unlock()
 
-			fmt.Println("Benchmark complete!")
 			if conf.Cleanup {
 				fmt.Println("Cleaning up...")
 				err := tm.Cleanup(client)
@@ -437,9 +436,11 @@ func (r *RunCommand) Run(args []string) int {
 			}
 		}(client)
 	}
-	testRunning.WithLabelValues(annoValues...).Set(0)
 
 	wg.Wait()
+
+	testRunning.WithLabelValues(annoValues...).Set(0)
+	fmt.Println("Benchmark complete!")
 
 	for _, client := range clients {
 		addr := client.Address()
@@ -530,6 +531,13 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: "",
 	})
 	config.CAPEMFile = r.flagCAPEMFile
+
+	r.setStringFlag(f, config.ClusterJSON, &StringVar{
+		Name:    "cluster_json",
+		Target:  &r.flagClusterJson,
+		Default: "",
+	})
+	config.ClusterJSON = r.flagClusterJson
 
 	r.setBoolFlag(f, config.Cleanup, &BoolVar{
 		Name:    "cleanup",
