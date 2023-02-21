@@ -40,8 +40,8 @@ type BenchmarkTarget struct {
 	Builder    BenchmarkBuilder
 	Target     vegeta.Target
 	Remain     hcl.Body `hcl:",remain"`
-	Name       string   `hcl:"name,label"`
 	Type       string   `hcl:"type,label"`
+	Name       string   `hcl:"name,label"`
 	MountName  string   `hcl:"mount_name,optional"`
 	Method     string
 	PathPrefix string
