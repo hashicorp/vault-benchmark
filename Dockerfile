@@ -1,31 +1,66 @@
-FROM docker.mirror.hashicorp.services/alpine:latest as default
+# This Dockerfile contains multiple targets.
+# Use 'docker build --target=<name> .' to build one.
+#
+# Every target has a BIN_NAME argument that must be provided via --build-arg=BIN_NAME=<name>
+# when building.
 
-# PRODUCT_VERSION is the tag built, e.g. v0.1.0
-# PRODUCT_REVISION is the git hash built
+
+# ===================================
+#
+#   Non-release images.
+#
+# ===================================
+
+
+# devbuild compiles the binary
+# -----------------------------------
+FROM golang:latest AS devbuild
+ARG BIN_NAME=vault-benchmark
+# Escape the GOPATH
+WORKDIR /build
+COPY . ./
+RUN go build -o $BIN_NAME
+
+
+# dev runs the binary from devbuild
+# -----------------------------------
+FROM alpine:latest AS dev
+ARG BIN_NAME=vault-benchmark
+# Export BIN_NAME for the CMD below, it can't see ARGs directly.
+ENV BIN_NAME=$BIN_NAME
+COPY --from=devbuild /build/$BIN_NAME /bin/
+CMD /bin/$BIN_NAME
+
+
+# ===================================
+#
+#   Release images.
+#
+# ===================================
+
+
+# default release image
+# -----------------------------------
+FROM alpine:latest AS release-default
+
+ARG BIN_NAME=vault-benchmark
+# Export BIN_NAME for the CMD below, it can't see ARGs directly.
+ENV BIN_NAME=$BIN_NAME
 ARG PRODUCT_VERSION
 ARG PRODUCT_REVISION
-ARG PRODUCT_NAME=vault-benchmark
+ARG PRODUCT_NAME=$BIN_NAME
+# TARGETARCH and TARGETOS are set automatically when --platform is provided.
 ARG TARGETOS TARGETARCH
 
-# Additional metadata labels used by container registries, platforms
-# and certification scanners.
-LABEL name="Vault Benchmark" \
-      maintainer="Vault Team <vault@hashicorp.com>" \
-      vendor="HashiCorp" \
-      version=$PRODUCT_VERSION \
-      release=$PRODUCT_VERSION \
-      revision=$PRODUCT_REVISION
+LABEL maintainer="Team Vault Customer Engineering <team-vault-customer-engineering@hashicorp.com>"
+LABEL version=$PRODUCT_VERSION
+LABEL revision=$PRODUCT_REVISION
 
 # Create a non-root user to run the software.
-RUN addgroup vault && \
-    adduser -S -G vault vault
+RUN addgroup $PRODUCT_NAME && \
+    adduser -S -G $PRODUCT_NAME 100
 
-# Set up certificates, base tools, and software.
-RUN set -eux && \
-    apk update && apk upgrade libretls && \
-    apk add --no-cache ca-certificates libcap su-exec iputils
+COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
 
-COPY dist/vault-benchmark /bin/
-
-USER vault
-CMD ["/bin/vault-benchmark"]
+USER 100
+CMD /bin/$BIN_NAME
