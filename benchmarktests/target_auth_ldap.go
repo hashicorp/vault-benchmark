@@ -27,10 +27,10 @@ const (
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList[LDAPAuthTestType] = func() BenchmarkBuilder { return &ldap_auth{} }
+	TestList[LDAPAuthTestType] = func() BenchmarkBuilder { return &LDAPAuth{} }
 }
 
-type ldap_auth struct {
+type LDAPAuth struct {
 	pathPrefix string
 	authUser   string
 	authPass   string
@@ -87,7 +87,7 @@ type LDAPTestUserConfig struct {
 	Password string `hcl:"password"`
 }
 
-func (l *ldap_auth) ParseConfig(body hcl.Body) error {
+func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	l.config = &LDAPTestConfig{
 		Config: &LDAPAuthTestConfig{
 			LDAPAuthConfig:     &LDAPAuthConfig{},
@@ -137,7 +137,7 @@ func (u *LDAPTestUserConfig) FromJSON(path string) error {
 	}
 }
 
-func (l *ldap_auth) Target(client *api.Client) vegeta.Target {
+func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: "POST",
 		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
@@ -146,7 +146,7 @@ func (l *ldap_auth) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (l *ldap_auth) Cleanup(client *api.Client) error {
+func (l *LDAPAuth) Cleanup(client *api.Client) error {
 	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -154,7 +154,7 @@ func (l *ldap_auth) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (l *ldap_auth) GetTargetInfo() TargetInfo {
+func (l *LDAPAuth) GetTargetInfo() TargetInfo {
 	tInfo := TargetInfo{
 		method:     LDAPAuthTestMethod,
 		pathPrefix: l.pathPrefix,
@@ -162,7 +162,7 @@ func (l *ldap_auth) GetTargetInfo() TargetInfo {
 	return tInfo
 }
 
-func (l *ldap_auth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	config := l.config.Config
@@ -194,7 +194,7 @@ func (l *ldap_auth) Setup(client *api.Client, randomMountName bool, mountName st
 		return nil, fmt.Errorf("error writing LDAP config: %v", err)
 	}
 
-	return &ldap_auth{
+	return &LDAPAuth{
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   config.LDAPTestUserConfig.Username,
@@ -203,6 +203,6 @@ func (l *ldap_auth) Setup(client *api.Client, randomMountName bool, mountName st
 }
 
 // Func Flags accepts a flag set to assign additional flags defined in the function
-func (l *ldap_auth) Flags(fs *flag.FlagSet) {
+func (l *LDAPAuth) Flags(fs *flag.FlagSet) {
 	fs.StringVar(&flagLDAPTestUserConfigJSON, "ldap_test_user_json", "", "When provided, the location of user credentials to test LDAP auth.")
 }

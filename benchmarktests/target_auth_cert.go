@@ -26,10 +26,10 @@ const (
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList[CertAuthTestType] = func() BenchmarkBuilder { return &cert_auth{} }
+	TestList[CertAuthTestType] = func() BenchmarkBuilder { return &CertAuth{} }
 }
 
-type cert_auth struct {
+type CertAuth struct {
 	pathPrefix string
 	header     http.Header
 	config     *CertAuthTestConfig
@@ -72,7 +72,7 @@ type CertAuthRoleConfig struct {
 	TokenType                  string   `hcl:"token_type,optional"`
 }
 
-func (c *cert_auth) ParseConfig(body hcl.Body) error {
+func (c *CertAuth) ParseConfig(body hcl.Body) error {
 	c.config = &CertAuthTestConfig{
 		Config: &CertAuthRoleConfig{},
 	}
@@ -84,7 +84,7 @@ func (c *cert_auth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *cert_auth) Target(client *api.Client) vegeta.Target {
+func (c *CertAuth) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: CertAuthTestMethod,
 		URL:    client.Address() + c.pathPrefix + "/login",
@@ -92,7 +92,7 @@ func (c *cert_auth) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (c *cert_auth) GetTargetInfo() TargetInfo {
+func (c *CertAuth) GetTargetInfo() TargetInfo {
 	tInfo := TargetInfo{
 		method:     CertAuthTestMethod,
 		pathPrefix: c.pathPrefix,
@@ -100,11 +100,11 @@ func (c *cert_auth) GetTargetInfo() TargetInfo {
 	return tInfo
 }
 
-func (c *cert_auth) SetCert(cert *tls.Certificate) {
+func (c *CertAuth) SetCert(cert *tls.Certificate) {
 	c.clientCert = cert
 }
 
-func (c *cert_auth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	config := c.config.Config
@@ -175,13 +175,13 @@ func (c *cert_auth) Setup(client *api.Client, randomMountName bool, mountName st
 		return nil, fmt.Errorf("error creating cert role %q: %v", config.Name, err)
 	}
 
-	return &cert_auth{
+	return &CertAuth{
 		pathPrefix: "/v1/auth/" + authPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 	}, nil
 }
 
-func (c *cert_auth) Cleanup(client *api.Client) error {
+func (c *CertAuth) Cleanup(client *api.Client) error {
 	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -189,4 +189,4 @@ func (c *cert_auth) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (c *cert_auth) Flags(fs *flag.FlagSet) {}
+func (c *CertAuth) Flags(fs *flag.FlagSet) {}

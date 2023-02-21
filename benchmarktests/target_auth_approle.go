@@ -22,11 +22,11 @@ const (
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList[ApproleAuthTestType] = func() BenchmarkBuilder { return &approle_auth{} }
+	TestList[ApproleAuthTestType] = func() BenchmarkBuilder { return &ApproleAuth{} }
 }
 
 // Approle Auth Test Struct
-type approle_auth struct {
+type ApproleAuth struct {
 	pathPrefix string
 	role       string
 	roleID     string
@@ -78,7 +78,7 @@ type SecretIDConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
-func (a *approle_auth) ParseConfig(body hcl.Body) error {
+func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 	a.config = &ApproleTestConfig{
 		Config: &ApproleAuthTestConfig{
 			RoleConfig: &RoleConfig{
@@ -95,7 +95,7 @@ func (a *approle_auth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *approle_auth) Target(client *api.Client) vegeta.Target {
+func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: ApproleAuthTestMethod,
 		URL:    client.Address() + a.pathPrefix + "/login",
@@ -104,7 +104,7 @@ func (a *approle_auth) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (a *approle_auth) Cleanup(client *api.Client) error {
+func (a *ApproleAuth) Cleanup(client *api.Client) error {
 	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -112,7 +112,7 @@ func (a *approle_auth) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (a *approle_auth) GetTargetInfo() TargetInfo {
+func (a *ApproleAuth) GetTargetInfo() TargetInfo {
 	tInfo := TargetInfo{
 		method:     ApproleAuthTestMethod,
 		pathPrefix: a.pathPrefix,
@@ -120,7 +120,7 @@ func (a *approle_auth) GetTargetInfo() TargetInfo {
 	return tInfo
 }
 
-func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	config := a.config.Config
@@ -171,7 +171,7 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error reading approle secret_id: %v", err)
 	}
 
-	return &approle_auth{
+	return &ApproleAuth{
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleID:     roleSecret.Data["role_id"].(string),
@@ -180,4 +180,4 @@ func (a *approle_auth) Setup(client *api.Client, randomMountName bool, mountName
 	}, nil
 }
 
-func (l *approle_auth) Flags(fs *flag.FlagSet) {}
+func (l *ApproleAuth) Flags(fs *flag.FlagSet) {}

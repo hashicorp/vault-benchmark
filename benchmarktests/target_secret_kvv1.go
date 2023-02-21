@@ -25,14 +25,14 @@ const (
 
 func init() {
 	TestList[KVV1ReadTestType] = func() BenchmarkBuilder {
-		return &kvv1_test{action: "read"}
+		return &KVV1Test{action: "read"}
 	}
 	TestList[KVV1WriteTestType] = func() BenchmarkBuilder {
-		return &kvv1_test{action: "write"}
+		return &KVV1Test{action: "write"}
 	}
 }
 
-type kvv1_test struct {
+type KVV1Test struct {
 	pathPrefix string
 	header     http.Header
 	config     *KVV1TestConfig
@@ -50,7 +50,7 @@ type KVV1Config struct {
 	NumKVs int `hcl:"numkvs,optional"`
 }
 
-func (k *kvv1_test) ParseConfig(body hcl.Body) error {
+func (k *KVV1Test) ParseConfig(body hcl.Body) error {
 	k.config = &KVV1TestConfig{
 		Config: &KVV1Config{
 			KVSize: 1,
@@ -65,7 +65,7 @@ func (k *kvv1_test) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *kvv1_test) read(client *api.Client) vegeta.Target {
+func (k *KVV1Test) read(client *api.Client) vegeta.Target {
 	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
 	return vegeta.Target{
 		Method: KVV1ReadTestMethod,
@@ -74,7 +74,7 @@ func (k *kvv1_test) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func (k *kvv1_test) write(client *api.Client) vegeta.Target {
+func (k *KVV1Test) write(client *api.Client) vegeta.Target {
 	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
 	value := strings.Repeat("a", k.kvSize)
 	return vegeta.Target{
@@ -85,7 +85,7 @@ func (k *kvv1_test) write(client *api.Client) vegeta.Target {
 	}
 }
 
-func (k *kvv1_test) Target(client *api.Client) vegeta.Target {
+func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
 	switch k.action {
 	case "write":
 		return k.write(client)
@@ -94,7 +94,7 @@ func (k *kvv1_test) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (k *kvv1_test) GetTargetInfo() TargetInfo {
+func (k *KVV1Test) GetTargetInfo() TargetInfo {
 	var method string
 	switch k.action {
 	case "write":
@@ -109,7 +109,7 @@ func (k *kvv1_test) GetTargetInfo() TargetInfo {
 	return tInfo
 }
 
-func (k *kvv1_test) Cleanup(client *api.Client) error {
+func (k *KVV1Test) Cleanup(client *api.Client) error {
 	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
 
 	if err != nil {
@@ -118,7 +118,7 @@ func (k *kvv1_test) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (k *kvv1_test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	config := k.config.Config
@@ -161,7 +161,7 @@ func (k *kvv1_test) Setup(client *api.Client, randomMountName bool, mountName st
 	if lastIndex != "" {
 		headers["X-Vault-Index"] = []string{lastIndex}
 	}
-	return &kvv1_test{
+	return &KVV1Test{
 		pathPrefix: "/v1/" + mountPath,
 		action:     k.action,
 		header:     headers,
@@ -170,4 +170,4 @@ func (k *kvv1_test) Setup(client *api.Client, randomMountName bool, mountName st
 	}, nil
 }
 
-func (k *kvv1_test) Flags(fs *flag.FlagSet) {}
+func (k *KVV1Test) Flags(fs *flag.FlagSet) {}

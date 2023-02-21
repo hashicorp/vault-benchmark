@@ -12,7 +12,7 @@ const (
 )
 
 func TestLDAPAuthTest_ParseConfig(t *testing.T) {
-	tAuth := ldap_auth{}
+	tAuth := LDAPAuth{}
 
 	hclFile, diags := hclparse.NewParser().ParseHCLFile(filepath.Join(FixturePath, "auth_ldap.hcl"))
 	if diags != nil {
