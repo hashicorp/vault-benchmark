@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sort"
 	"strings"
@@ -171,7 +172,7 @@ func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 func printCommand(w io.Writer, name string, cmdFn cli.CommandFactory) {
 	cmd, err := cmdFn()
 	if err != nil {
-		panic(fmt.Sprintf("failed to load %q command: %s", name, err))
+		log.Fatalf(fmt.Sprintf("failed to load %q command: %s", name, err))
 	}
 	fmt.Fprintf(w, "    %s\t%s\n", name, cmd.Synopsis())
 }

@@ -3,6 +3,7 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -128,7 +129,7 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			panic("can't create UUID")
+			log.Fatalf("can't create UUID")
 		}
 	}
 

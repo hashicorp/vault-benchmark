@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"sort"
 
@@ -79,7 +80,7 @@ func (tm TargetMulti) validate() error {
 
 func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 	if i > 99 || i < 0 {
-		panic("i must be between 0 and 99")
+		log.Fatalf("i must be between 0 and 99")
 	}
 
 	total := 0
@@ -90,7 +91,8 @@ func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 		}
 	}
 
-	panic("unreachable")
+	log.Fatalf("unreachable")
+	return nil
 }
 
 // TODO:
@@ -130,22 +132,22 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 		target := benchTarget.Target
 		req, err := target.Request()
 		if err != nil {
-			panic(fmt.Sprintf("Got err building target: %v", err))
+			log.Fatalf(fmt.Sprintf("Got err building target: %v", err))
 		}
 		fmt.Printf("\tRequest: %v\n", req)
 		fmt.Printf("\tRequest Body: %v\n", string(target.Body))
 		resp, err := client.CloneConfig().HttpClient.Do(req)
 		if err != nil {
-			panic(fmt.Sprintf("Got err executing target request: %v", err))
+			log.Fatalf(fmt.Sprintf("Got err executing target request: %v", err))
 		}
 		rawBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			panic(fmt.Sprintf("Got err reading response body: %v", err))
+			log.Fatalf(fmt.Sprintf("Got err reading response body: %v", err))
 		}
 		fmt.Printf("\tResponse: %v\n", resp)
 		fmt.Printf("\tResponse Body: %v\n", string(rawBody))
 		if resp.StatusCode >= 400 {
-			panic("Got error response from server on testing request; exiting")
+			log.Fatalf("Got error response from server on testing request; exiting")
 		}
 		fmt.Println()
 	}

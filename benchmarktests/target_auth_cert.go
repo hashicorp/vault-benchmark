@@ -112,7 +112,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			panic("can't create UUID")
+			log.Fatalf("can't create UUID")
 		}
 	}
 
