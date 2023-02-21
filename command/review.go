@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -87,16 +86,18 @@ func (r *ReviewCommand) Run(args []string) int {
 
 	if fStat.IsDir() {
 		r.UI.Error("location is a directory, not a file")
+		return 1
 	}
 
 	fReader, err := os.Open(r.flagReviewResultsFile)
 	if err != nil {
 		r.UI.Error(fmt.Sprintf("error opening file: %v", err))
+		return 1
 	}
 
 	rpt, err := benchmarktests.FromReader(fReader)
 	if err != nil {
-		log.Fatalf("error reading report: %v", err)
+		r.UI.Error(fmt.Sprintf("error reading report: %v", err))
 	}
 	switch r.flagReportMode {
 	case "json":
@@ -107,7 +108,8 @@ func (r *ReviewCommand) Run(args []string) int {
 		err = rpt.ReportVerbose(os.Stdout)
 	}
 	if err != nil {
-		log.Fatalf("error writing report: %v", err)
+		r.UI.Error(fmt.Sprintf("error writing report: %v", err))
+		return 1
 	}
 	return 0
 }
