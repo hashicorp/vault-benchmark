@@ -10,6 +10,15 @@ import (
 	"github.com/hashicorp/vault-tools/benchmark-vault/benchmarktests"
 )
 
+const (
+	DefaultWorkers      = 10
+	DefaultRPS          = 0
+	DefaultDuration     = "10s"
+	DefaultReportMode   = "terse"
+	DefaultRandomMounts = true
+	DefaultCleanup      = false
+)
+
 type VaultBenchmarkCoreConfig struct {
 	Remain        hcl.Body                          `hcl:",remain"`
 	VaultAddr     string                            `hcl:"vault_addr,optional"`
@@ -33,12 +42,12 @@ type VaultBenchmarkCoreConfig struct {
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
 	// Default Vault Benchmark Config Values
 	return &VaultBenchmarkCoreConfig{
-		Workers:      10,
-		RPS:          0,
-		Duration:     "10s",
-		ReportMode:   "terse",
-		RandomMounts: true,
-		Cleanup:      false,
+		Workers:      DefaultWorkers,
+		RPS:          DefaultRPS,
+		Duration:     DefaultDuration,
+		ReportMode:   DefaultReportMode,
+		RandomMounts: DefaultRandomMounts,
+		Cleanup:      DefaultCleanup,
 	}
 }
 

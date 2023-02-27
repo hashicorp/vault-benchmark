@@ -173,7 +173,7 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	return &ApproleAuth{
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleID:     roleSecret.Data["role_id"].(string),
 		role:       config.RoleConfig.Name,

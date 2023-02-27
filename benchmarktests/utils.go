@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"net/http"
 	"os"
 	"reflect"
 	"time"
 
+	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
 	"github.com/mitchellh/mapstructure"
 )
@@ -189,4 +191,11 @@ func privateKey() (crypto.Signer, string, error) {
 // serialNumber generates a new random serial number.
 func serialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
+}
+
+func generateHeader(client *api.Client) http.Header {
+	return http.Header{
+		"X-Vault-Token":     []string{client.Token()},
+		"X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")},
+	}
 }

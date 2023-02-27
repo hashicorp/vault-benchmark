@@ -44,8 +44,8 @@ type LDAPTestConfig struct {
 }
 
 type LDAPAuthTestConfig struct {
-	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"ldap_auth_config,block"`
-	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"ldap_test_user_config,block"`
+	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"auth_config,block"`
+	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"test_user_config,block"`
 }
 
 type LDAPAuthConfig struct {
@@ -68,9 +68,9 @@ type LDAPAuthConfig struct {
 	UPNDomain            string   `hcl:"upndomain,optional"`
 	UserFilter           string   `hcl:"userfilter,optional"`
 	AnonymousGroupSearch bool     `hcl:"anonymous_group_search,optional"`
-	GroupFilter          string   `hcl:"group_filter,optional"`
+	GroupFilter          string   `hcl:"groupfilter,optional"`
 	GroupDN              string   `hcl:"groupdn,optional"`
-	GroupAttr            string   `hcl:"group_attr,optional"`
+	GroupAttr            string   `hcl:"groupattr,optional"`
 	UsernameAsAlias      bool     `hcl:"username_as_alias,optional"`
 	TokenTTL             int      `hcl:"token_ttl,optional"`
 	TokenMaxTTL          int      `hcl:"token_max_ttl,optional"`
@@ -196,7 +196,7 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	return &LDAPAuth{
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   config.LDAPTestUserConfig.Username,
 		authPass:   config.LDAPTestUserConfig.Password,

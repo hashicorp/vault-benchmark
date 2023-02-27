@@ -7,13 +7,6 @@ import (
 )
 
 const (
-	BasicCoreConfig = `
-	vault_addr = "https://127.0.0.1:8200"
-	vault_token = "sometoken"
-	duration = "30s"
-	report_mode = "terse"
-	random_mounts = true
-`
 	BadCoreConfig = `
 	report_mode = terse	
 `

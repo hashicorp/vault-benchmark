@@ -177,7 +177,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	return &CertAuth{
 		pathPrefix: "/v1/auth/" + authPath,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		header:     generateHeader(client),
 	}, nil
 }
 
