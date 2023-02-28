@@ -1,0 +1,6 @@
+{
+    "role_name": "my-vault-role",
+    "creation_statements": "{\"elasticsearch_role_definition\": {\"indices\": [{\"names\":[\"*\"], \"privileges\":[\"read\"]}]}}",
+    "default_ttl": "1h",
+    "max_ttl": "24h"
+}
