@@ -119,7 +119,6 @@ type TestSpecification struct {
 	PctPkiIssue                int
 	PkiConfig                  PkiTestConfig
 	PctApproleLogin            int
-	PctCertLogin               int
 	PctSshCaIssue              int
 	SshCaConfig                SshCaTestConfig
 	PctHAStatus                int
@@ -140,8 +139,6 @@ type TestSpecification struct {
 	ConsulConfig               ConsulConfig
 	ConsulRoleConfig           ConsulRoleConfig
 	PctLDAPLogin               int
-	LDAPAuthConfig             LDAPAuthConfig
-	LDAPTestUserConfig         LDAPTestUserConfig
 	PctMongoRead               int
 	MongoDBConfig              MongoDBConfig
 	MongoDBRoleConfig          MongoRoleConfig
@@ -174,7 +171,6 @@ type TestSpecification struct {
 	RedisDynamicRoleConfigJSON RedisDynamicRoleConfig
 	RedisStaticRoleConfigJSON  RedisStaticRoleConfig
 	Timeout                    time.Duration
-	AppRoleConfig              AppRoleConfig
 	UserpassRoleConfig         UserpassRoleConfig
 	PctUserpassLogin           int
 	PctElasticSearchRead       int
@@ -185,28 +181,6 @@ type TestSpecification struct {
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
 	var tm TargetMulti
 
-	if spec.PctKvv1Read > 0 || spec.PctKvv1Write > 0 {
-		kvv1, err := setupKvv1(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv1 read",
-			method:     "GET",
-			pathPrefix: kvv1.pathPrefix,
-			percent:    spec.PctKvv1Read,
-			target:     kvv1.read,
-			cleanup:    kvv1.cleanup,
-		})
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv1 write",
-			method:     "POST",
-			pathPrefix: kvv1.pathPrefix,
-			percent:    spec.PctKvv1Write,
-			target:     kvv1.write,
-			cleanup:    kvv1.cleanup,
-		})
-	}
 	if spec.PctKvv2Read > 0 || spec.PctKvv2Write > 0 {
 		kvv2, err := setupKvv2(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
 		if err != nil {
@@ -245,21 +219,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 
-	if spec.PctApproleLogin > 0 {
-		approle, err := setupApprole(client, spec.RandomMounts, &spec.AppRoleConfig)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "approle login",
-			method:     "POST",
-			pathPrefix: approle.pathPrefix,
-			percent:    spec.PctApproleLogin,
-			target:     approle.login,
-			cleanup:    approle.cleanup,
-		})
-	}
-
 	if spec.PctUserpassLogin > 0 {
 		userpass, err := setupUserpass(client, spec.RandomMounts, &spec.UserpassRoleConfig)
 		if err != nil {
@@ -275,34 +234,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 
-	if spec.PctCertLogin > 0 {
-		cert, err := setupCert(client, spec.RandomMounts, spec.TokenTTL, clientCAPem)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "cert login",
-			method:     "POST",
-			pathPrefix: cert.pathPrefix,
-			percent:    spec.PctCertLogin,
-			target:     cert.login,
-			cleanup:    cert.cleanup,
-		})
-	}
-	if spec.PctLDAPLogin > 0 {
-		ldap, err := setupLDAPAuth(client, spec.RandomMounts, &spec.LDAPAuthConfig, &spec.LDAPTestUserConfig)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "LDAP login",
-			method:     "POST",
-			pathPrefix: ldap.pathPrefix,
-			percent:    spec.PctLDAPLogin,
-			target:     ldap.login,
-			cleanup:    ldap.cleanup,
-		})
-	}
 	if spec.PctLDAPStaticRead > 0 {
 		ldapsecret, err := setupLDAPStaticSecret(client, spec.RandomMounts, &spec.LDAPSecretConfig, &spec.LDAPStaticRoleConfig)
 		if err != nil {

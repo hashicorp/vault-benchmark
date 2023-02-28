@@ -1,4 +1,4 @@
-package vegeta
+package benchmarktests
 
 import (
 	"bytes"
@@ -14,25 +14,46 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
+	"reflect"
 	"time"
 
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
-	vegeta "github.com/tsenart/vegeta/v12/lib"
+	"github.com/mitchellh/mapstructure"
 )
 
-type certTest struct {
-	pathPrefix string
-	header     http.Header
+func omitEmpty(in interface{}) {
+	r := reflect.ValueOf(in)
+	for _, e := range r.MapKeys() {
+		// If the value is its zero value, we don't want to add it to
+		// the resulting map.
+		v := r.MapIndex(e)
+		if v.Elem().IsZero() {
+			r.SetMapIndex(e, reflect.Value{})
+		}
+	}
 }
 
-type CaCert struct {
-	PEM      string
-	Template *x509.Certificate
-	Signer   crypto.Signer
+// structToMap decodes the config structs defined in tests to maps so
+// they can be passed in as part of the Vault API request
+func structToMap(in interface{}) (map[string]interface{}, error) {
+	tMap := make(map[string]interface{})
+	tDecoderConfig := mapstructure.DecoderConfig{
+		Result:  &tMap,
+		TagName: "hcl",
+	}
+	tDecoder, err := mapstructure.NewDecoder(&tDecoderConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error configuring decoder: %v", err)
+	}
+
+	err = tDecoder.Decode(in)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+	}
+	omitEmpty(tMap)
+
+	return tMap, nil
 }
 
 // GenerateCert creates a new leaf cert from provided CA template and signer
@@ -172,51 +193,9 @@ func serialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
 }
 
-func setupCert(client *api.Client, randomMounts bool, ttl time.Duration, clientCAPem string) (*certTest, error) {
-	authPath, err := uuid.GenerateUUID()
-	if err != nil {
-		panic("can't create UUID")
+func generateHeader(client *api.Client) http.Header {
+	return http.Header{
+		"X-Vault-Token":     []string{client.Token()},
+		"X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")},
 	}
-	if !randomMounts {
-		authPath = "cert"
-	}
-
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
-		Type: "cert",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error enabling cert: %v", err)
-	}
-
-	role := "role1"
-	rolePath := filepath.Join("auth", authPath, "certs", role)
-	_, err = client.Logical().Write(rolePath, map[string]interface{}{
-		"token_ttl":     int(ttl.Seconds()),
-		"token_max_ttl": int(ttl.Seconds()),
-		"certificate":   clientCAPem,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error creating cert role %q: %v", role, err)
-	}
-	return &certTest{
-		pathPrefix: "/v1/auth/" + authPath,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-	}, nil
-}
-
-func (c *certTest) login(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + c.pathPrefix + "/login",
-		Header: c.header,
-	}
-}
-
-func (c *certTest) cleanup(client *api.Client) error {
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/", 1))
-
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
 }

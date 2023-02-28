@@ -1,4 +1,4 @@
-package vegeta
+package benchmarktests
 
 import (
 	"encoding/json"
@@ -45,23 +45,27 @@ func FromReader(r io.Reader) (*Reporter, error) {
 }
 
 func newReporter(tm *TargetMulti, client *api.Client) *Reporter {
-	r := &Reporter{tm: tm, clientAddr: client.Address()}
-	r.metrics = make(map[string]*vegeta.Metrics, len(tm.fractions)+1)
+	clientAddress := "N/A"
+	if client != nil {
+		clientAddress = client.Address()
+	}
+	r := &Reporter{tm: tm, clientAddr: clientAddress}
+	r.metrics = make(map[string]*vegeta.Metrics, len(tm.targets)+1)
 	r.metrics["total"] = &vegeta.Metrics{}
-	for _, f := range tm.fractions {
-		r.metrics[f.name] = &vegeta.Metrics{}
+	for _, t := range tm.targets {
+		r.metrics[t.Name] = &vegeta.Metrics{}
 	}
 	return r
 }
 
 func (r *Reporter) Add(result *vegeta.Result) {
 	r.metrics["total"].Add(result)
-	for _, fraction := range r.tm.fractions {
-		if result.Method == fraction.method && strings.HasPrefix(result.URL, r.clientAddr+fraction.pathPrefix) {
-			r.metrics[fraction.name].Add(result)
-			attackResult.WithLabelValues(fraction.name).Observe(result.Latency.Seconds())
+	for _, target := range r.tm.targets {
+		if result.Method == target.Method && strings.HasPrefix(result.URL, r.clientAddr+target.PathPrefix) {
+			r.metrics[target.Name].Add(result)
+			attackResult.WithLabelValues(target.Name).Observe(result.Latency.Seconds())
 			if result.Error != "" {
-				attackErrors.WithLabelValues(fraction.name, result.Error).Inc()
+				attackErrors.WithLabelValues(target.Name, result.Error).Inc()
 			}
 			break
 		}
@@ -76,8 +80,12 @@ func (r *Reporter) Close() {
 }
 
 func (r *Reporter) ReportJSON(w io.Writer) error {
+	jsonReport := map[string]interface{}{
+		"target_addr": r.clientAddr,
+		"metrics":     r.metrics,
+	}
 	j := json.NewEncoder(w)
-	return j.Encode(r.metrics)
+	return j.Encode(jsonReport)
 }
 
 func (r *Reporter) ReportVerbose(w io.Writer) error {
@@ -103,6 +111,7 @@ func (r *Reporter) ReportVerbose(w io.Writer) error {
 
 func (r *Reporter) ReportTerse(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
+	fmt.Fprintf(tw, "Target: %v\n", r.clientAddr)
 	fmt.Fprintf(tw, "op\tcount\trate\tthroughput\tmean\t95th%%\t99th%%\tsuccessRatio\n")
 	const fmtstr = "%s\t%d\t%f\t%f\t%s\t%s\t%s\t%.2f%%\n"
 
