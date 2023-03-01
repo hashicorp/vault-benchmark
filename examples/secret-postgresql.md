@@ -8,7 +8,7 @@ This benchmark will test the dynamic generation of PostgreSQL credentials. In or
 
 ## Additional Parameters
 
-- `postgresql_config_json` _(required)_: path to JSON file containing Vault PostgreSQL configuration.  Configuration options can be found in the [PostgreSQL Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/postgresql#configure-connection).  Example configuration files can be found in the [postgresql configuration directory](/configs/postgresql/).
+- `postgresql_config_json` _(required)_: path to JSON file containing Vault PostgreSQL configuration.  Configuration options can be found in the [PostgreSQL Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/postgresql#configure-connection).  Example configuration files can be found in the [postgresql configuration directory](/example-configs/postgresql/).
 - `postgresql_role_config_json`: path to a JSON file containing the PostgreSQL role configuration. If this is not specified, a default configuration will be used (see below).
 
 ### Default PostgreSQL Role Configuration

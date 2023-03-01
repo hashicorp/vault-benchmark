@@ -8,7 +8,7 @@ This benchmark will test the dynamic generation of MongoDB credentials. In order
 
 ## Additional Parameters
 
-- `mongodb_config_json` _(required)_: path to JSON file containing Vault MongoDB configuration.  Configuration options can be found in the [MongoDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/mongodb#configure-connection).  Example configuration files can be found in the [mongodb configuration directory](/configs/mongodb/).
+- `mongodb_config_json` _(required)_: path to JSON file containing Vault MongoDB configuration.  Configuration options can be found in the [MongoDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/mongodb#configure-connection).  Example configuration files can be found in the [mongodb configuration directory](/example-configs/mongodb/).
 - `mongodb_role_config_json`: path to a JSON file containing the MongoDB role configuration. If this is not specified, a default configuration will be used (see below).
 
 ### Default MongoDB Role Configuration

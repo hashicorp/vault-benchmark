@@ -18,7 +18,7 @@ A static role configuration file can be passed via the `ldap_static_role_json` f
 - `ldap_static_role_json`: path to LDAP benchmark static role configuration JSON file to use.
 - `ldap_dynamic_role_json`: path to LDAP benchmark dynamic role configuration JSON file to use.
 
-Example configuration files can be found in the [LDAP configuration directory](/configs/ldap/).
+Example configuration files can be found in the [LDAP configuration directory](/example-configs/ldap/).
 
 _Note: The `creation_ldif` and `deletion_ldif` fields are base64 encoded LDIFs. The `rollback_ldif` field is optional and is only used if the `rollback_on_failure` field is set to true._
 

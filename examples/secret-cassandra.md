@@ -8,7 +8,7 @@ This benchmark will test the dynamic generation of CassandraDB credentials. In o
 
 ## Additional Parameters
 
-- `cassandradb_config_json` _(required)_: path to JSON file containing Vault CassandraDB configuration.  Configuration options can be found in the [CassandraDB Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/databases/cassandra#configure-connection).  Example configuration files can be found in the [cassandradb configuration directory](/configs/cassandradb/).
+- `cassandradb_config_json` _(required)_: path to JSON file containing Vault CassandraDB configuration.  Configuration options can be found in the [CassandraDB Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/databases/cassandra#configure-connection).  Example configuration files can be found in the [cassandradb configuration directory](/example-configs/cassandradb/).
 - `cassandradb_role_config_json`: path to CassandraDB benchmark role configuration JSON file to use.  If this is not specified, a default configuration will be used (see below).
 
 ### Default CassandraDB Role Configuration

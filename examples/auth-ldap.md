@@ -8,8 +8,8 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 
 ## Additional Parameters
 
-- `ldap_config_json` _(required)_: path to JSON file containing Vault LDAP configuration.  Configuration options can be found in the [LDAP Vault documentation](https://developer.hashicorp.com/vault/api-docs/auth/ldap#configure-ldap).  Example configuration files can be found in the [LDAP configuration directory](/configs/ldap/).
-- `ldap_test_user_creds_json` _(required)_: path to JSON file containing test user credentials.  Example configuration files can be found in the [LDAP configuration directory](/configs/ldap/).
+- `ldap_config_json` _(required)_: path to JSON file containing Vault LDAP configuration.  Configuration options can be found in the [LDAP Vault documentation](https://developer.hashicorp.com/vault/api-docs/auth/ldap#configure-ldap).  Example configuration files can be found in the [LDAP configuration directory](/example-configs/ldap/).
+- `ldap_test_user_creds_json` _(required)_: path to JSON file containing test user credentials.  Example configuration files can be found in the [LDAP configuration directory](/example-configs/ldap/).
 
 ## Example Usage
 

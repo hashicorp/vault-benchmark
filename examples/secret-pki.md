@@ -27,7 +27,7 @@ to use.  If this is not specified, a default configuration will be used (see bel
 }
 ```
 
-Additional configuration examples can be found in the [pki configuration directory](/configs/pki/).
+Additional configuration examples can be found in the [pki configuration directory](/example-configs/pki/).
 
 ## Example Usage
 
