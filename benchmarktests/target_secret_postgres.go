@@ -26,7 +26,7 @@ func init() {
 	TestList[PostgreSQLSecretTestType] = func() BenchmarkBuilder { return &PostgreSQLSecret{} }
 }
 
-// Approle Auth Test Struct
+// Postgres Secret Test Struct
 type PostgreSQLSecret struct {
 	pathPrefix string
 	roleName   string
