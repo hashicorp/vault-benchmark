@@ -23,7 +23,7 @@ to use.  If this is not specified, a default configuration will be used (see bel
 }
 ```
 
-Additional configuration examples can be found in the [ssh configuration directory](/configs/ssh/).
+Additional configuration examples can be found in the [ssh configuration directory](/example-configs/ssh/).
 
 ## Example Usage
 
