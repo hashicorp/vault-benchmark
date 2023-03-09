@@ -99,9 +99,9 @@ func (k *KVV2Test) GetTargetInfo() TargetInfo {
 	var method string
 	switch k.action {
 	case "write":
-		method = KVV1WriteTestMethod
+		method = KVV2WriteTestMethod
 	default:
-		method = KVV1ReadTestMethod
+		method = KVV2ReadTestMethod
 	}
 	tInfo := TargetInfo{
 		method:     method,
