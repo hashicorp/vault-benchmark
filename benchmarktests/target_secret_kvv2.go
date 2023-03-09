@@ -36,14 +36,14 @@ func init() {
 type KVV2Test struct {
 	pathPrefix string
 	header     http.Header
-	config     *KVV1TestConfig
+	config     *KVV2TestConfig
 	action     string
 	numKVs     int
 	kvSize     int
 }
 
 type KVV2TestConfig struct {
-	Config *KVV1Config `hcl:"config,block"`
+	Config *KVV2Config `hcl:"config,block"`
 }
 
 type KVV2Config struct {
@@ -52,8 +52,8 @@ type KVV2Config struct {
 }
 
 func (k *KVV2Test) ParseConfig(body hcl.Body) error {
-	k.config = &KVV1TestConfig{
-		Config: &KVV1Config{
+	k.config = &KVV2TestConfig{
+		Config: &KVV2Config{
 			KVSize: 1,
 			NumKVs: 1000,
 		},
