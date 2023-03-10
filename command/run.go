@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/vault-tools/benchmark-vault/benchmarktests"
-	vbConfig "github.com/hashicorp/vault-tools/benchmark-vault/config"
+	"github.com/hashicorp/vault-benchmark/benchmarktests"
+	vbConfig "github.com/hashicorp/vault-benchmark/config"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"

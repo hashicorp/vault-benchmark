@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/vault-tools/benchmark-vault/benchmarktests"
+	"github.com/hashicorp/vault-benchmark/benchmarktests"
 )
 
 const (
