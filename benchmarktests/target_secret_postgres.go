@@ -1,10 +1,12 @@
 package benchmarktests
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,6 +16,8 @@ import (
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
+
+var flagPostgreSQLUserConfigJSON string
 
 // Constants for test
 const (
@@ -97,7 +101,42 @@ func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+
+	// Handle passed in JSON config
+	if flagPostgreSQLUserConfigJSON != "" {
+		err := s.config.Config.PostgreSQLDBConfig.FromJSON(flagPostgreSQLUserConfigJSON)
+		if err != nil {
+			return fmt.Errorf("error loading test postgres user config from JSON: %v", err)
+		}
+	}
 	return nil
+}
+
+func (u *PostgreSQLDBConfig) FromJSON(path string) error {
+	if path == "" {
+		return fmt.Errorf("no postgres user config passed but is required")
+	}
+
+	// Load JSON config
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(u); err != nil {
+		return err
+	}
+
+	// Check for required fields
+	switch {
+	case u.Username == "":
+		return fmt.Errorf("no username passed but is required")
+	case u.Password == "":
+		return fmt.Errorf("no password passed but is required")
+	default:
+		return nil
+	}
 }
 
 func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
@@ -189,4 +228,6 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 
 }
 
-func (l *PostgreSQLSecret) Flags(fs *flag.FlagSet) {}
+func (l *PostgreSQLSecret) Flags(fs *flag.FlagSet) {
+	fs.StringVar(&flagPostgreSQLUserConfigJSON, "postgres_test_user_json", "", "When provided, the location of user credentials to test postgres secrets engine.")
+}
