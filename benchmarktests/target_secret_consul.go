@@ -93,8 +93,6 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	fmt.Println("consul token: ", c.config.Config.ConsulConfig.Token)
-
 	// Ensure that the token has been set by either the environment variable or the default value
 	if c.config.Config.ConsulConfig.Token == "" {
 		return fmt.Errorf("consul token must be set")
