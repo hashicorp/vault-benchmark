@@ -67,17 +67,6 @@ type TargetMulti struct {
 	targets []BenchmarkTarget
 }
 
-func (tm TargetMulti) validate() error {
-	total := 0
-	for _, bTest := range tm.targets {
-		total += bTest.Weight
-	}
-	if total != 100 {
-		return fmt.Errorf("test percentage total comes to %d, should be 100", total)
-	}
-	return nil
-}
-
 func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 	if i > 99 || i < 0 {
 		log.Fatalf("i must be between 0 and 99")
@@ -110,9 +99,6 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 }
 
 func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
-	if err := tm.validate(); err != nil {
-		return nil, err
-	}
 	return func(tgt *vegeta.Target) error {
 		if tgt == nil {
 			return vegeta.ErrNilTarget
@@ -157,6 +143,13 @@ func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, cl
 	var tm TargetMulti
 	var err error
 
+	// Check to make sure all weights add to 100
+	err = percentageValidate(tests)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build tests
 	for _, bvTest := range tests {
 		mountName := bvTest.Name
 		if bvTest.MountName != "" {
@@ -178,9 +171,16 @@ func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, cl
 		return tm.targets[j].Weight < tm.targets[i].Weight
 	})
 
-	err = tm.validate()
-	if err != nil {
-		return nil, err
-	}
 	return &tm, nil
+}
+
+func percentageValidate(tests []*BenchmarkTarget) error {
+	total := 0
+	for _, bvTest := range tests {
+		total += bvTest.Weight
+	}
+	if total != 100 {
+		return fmt.Errorf("test percentage total comes to %d, should be 100", total)
+	}
+	return nil
 }
