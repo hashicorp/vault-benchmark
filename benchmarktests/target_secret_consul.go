@@ -73,7 +73,6 @@ type ConsulRoleConfig struct {
 }
 
 func (c *ConsulTest) ParseConfig(body hcl.Body) error {
-	fmt.Println("Parsing Consul Secret Config")
 	c.config = &ConsulTestConfig{
 		Config: &ConsulSecretTestConfig{
 			ConsulConfig: &ConsulConfig{
@@ -93,12 +92,17 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+
+	fmt.Println("consul token: ", c.config.Config.ConsulConfig.Token)
+
+	// Ensure that the token has been set by either the environment variable or the default value
+	if c.config.Config.ConsulConfig.Token == "" {
+		return fmt.Errorf("consul token must be set")
+	}
 	return nil
 }
 
 func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
-	fmt.Println("Creating Consul Secret Target")
-	fmt.Println(client.Address() + c.pathPrefix + "/creds/" + c.roleName)
 	return vegeta.Target{
 		Method: "GET",
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
@@ -126,8 +130,6 @@ func (c *ConsulTest) GetTargetInfo() TargetInfo {
 }
 
 func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
-	fmt.Println("Setting up Consul Secret Test")
-
 	var err error
 	secretPath := mountName
 	config := c.config.Config
@@ -147,7 +149,6 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 		return nil, fmt.Errorf("error mounting consul: %v", err)
 	}
 
-	fmt.Println("Mounting consul at: " + secretPath)
 	// Decode DB Config
 	consulConfigData, err := structToMap(config.ConsulConfig)
 	if err != nil {
@@ -165,7 +166,6 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul version: %v", err)
 	}
-	fmt.Println("Consul version: " + v.String())
 
 	// Decode Role Config
 	consulRoleConfigData, err := structToMap(config.ConsulRoleConfig)
@@ -183,7 +183,6 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	}
 
 	// Create Role
-	fmt.Println("Creating role: " + config.ConsulRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db role: %v", err)
