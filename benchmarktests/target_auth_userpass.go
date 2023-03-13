@@ -1,0 +1,143 @@
+package benchmarktests
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"path/filepath"
+	"strings"
+
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/vault/api"
+	vegeta "github.com/tsenart/vegeta/v12/lib"
+)
+
+const (
+	UserpassTestType       = "userpass_auth"
+	UserpassAuthTestMethod = "POST"
+)
+
+func init() {
+	// "Register" this test to the main test registry
+	TestList[UserpassTestType] = func() BenchmarkBuilder { return &UserpassAuth{} }
+}
+
+type UserpassAuth struct {
+	pathPrefix string
+	role       string
+	password   string
+	header     http.Header
+	config     *UserpassTestConfig
+}
+
+type UserpassTestConfig struct {
+	Config *UserpassAuthTestConfig `hcl:"config,block"`
+}
+
+type UserpassAuthTestConfig struct {
+	UserpassAuthConfig *UserpassAuthConfig `hcl:"auth_config,block"`
+}
+
+type UserpassAuthConfig struct {
+	Username            string   `hcl:"username"`
+	Password            string   `hcl:"password"`
+	TokenTTL            string   `hcl:"token_ttl,optional"`
+	TokenMaxTTL         string   `hcl:"token_max_ttl,optional"`
+	TokenPolicies       []string `hcl:"token_policies,optional"`
+	TokenExplicitMaxTTL string   `hcl:"token_explicit_max_ttl,optional"`
+	TokenType           string   `hcl:"token_type,optional"`
+}
+
+// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
+// test configuration in Vault. Any default configuration definitions for required
+// parameters will be set here.
+func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
+	u.config = &UserpassTestConfig{
+		Config: &UserpassAuthTestConfig{
+			UserpassAuthConfig: &UserpassAuthConfig{
+				Username:      "benchmark-role",
+				TokenTTL:      "0s",
+				TokenPolicies: []string{"default"},
+				TokenType:     "default",
+			},
+		},
+	}
+
+	diags := gohcl.DecodeBody(body, nil, u.config)
+	if diags.HasErrors() {
+		return fmt.Errorf("error decoding to struct: %v", diags)
+	}
+	return nil
+}
+
+func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: UserpassAuthTestMethod,
+		URL:    client.Address() + u.pathPrefix + "/login/" + u.role,
+		Header: u.header,
+		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, u.password)),
+	}
+}
+
+func (u *UserpassAuth) Cleanup(client *api.Client) error {
+	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (u *UserpassAuth) GetTargetInfo() TargetInfo {
+	tInfo := TargetInfo{
+		method:     UserpassAuthTestMethod,
+		pathPrefix: u.pathPrefix,
+	}
+	return tInfo
+}
+
+func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+	var err error
+	authPath := mountName
+	config := u.config.Config
+
+	if randomMountName {
+		authPath, err = uuid.GenerateUUID()
+		if err != nil {
+			log.Fatalf("can't create UUID")
+		}
+	}
+
+	// Create Userpass Auth Mount
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+		Type: "userpass",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error enabling userpass auth: %v", err)
+	}
+
+	// Decode UserpassAuthConfig struct into mapstructure to pass with request
+	roleData, err := structToMap(config.UserpassAuthConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+	}
+
+	rolePath := filepath.Join("auth", authPath, "users", config.UserpassAuthConfig.Username)
+
+	_, err = client.Logical().Write(rolePath, roleData)
+	if err != nil {
+		return nil, fmt.Errorf("error creating userpass role %q: %v", config.UserpassAuthConfig.Username, err)
+	}
+
+	return &UserpassAuth{
+		header:     generateHeader(client),
+		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
+		role:       config.UserpassAuthConfig.Username,
+		password:   config.UserpassAuthConfig.Password,
+	}, nil
+}
+
+func (u *UserpassAuth) Flags(fs *flag.FlagSet) {}
