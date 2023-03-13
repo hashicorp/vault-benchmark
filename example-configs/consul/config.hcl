@@ -11,7 +11,7 @@ test "consul_secret" "consul_test_1" {
     config {
         consul_config {
             address = "127.0.0.1:8500"
-            token  = "8b9efdab-cc10-1a5b-2e66-d2833fd5f152"
+            token  = "23531d2c-e7b0-3a60-5e20-3a2481fd443f"
             version = "1.8.0"
         }
         role_config {
