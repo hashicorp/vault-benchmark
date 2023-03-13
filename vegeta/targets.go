@@ -143,8 +143,6 @@ type TestSpecification struct {
 	MongoDBConfig              MongoDBConfig
 	MongoDBRoleConfig          MongoRoleConfig
 	PctRabbitRead              int
-	RabbitMQConfig             RabbitMQConfig
-	RabbitMQRoleConfig         RabbitMQRoleConfig
 	PctLDAPStaticRead          int
 	PctLDAPStaticRotate        int
 	PctLDAPDynamicRead         int
@@ -152,8 +150,6 @@ type TestSpecification struct {
 	LDAPStaticRoleConfig       LDAPStaticRoleConfig
 	LDAPDynamicRoleConfig      LDAPDynamicRoleConfig
 	PctPostgreSQLRead          int
-	PostgreSQLDBConfig         PostgreSQLDBConfig
-	PostgreSQLRoleConfig       PostgreSQLRoleConfig
 	PctCouchbaseRead           int
 	CouchbaseConfig            CouchbaseConfig
 	CouchbaseRoleConfig        CouchbaseRoleConfig
@@ -495,34 +491,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 		})
 	}
 
-	if spec.PctRabbitRead > 0 {
-		rabbit, err := setupRabbit(client, spec.RandomMounts, &spec.RabbitMQConfig, &spec.RabbitMQRoleConfig, spec.Timeout)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "rabbit cred retrieval",
-			method:     "GET",
-			pathPrefix: rabbit.pathPrefix,
-			percent:    spec.PctRabbitRead,
-			target:     rabbit.read,
-			cleanup:    rabbit.cleanup,
-		})
-	}
-	if spec.PctPostgreSQLRead > 0 {
-		postgresql, err := setupPostgreSQL(client, spec.RandomMounts, &spec.PostgreSQLDBConfig, &spec.PostgreSQLRoleConfig, spec.Timeout)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "postgresql cred retrieval",
-			method:     "GET",
-			pathPrefix: postgresql.pathPrefix,
-			percent:    spec.PctPostgreSQLRead,
-			target:     postgresql.read,
-			cleanup:    postgresql.cleanup,
-		})
-	}
 	if spec.PctCouchbaseRead > 0 {
 		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig, spec.Timeout)
 		if err != nil {
