@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ type ConsulSecretTestConfig struct {
 type ConsulConfig struct {
 	Address    string `hcl:"address"`
 	Scheme     string `hcl:"scheme,optional"`
-	Token      string `hcl:"token"`
+	Token      string `hcl:"token,optional"`
 	CaCert     string `hcl:"ca_cert,optional"`
 	ClientCert string `hcl:"client_cert,optional"`
 	ClientKey  string `hcl:"client_key,optional"`
@@ -78,7 +79,7 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 			ConsulConfig: &ConsulConfig{
 				Scheme:  "http",
 				Version: "1.14.0",
-				// Token:   os.Getenv("CONSUL_TOKEN"),
+				Token:   os.Getenv("CONSUL_TOKEN"),
 			},
 			ConsulRoleConfig: &ConsulRoleConfig{
 				Name:      "benchmark-role",

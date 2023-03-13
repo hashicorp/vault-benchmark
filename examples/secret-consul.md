@@ -1,6 +1,41 @@
 # Consul Secret Configuration Options
 
-This benchmark will test Consul secret engine operations. In order to use this test, configuration for the Consul server must be provided as an HCL file using the `consul_config` body.  A `role_config` can also be provided.  The primary required field is `address` which is the address of the Consul server. Additionally, the Consul version should be in the `version` field, which is used to determine the correct API calls to make. The default version is `1.8.0`. The Consul server must be running and accessible from the Vault server.  The configuration options can be found in the [Consul Vault documentation](https://developer.hashicorp.com/vault/api-docs/secret/consul#configure-connection).  Example configuration files can be found in the [Consul configuration directory](/example-configs/consul/).
+This benchmark will test the dynamic generation of Consul credentials.
+
+## Test Parameters
+
+### Consul Config
+
+- `address` _(string: <required>)_: Specifies the address of the Consul instance, provided as "host:port" like "127.0.0.1:8500"
+- `token` _(string: <required>)_: Specifies the token to use for the Consul instance. This can either be provided as a string or as the environment variable `$CONSUL_TOKEN`.
+- `version` _(string: "1.14.0")_: Specifies the version of Consul. This is used to determine the correct API calls to make.
+- `scheme` _(string: "http")_: Specifies the URL scheme to use.
+
+### Role Config
+
+- `name` _(string: "benchmark-role")_: Specifies the name of an existing role against which to create this Consul credential. This is part of the request URL.
+- `token_type` _(string: "client") - Specifies the type of token to create when using this role. Valid values are "client" or "management". If a "management" token, the policy parameter is not required. Defaults to "client".
+- `local` _(bool: false)_: Indicates that the token should not be replicated globally and instead be local to the current datacenter. Only available in Consul 1.4 and greater.
+
+## Example Configuration
+
+```hcl
+test "consul_secret" "consul_test_1" {
+    weight = 100
+    config {
+        consul_config {
+            address = "127.0.0.1:8500"
+            version = "1.8.0"
+        }
+        role_config {
+            node_identities = [
+                "client-1:dc1",
+                "client-2:dc1"
+            ]
+        }
+    }
+}
+```
 
 ## Example Usage
 
