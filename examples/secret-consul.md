@@ -40,7 +40,7 @@ test "consul_secret" "consul_test_1" {
 ## Example Usage
 
 ```bash
-benchmark-vault run -config=example-configs/consul/config.hcl
+vault-benchmark run -config=example-configs/consul/config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 10s...
 Benchmark complete!
