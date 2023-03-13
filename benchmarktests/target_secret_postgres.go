@@ -112,33 +112,6 @@ func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (u *PostgreSQLDBConfig) FromJSON(path string) error {
-	if path == "" {
-		return fmt.Errorf("no postgres user config passed but is required")
-	}
-
-	// Load JSON config
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(u); err != nil {
-		return err
-	}
-
-	// Check for required fields
-	switch {
-	case u.Username == "":
-		return fmt.Errorf("no username passed but is required")
-	case u.Password == "":
-		return fmt.Errorf("no password passed but is required")
-	default:
-		return nil
-	}
-}
-
 func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: PostgreSQLSecretTestMethod,
@@ -230,4 +203,31 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 
 func (l *PostgreSQLSecret) Flags(fs *flag.FlagSet) {
 	fs.StringVar(&flagPostgreSQLUserConfigJSON, "postgres_test_user_json", "", "When provided, the location of user credentials to test postgres secrets engine.")
+}
+
+func (c *PostgreSQLDBConfig) FromJSON(path string) error {
+	if path == "" {
+		return fmt.Errorf("no postgres user config passed but is required")
+	}
+
+	// Load JSON config
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(c); err != nil {
+		return err
+	}
+
+	// Check for required fields
+	switch {
+	case c.Username == "":
+		return fmt.Errorf("no username passed but is required")
+	case c.Password == "":
+		return fmt.Errorf("no password passed but is required")
+	default:
+		return nil
+	}
 }
