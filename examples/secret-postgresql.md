@@ -1,6 +1,33 @@
 # PostgreSQL Secret Configuration Options
 
-This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as an HCL file with `postgresql_db_config` and `postgresql_role_config` included in the config block. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the address to be used as well as any other parameters that need to be passed via the URL. 
+This benchmark will test the dynamic generation of PostgreSQL credentials.
+
+## Test Parameters
+### DB Config
+- `name` _(string: "benchmark-postgres")_: Name for this database connection. This is specified as part of the URL.
+- `allowed_roles` _(list: ["benchmark_role"])_: List of the roles allowed to use this connection. 
+- `connection_url` _(string: <required>)_: Specifies the PostgreSQL DSN. This field can be templated and supports passing the username and password parameters in the following format {{field_name}}. Certificate authentication can be used by setting ?sslinline=true and giving the SSL credentials in the sslrootcert, sslcert and sslkey credentials. A templated connection URL is required when using root credential rotation. This field supports both format string types, URI and keyword/value. Both formats support multiple host connection strings. 
+
+### Role Config
+- `name` _(string: "benchmark-role")_: Specifies the name of the role to create. This is specified as part of the URL.
+- `db_name` _(string: "benchmark-postgres")_: The name of the database connection to use for this role.
+
+## Example Configuration
+```hcl
+test "postgresql_secret" "postgres_test_1" {
+    weight = 100
+    config {
+        postgresql_db_config {
+            connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
+            username = "username"
+            password = "password"
+        }
+
+        postgresql_role_config {
+            creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+        }
+    }
+}
 
 
 ### Example Usage
