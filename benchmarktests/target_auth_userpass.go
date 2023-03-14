@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
+	"github.com/sethvargo/go-password/password"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
@@ -27,7 +28,7 @@ func init() {
 
 type UserpassAuth struct {
 	pathPrefix string
-	role       string
+	user       string
 	password   string
 	header     http.Header
 	config     *UserpassTestConfig
@@ -42,8 +43,8 @@ type UserpassAuthTestConfig struct {
 }
 
 type UserpassAuthConfig struct {
-	Username            string   `hcl:"username"`
-	Password            string   `hcl:"password"`
+	Username            string   `hcl:"username,optional"`
+	Password            string   `hcl:"password,optional"`
 	TokenTTL            string   `hcl:"token_ttl,optional"`
 	TokenMaxTTL         string   `hcl:"token_max_ttl,optional"`
 	TokenPolicies       []string `hcl:"token_policies,optional"`
@@ -58,7 +59,8 @@ func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 	u.config = &UserpassTestConfig{
 		Config: &UserpassAuthTestConfig{
 			UserpassAuthConfig: &UserpassAuthConfig{
-				Username:      "benchmark-role",
+				Username:      "benchmark-user",
+				Password:      password.MustGenerate(64, 10, 10, false, false),
 				TokenTTL:      "0s",
 				TokenPolicies: []string{"default"},
 				TokenType:     "default",
@@ -76,7 +78,7 @@ func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: UserpassAuthTestMethod,
-		URL:    client.Address() + u.pathPrefix + "/login/" + u.role,
+		URL:    client.Address() + u.pathPrefix + "/login/" + u.user,
 		Header: u.header,
 		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, u.password)),
 	}
@@ -120,22 +122,22 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Decode UserpassAuthConfig struct into mapstructure to pass with request
-	roleData, err := structToMap(config.UserpassAuthConfig)
+	userData, err := structToMap(config.UserpassAuthConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
 	}
 
-	rolePath := filepath.Join("auth", authPath, "users", config.UserpassAuthConfig.Username)
+	userPath := filepath.Join("auth", authPath, "users", config.UserpassAuthConfig.Username)
 
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating userpass role %q: %v", config.UserpassAuthConfig.Username, err)
+		return nil, fmt.Errorf("error creating userpass user %q: %v", config.UserpassAuthConfig.Username, err)
 	}
 
 	return &UserpassAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		role:       config.UserpassAuthConfig.Username,
+		user:       config.UserpassAuthConfig.Username,
 		password:   config.UserpassAuthConfig.Password,
 	}, nil
 }
