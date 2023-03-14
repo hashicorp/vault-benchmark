@@ -27,7 +27,7 @@ This benchmark will test the dynamic generation of MongoDB credentials.
 test "mongodb_secret" "mongodb_test_1" {
     weight = 100
     config {
-        mongodb_config {
+        db_config {
             name = "mongo-benchmark-database"
             connection_url = "mongodb://{{username}}:{{password}}@127.0.0.1:27017/admin?tls=false"
             username = "mdbadmin"

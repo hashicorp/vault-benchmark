@@ -1,10 +1,12 @@
 package benchmarktests
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
@@ -13,6 +15,8 @@ import (
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
+
+var flagMongoDBUserConfigJSON string
 
 const (
 	MongoDBSecretTestType   = "mongodb_secret"
@@ -36,7 +40,7 @@ type MongoDBTestConfig struct {
 }
 
 type MongoDBSecretTestConfig struct {
-	MongoDBConfig     *MongoDBConfig     `hcl:"mongodb_config,block"`
+	MongoDBConfig     *MongoDBConfig     `hcl:"db_config,block"`
 	MongoDBRoleConfig *MongoDBRoleConfig `hcl:"role_config,block"`
 }
 
@@ -46,8 +50,8 @@ type MongoDBConfig struct {
 	AllowedRoles      []string `hcl:"allowed_roles,optional"`
 	ConnectionURL     string   `hcl:"connection_url"`
 	WriteConcern      string   `hcl:"write_concern,optional"`
-	Username          string   `hcl:"username"`
-	Password          string   `hcl:"password"`
+	Username          string   `hcl:"username,optional"`
+	Password          string   `hcl:"password,optional"`
 	TLSCertificateKey string   `hcl:"tls_certificate_key,optional"`
 	TLSCA             string   `hcl:"tls_ca,optional"`
 	UsernameTemplate  string   `hcl:"username_template,optional"`
@@ -74,7 +78,7 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 				Name:               "benchmark-role",
 				DefaultTTL:         "1h",
 				MaxTTL:             "24h",
-				CreationStatements: "{ \"db\": \"admin\", \"roles\": [{ \"role\": \"readWrite\" }, {\"role\": \"read\", \"db\": \"foo\"}] }",
+				CreationStatements: `{"db": "admin", "roles": [{ "role": "readWrite" }, {"role": "read", "db": "foo"}] }`,
 			},
 		},
 	}
@@ -83,6 +87,20 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+
+	// Handle passed in JSON config
+	if flagMongoDBUserConfigJSON != "" {
+		err := m.config.Config.MongoDBConfig.FromJSON(flagMongoDBUserConfigJSON)
+		if err != nil {
+			return fmt.Errorf("error loading test mongodb user config from JSON: %v", err)
+		}
+	}
+
+	// Ensure that the username and password are set
+	if m.config.Config.MongoDBConfig.Username == "" || m.config.Config.MongoDBConfig.Password == "" {
+		return fmt.Errorf("username and password must be set")
+	}
+
 	return nil
 }
 
@@ -162,4 +180,33 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 	}, nil
 }
 
-func (m *MongoDBTest) Flags(fs *flag.FlagSet) {}
+func (m *MongoDBTest) Flags(fs *flag.FlagSet) {
+	fs.StringVar(&flagMongoDBUserConfigJSON, "mongodb_test_user_json", "", "When provided, the location of user credentials to test mongodb secrets engine.")
+}
+
+func (m *MongoDBConfig) FromJSON(path string) error {
+	if path == "" {
+		return fmt.Errorf("no mongodb user config passed but is required")
+	}
+
+	// Load JSON config
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(m); err != nil {
+		return err
+	}
+
+	// Check for required fields
+	switch {
+	case m.Username == "":
+		return fmt.Errorf("no username passed but is required")
+	case m.Password == "":
+		return fmt.Errorf("no password passed but is required")
+	default:
+		return nil
+	}
+}
