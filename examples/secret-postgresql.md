@@ -80,5 +80,5 @@ Starting benchmarks. Will run for 10s...
 Benchmark complete!
 Target: http://127.0.0.1:8200
 op              count  rate        throughput  mean         95th%        99th%        successRatio
-approle_test_1  250    249.906889  240.943080  40.824064ms  53.080625ms  56.494667ms  100.00%
+postgres_test_1  260    259.460333  245.044207  40.086479ms  59.975645ms  68.40487ms  100.00%
 ```
