@@ -135,9 +135,6 @@ type TestSpecification struct {
 	PctCassandraRead           int
 	CassandraDBConfig          CassandraDBConfig
 	CassandraDBRoleConfig      CassandraRoleConfig
-	PctConsulRead              int
-	ConsulConfig               ConsulConfig
-	ConsulRoleConfig           ConsulRoleConfig
 	PctLDAPLogin               int
 	PctMongoRead               int
 	MongoDBConfig              MongoDBConfig
@@ -430,20 +427,7 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			cleanup:    cassandra.cleanup,
 		})
 	}
-	if spec.PctConsulRead > 0 {
-		consul, err := setupConsul(client, spec.RandomMounts, &spec.ConsulConfig, &spec.ConsulRoleConfig, spec.Timeout)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "consul cred retrieval",
-			method:     "GET",
-			pathPrefix: consul.pathPrefix,
-			percent:    spec.PctConsulRead,
-			target:     consul.read,
-			cleanup:    consul.cleanup,
-		})
-	}
+
 	if spec.PctMongoRead > 0 {
 		mongo, err := setupMongo(client, spec.RandomMounts, &spec.MongoDBConfig, &spec.MongoDBRoleConfig)
 		if err != nil {
