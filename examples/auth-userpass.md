@@ -15,10 +15,8 @@ This benchmark tests the performance of logins using the userpass auth method.
 test "userpass_auth" "userpass_test_1" {
     weight = 100
     config {
-        auth_config {
-            username = "benchmarkrole"
-            password = "password"
-        }
+        username = "benchmarkrole"
+        password = "password"
     }
 }
 ```
@@ -26,7 +24,7 @@ test "userpass_auth" "userpass_test_1" {
 ### Example Usage
 
 ```bash
-$ vault-benchmark run -config=example-configs/consul/config.hcl
+$ vault-benchmark run -config=example-configs/userpass/config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 10s...
 Benchmark complete!
