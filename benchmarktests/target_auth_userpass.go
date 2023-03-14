@@ -35,11 +35,7 @@ type UserpassAuth struct {
 }
 
 type UserpassTestConfig struct {
-	Config *UserpassAuthTestConfig `hcl:"config,block"`
-}
-
-type UserpassAuthTestConfig struct {
-	UserpassAuthConfig *UserpassAuthConfig `hcl:"auth_config,block"`
+	Config *UserpassAuthConfig `hcl:"config,block"`
 }
 
 type UserpassAuthConfig struct {
@@ -57,14 +53,12 @@ type UserpassAuthConfig struct {
 // parameters will be set here.
 func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 	u.config = &UserpassTestConfig{
-		Config: &UserpassAuthTestConfig{
-			UserpassAuthConfig: &UserpassAuthConfig{
-				Username:      "benchmark-user",
-				Password:      password.MustGenerate(64, 10, 10, false, false),
-				TokenTTL:      "0s",
-				TokenPolicies: []string{"default"},
-				TokenType:     "default",
-			},
+		Config: &UserpassAuthConfig{
+			Username:      "benchmark-user",
+			Password:      password.MustGenerate(64, 10, 0, false, true),
+			TokenTTL:      "0s",
+			TokenPolicies: []string{"default"},
+			TokenType:     "default",
 		},
 	}
 
@@ -121,24 +115,24 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error enabling userpass auth: %v", err)
 	}
 
-	// Decode UserpassAuthConfig struct into mapstructure to pass with request
-	userData, err := structToMap(config.UserpassAuthConfig)
+	// Decode Config struct into mapstructure to pass with request
+	userData, err := structToMap(config)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
 	}
 
-	userPath := filepath.Join("auth", authPath, "users", config.UserpassAuthConfig.Username)
+	userPath := filepath.Join("auth", authPath, "users", config.Username)
 
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating userpass user %q: %v", config.UserpassAuthConfig.Username, err)
+		return nil, fmt.Errorf("error creating userpass user %q: %v", config.Username, err)
 	}
 
 	return &UserpassAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		user:       config.UserpassAuthConfig.Username,
-		password:   config.UserpassAuthConfig.Password,
+		user:       config.Username,
+		password:   config.Password,
 	}, nil
 }
 

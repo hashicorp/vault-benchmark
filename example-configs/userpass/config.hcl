@@ -9,9 +9,7 @@ random_mounts = true
 test "userpass_auth" "userpass_test_1" {
     weight = 100
     config {
-        auth_config {
-            username = "benchmarkrole"
-            password = "password"
-        }
+        username = "benchmarkrole"
+        password = "password"
     }
 }
