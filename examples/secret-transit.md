@@ -2,25 +2,57 @@
 
 This benchmark tests the performance of the transit operations.
 
-## Test Parameters (minimum 1 required)
+## Test Parameters
 
-- `pct_transit_sign`: percent of requests that are sign requests to transit
-- `pct_transit_verify`: percent of requests that are verify requests to transit
-- `pct_transit_encrypt`: percent of requests that are encrypt requests to transit
-- `pct_transit_decrypt`: percent of requests that are decrypt requests to transit
+### Transit Config
 
-## Additional Parameters
+- `convergent_encryption` _(bool: false)_: If enabled, the key will support convergent encryption, where the same plaintext creates the same ciphertext. This requires derived to be set to true. When enabled, each encryption(/decryption/rewrap/datakey) operation will derive a nonce value rather than randomly generate it.
+- `derived` _(bool: false)_: Specifies if key derivation is to be used. If enabled, all encrypt/decrypt requests to this named key must provide a context which is used for key derivation.
+- `type` _(string: "rsa-2048")_: Specifies the type of key to create.  See [API docs](https://developer.hashicorp.com/vault/api-docs/secret/transit#type) for supported values.
+- `payload_len` _(int: 128)_: Specifies the payload length to use for encryption/decryption operations.
+- `context_len` _(int: 32)_: Specifies the context length to use for encryption/decryption operations.
+- `hash_algorithm` _(string: "sha2-256")_:  Specifies the hash algorithm to use for supporting key types (notably, not including ed25519 which specifies its own hash algorithm).  See [API docs](https://developer.hashicorp.com/vault/api-docs/secret/transit#hash_algorithm) for supported values.
+- `signature_algorithm` _(string: "pss")_: When using a RSA key, specifies the RSA signature algorithm to use for signing.  See [API docs](https://developer.hashicorp.com/vault/api-docs/secret/transit#signature_algorithm) for supported values.
+- `marshaling_algorithm` _(string: "asn1")_: Specifies the way in which the signature should be marshaled. This currently only applies to ECDSA keys.  See [API docs](https://developer.hashicorp.com/vault/api-docs/secret/transit#marshaling_algorithm) for supported values.
 
-- `transit_sign_setup_delay` (_default=50ms): allow the transit backend to be setup before the test starts when running sign tests
-- `transit_verify_setup_delay` (_default=50ms): allow the transit backend to be setup before the test starts when running verify tests
-- `transit_encrypt_setup_delay` (_default=50ms): allow the transit backend to be setup before the test starts when running encrypt tests
-- `transit_decrypt_setup_delay` (_default=50ms): allow the transit backend to be setup before the test starts when running decrypt tests
+## Example Configuration
+
+```hcl
+# Test selection and options
+test "transit_sign" "transit_sign_test_1" {
+    weight = 25
+}
+
+test "transit_verify" "transit_verify_test_1" {
+    weight = 25
+    config {
+        signature_algorithm = "pkcs1v15"
+    }
+}
+
+test "transit_encrypt" "transit_encrypt_test_1" {
+    weight = 25
+}
+
+test "transit_decrypt" "transit_decrypt_test_1" {
+    weight = 25
+    config {
+        payload_len = 64
+    }
+}
+```
 
 ## Example Usage
 
 ```bash
-$ benchmark-vault -pct_transit_sign=50 -pct_transit_verify=50
-op               count  rate         throughput   mean        95th%       99th%       successRatio
-transit sign     54570  5457.386815  5456.674805  1.505858ms  2.679909ms  3.661053ms  100.00%
-transit verify   26984  2698.373376  2698.320209  344.872µs   802.958µs   1.395324ms  100.00%
+$ vault-benchmark run -config=example-configs/transit/config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op                      count  rate         throughput   mean        95th%       99th%       successRatio
+transit_decrypt_test_1  3610   1805.934082  1804.305380  2.140936ms  3.385891ms  4.669672ms  100.00%
+transit_encrypt_test_1  3570   1785.412839  1784.967498  609.48µs    1.17847ms   1.82117ms   100.00%
+transit_sign_test_1     3509   1755.252455  1753.604967  2.257936ms  3.614323ms  5.015208ms  100.00%
+transit_verify_test_1   3453   1727.512538  1727.166507  615.155µs   1.183563ms  1.818366ms  100.00%
 ```
