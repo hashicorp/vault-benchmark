@@ -27,13 +27,13 @@ This benchmark will test the dynamic generation of PostgreSQL credentials.
 test "postgresql_secret" "postgres_test_1" {
     weight = 100
     config {
-        postgresql_db_config {
+        db_config {
             connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
             username = "username"
             password = "password"
         }
 
-        postgresql_role_config {
+        role_config {
             creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
         }
     }
@@ -55,11 +55,11 @@ approle_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.6672
 test "postgresql_secret" "postgres_test_1" {
     weight = 100
     config {
-        postgresql_db_config {
+        db_config {
             connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
         }
 
-        postgresql_role_config {
+        role_config {
             creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
         }
     }

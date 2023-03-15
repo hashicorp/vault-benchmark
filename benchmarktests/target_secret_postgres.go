@@ -45,8 +45,8 @@ type PostgreSQLTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type PostgreSQLSecretTestConfig struct {
-	PostgreSQLDBConfig   *PostgreSQLDBConfig   `hcl:"postgresql_db_config,block"`
-	PostgreSQLRoleConfig *PostgreSQLRoleConfig `hcl:"postgresql_role_config,block"`
+	PostgreSQLDBConfig   *PostgreSQLDBConfig   `hcl:"db_config,block"`
+	PostgreSQLRoleConfig *PostgreSQLRoleConfig `hcl:"role_config,block"`
 }
 
 // PostgreSQL DB Config
