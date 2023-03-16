@@ -157,12 +157,6 @@ func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 		sort.Strings(otherCommands)
 
 		fmt.Fprintf(tw, "\n")
-		/*
-			fmt.Fprintf(tw, "Other commands:\n")
-			for _, v := range otherCommands {
-				printCommand(tw, v, commands[v])
-			}
-		*/
 		tw.Flush()
 
 		return strings.TrimSpace(b.String())

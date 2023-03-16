@@ -6,8 +6,10 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"os"
 	"sort"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
@@ -35,11 +37,14 @@ type BenchmarkBuilder interface {
 	Flags(fs *flag.FlagSet)
 }
 
-var TestList = make(map[string]func() BenchmarkBuilder)
+var (
+	TestList     = make(map[string]func() BenchmarkBuilder)
+	targetLogger hclog.Logger
+)
 
 type BenchmarkTarget struct {
 	Builder    BenchmarkBuilder
-	Target     vegeta.Target
+	Target     func(*api.Client) vegeta.Target
 	Remain     hcl.Body `hcl:",remain"`
 	Type       string   `hcl:"type,label"`
 	Name       string   `hcl:"name,label"`
@@ -55,7 +60,7 @@ type TargetInfo struct {
 }
 
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
-	bt.Target = bt.Builder.Target(client)
+	bt.Target = bt.Builder.Target
 	tInfo := bt.Builder.GetTargetInfo()
 	bt.PathPrefix = tInfo.pathPrefix
 	bt.Method = tInfo.method
@@ -90,8 +95,8 @@ func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 // scale very well
 func (tm TargetMulti) Cleanup(client *api.Client) error {
 	for _, target := range tm.targets {
-		currTargetBuilder := target.Builder
-		if err := currTargetBuilder.Cleanup(client); err != nil {
+		targetLogger.Debug("cleaning up target", "target", hclog.Fmt("%v", target.Name))
+		if err := target.Builder.Cleanup(client); err != nil {
 			return err
 		}
 	}
@@ -105,43 +110,48 @@ func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
 		}
 		rnd := int(rand.Int31n(100))
 		t := tm.choose(rnd)
-		*tgt = t.Target
+		*tgt = t.Target(client)
 		return nil
 	}, nil
 }
 
 func (tm TargetMulti) DebugInfo(client *api.Client) {
 	for index, benchTarget := range tm.targets {
-		fmt.Printf("Target %d: %v\n", index, benchTarget.Name)
-		fmt.Printf("\tMethod: %v\n", benchTarget.Method)
-		fmt.Printf("\tPath Prefix: %v\n", benchTarget.PathPrefix)
-		target := benchTarget.Target
+		targetDebugInfo := fmt.Sprintf("\nTarget %d: %v\n", index, benchTarget.Name) +
+			fmt.Sprintf("\tMethod: %v\n", benchTarget.Method) +
+			fmt.Sprintf("\tPath Prefix: %v\n", benchTarget.PathPrefix)
+
+		target := benchTarget.Target(client)
 		req, err := target.Request()
 		if err != nil {
-			log.Fatalf(fmt.Sprintf("Got err building target: %v", err))
+			targetLogger.Error(fmt.Sprintf("Got err building target: %v", err))
+			os.Exit(1)
 		}
-		fmt.Printf("\tRequest: %v\n", req)
-		fmt.Printf("\tRequest Body: %v\n", string(target.Body))
+		targetLogger.Debug(targetDebugInfo + fmt.Sprintf("\tRequest: %v", req.URL.String()))
+
 		resp, err := client.CloneConfig().HttpClient.Do(req)
 		if err != nil {
-			log.Fatalf(fmt.Sprintf("Got err executing target request: %v", err))
+			targetLogger.Error(fmt.Sprintf("Got err executing target request: %v", err))
+			os.Exit(1)
 		}
 		rawBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Fatalf(fmt.Sprintf("Got err reading response body: %v", err))
+			targetLogger.Debug(fmt.Sprintf("Got err reading response body: %v", err))
+			os.Exit(1)
 		}
-		fmt.Printf("\tResponse: %v\n", resp)
-		fmt.Printf("\tResponse Body: %v\n", string(rawBody))
+		targetLogger.Debug(targetDebugInfo + fmt.Sprintf("\tResponse: %v\n", resp) +
+			fmt.Sprintf("\tResponse Body: %v", string(rawBody)))
 		if resp.StatusCode >= 400 {
-			log.Fatalf("Got error response from server on testing request; exiting")
+			targetLogger.Debug("Got error response from server on testing request; exiting")
+			os.Exit(1)
 		}
-		fmt.Println()
 	}
 }
 
-func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, clientCAPem string, randomMounts bool) (*TargetMulti, error) {
+func BuildTargets(tests []*BenchmarkTarget, client *api.Client, logger hclog.Logger, string, clientCAPem string, randomMounts bool) (*TargetMulti, error) {
 	var tm TargetMulti
 	var err error
+	targetLogger = logger
 
 	// Check to make sure all weights add to 100
 	err = percentageValidate(tests)
@@ -151,6 +161,7 @@ func BuildTargets(tests []*BenchmarkTarget, client *api.Client, caPEM string, cl
 
 	// Build tests
 	for _, bvTest := range tests {
+		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name
 		if bvTest.MountName != "" {
 			mountName = bvTest.MountName

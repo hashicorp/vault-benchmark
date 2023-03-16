@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -36,6 +37,7 @@ type PostgreSQLSecret struct {
 	roleName   string
 	header     http.Header
 	config     *PostgreSQLTestConfig
+	logger     hclog.Logger
 }
 
 // Main Config Struct
@@ -64,6 +66,7 @@ type PostgreSQLDBConfig struct {
 	Password               string   `hcl:"password,optional"`
 	UsernameTemplate       string   `hcl:"username_template,optional"`
 	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
+	PluginName             string   `hcl:"plugin_name,optional"`
 }
 
 // PostgreSQL Role Config
@@ -89,6 +92,7 @@ func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 			PostgreSQLDBConfig: &PostgreSQLDBConfig{
 				Name:         "benchmark-postgres",
 				AllowedRoles: []string{"benchmark-role"},
+				PluginName:   "postgresql-database-plugin",
 			},
 			PostgreSQLRoleConfig: &PostgreSQLRoleConfig{
 				Name:   "benchmark-role",
@@ -121,6 +125,7 @@ func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
+	s.logger.Trace("unmounting", "path", hclog.Fmt("%v", s.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -140,6 +145,7 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	var err error
 	secretPath := mountName
 	config := s.config.Config
+	s.logger = targetLogger.Named(PostgreSQLSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -147,8 +153,10 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 			log.Fatalf("can't create UUID")
 		}
 	}
+	s.logger = s.logger.Named(secretPath)
 
 	// Create Database Secret Mount
+	s.logger.Trace("mounting db secrets engine at path", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
@@ -158,15 +166,14 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	}
 
 	// Decode DB Config struct into mapstructure to pass with request
+	s.logger.Trace("parsing postgres db config data")
 	dbData, err := structToMap(config.PostgreSQLDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding db config from struct: %v", err)
 	}
 
-	// add plugin name to mapstruct
-	dbData["plugin_name"] = "postgresql-database-plugin"
-
 	// Set up db
+	s.logger.Trace("writing postgres db config data")
 	dbPath := filepath.Join(secretPath, "config", config.PostgreSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 
@@ -175,22 +182,18 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	}
 
 	// Decode Role Config struct into mapstructure to pass with request
+	s.logger.Trace("parsing role config data")
 	roleData, err := structToMap(config.PostgreSQLRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding postgres DB Role config from struct: %v", err)
 	}
 
-	// Set Up Role
+	// Create Role
+	s.logger.Trace("writing role", "name", hclog.Fmt("%v", config.PostgreSQLRoleConfig.Name))
 	rolePath := filepath.Join(secretPath, "roles", config.PostgreSQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating postgresql role %q: %v", config.PostgreSQLRoleConfig.Name, err)
-	}
-
-	// Create Role
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.PostgreSQLRoleConfig.Name, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
 	}
 
 	return &PostgreSQLSecret{

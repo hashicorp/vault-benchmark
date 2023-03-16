@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -40,6 +41,7 @@ type KVV1Test struct {
 	action     string
 	numKVs     int
 	kvSize     int
+	logger     hclog.Logger
 }
 
 type KVV1TestConfig struct {
@@ -111,8 +113,9 @@ func (k *KVV1Test) GetTargetInfo() TargetInfo {
 }
 
 func (k *KVV1Test) Cleanup(client *api.Client) error {
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	k.logger.Trace("unmounting", "path", hclog.Fmt("%v", k.pathPrefix))
 
+	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -123,6 +126,7 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 	var err error
 	mountPath := mountName
 	config := k.config.Config
+	k.logger = targetLogger.Named("kvv1")
 
 	if randomMountName {
 		mountPath, err = uuid.GenerateUUID()
@@ -130,8 +134,10 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 			log.Fatalf("can't create UUID")
 		}
 	}
+	k.logger = k.logger.Named(mountPath)
 
 	var setupIndex string
+	k.logger.Trace("mounting kvv1 secrets engine at path", "path", hclog.Fmt("%v", mountPath))
 	err = client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 	})
@@ -148,6 +154,7 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
 	}
 	var lastIndex string
+	k.logger.Trace("seeding secrets")
 	for i := 1; i <= config.NumKVs; i++ {
 		if i == config.NumKVs-1 {
 			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))

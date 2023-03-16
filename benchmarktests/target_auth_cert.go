@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -34,6 +35,7 @@ type CertAuth struct {
 	header     http.Header
 	config     *CertAuthTestConfig
 	clientCert *tls.Certificate
+	logger     hclog.Logger
 }
 
 type CaCert struct {
@@ -108,6 +110,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	var err error
 	authPath := mountName
 	config := c.config.Config
+	c.logger = targetLogger.Named(CertAuthTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -116,26 +119,32 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 	}
 
-	if c.config.Config.Certificate == "" {
+	c.logger = c.logger.Named(authPath)
+
+	if config.Certificate == "" {
 		// Create self-signed CA
+		c.logger.Trace("creating self-signed CA")
 		benchCA, err := GenerateCA()
 		if err != nil {
 			log.Fatalf("error generating benchmark CA: %v", err)
 		}
 
 		// Generate Client cert for Cert Auth
+		c.logger.Trace("creating client cert")
 		clientCert, clientKey, err := GenerateCert(benchCA.Template, benchCA.Signer)
 		if err != nil {
 			log.Fatalf("error generating client cert: %v", err)
 		}
 
 		// Create X509 Key Pair
+		c.logger.Trace("generating x509 key pair")
 		keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
 		if err != nil {
 			log.Fatalf("error generating client key pair: %v", err)
 		}
 
 		// Create new client with newly generated cert
+		c.logger.Trace("creating new client with generated cert")
 		tClientConfig := client.CloneConfig()
 		tClientConfig.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
 
@@ -151,10 +160,10 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		// We should invesitage how we can give each test its own client.
 		// Set the client to the new client with the newly generated client cert
 		client = nClient
-
 	}
 
 	// Create Cert Auth mount
+	c.logger.Trace("mounting cert auth at path", "path", hclog.Fmt("%v", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "cert",
 	})
@@ -163,12 +172,14 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	// Decode config into map to pass with request
+	c.logger.Trace("parsing role config data")
 	roleData, err := structToMap(config)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Set up role
+	c.logger.Trace("writing role", "name", hclog.Fmt("%v", config.Name))
 	rolePath := filepath.Join("auth", authPath, "certs", config.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
@@ -178,10 +189,12 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	return &CertAuth{
 		pathPrefix: "/v1/auth/" + authPath,
 		header:     generateHeader(client),
+		logger:     c.logger,
 	}, nil
 }
 
 func (c *CertAuth) Cleanup(client *api.Client) error {
+	c.logger.Trace("unmounting", "path", hclog.Fmt("%v", c.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -32,6 +33,7 @@ type UserpassAuth struct {
 	password   string
 	header     http.Header
 	config     *UserpassTestConfig
+	logger     hclog.Logger
 }
 
 type UserpassTestConfig struct {
@@ -79,8 +81,9 @@ func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (u *UserpassAuth) Cleanup(client *api.Client) error {
-	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
+	u.logger.Trace("unmounting", "path", hclog.Fmt("%v", u.pathPrefix))
 
+	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -99,6 +102,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 	var err error
 	authPath := mountName
 	config := u.config.Config
+	u.logger = targetLogger.Named(UserpassTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -107,7 +111,10 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		}
 	}
 
+	u.logger = u.logger.Named(authPath)
+
 	// Create Userpass Auth Mount
+	u.logger.Trace("mounting userpass auth method at path", "path", hclog.Fmt("%v", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "userpass",
 	})
@@ -116,6 +123,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Decode Config struct into mapstructure to pass with request
+	u.logger.Trace("parsing userpass config data")
 	userData, err := structToMap(config)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
@@ -123,6 +131,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 
 	userPath := filepath.Join("auth", authPath, "users", config.Username)
 
+	u.logger.Trace("writing userpass config")
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating userpass user %q: %v", config.Username, err)

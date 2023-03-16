@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -37,6 +38,7 @@ type LDAPAuth struct {
 	authPass   string
 	header     http.Header
 	config     *LDAPTestConfig
+	logger     hclog.Logger
 }
 
 type LDAPTestConfig struct {
@@ -167,6 +169,7 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	var err error
 	authPath := mountName
 	config := l.config.Config
+	l.logger = targetLogger.Named(LDAPAuthTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -175,7 +178,10 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 	}
 
+	l.logger = l.logger.Named(authPath)
+
 	// Create LDAP Auth mount
+	l.logger.Trace("mounting ldap auth method at path", "path", hclog.Fmt("%v", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "ldap",
 	})
@@ -184,12 +190,14 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	// Decode LDAPConfig struct into mapstructure to pass with request
+	l.logger.Trace("parsing ldap mount config data")
 	ldapAuthConfig, err := structToMap(config.LDAPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ldap auth config from struct: %v", err)
 	}
 
 	// Write LDAP config
+	l.logger.Trace("writing mount config")
 	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing LDAP config: %v", err)
