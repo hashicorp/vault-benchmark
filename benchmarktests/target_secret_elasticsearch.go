@@ -103,7 +103,6 @@ func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
 	client.SetClientTimeout(e.timeout)
 
 	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
