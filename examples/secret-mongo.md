@@ -1,35 +1,53 @@
 # MongoDB Secret Configuration Options
 
-This benchmark will test the dynamic generation of MongoDB credentials. In order to use this test, configuration for the MongoDB instance MUST be provided as a JSON file using the `mongodb_config_json` flag. The primary required fields are the `username` and `password` for the user configured in MongoDB for Vault to use, as well as the `connection_url` field that defines the address to be used. A role configuration file can also be passed via the `mongodb_role_config_json` flag. This allows more specific options to be specified if required by the MongoDB environment setup.
+This benchmark will test the dynamic generation of MongoDB credentials.
 
-## Test Parameters (minimum 1 required)
+## Test Parameters
 
-- `pct_mongodb_read`: percent of requests that are MongoDB Dynamic Credential generations
+### MongoDB Config
 
-## Additional Parameters
+- `name` _(string: <required>)_: Specifies the name for this database connection. This is specified as part of the URL.
+- `plugin_name` _(string: "mongodb-database-plugin")_: Specifies the name of the plugin to use for this connection.
+- `allowed_roles` _(list: ["benchmark-role"])_: List of the roles allowed to use this connection. If contains a * any role can use this connection.
+- `connection_url` _(string: <required>)_: Specifies the connection string used to connect to the database.
+- `username` _(string: <required>)_: Specifies the name of the user to use as the "root" user when connecting to the database. This "root" user is used to create/update/delete users managed by these plugins, so you will need to ensure that this user has permissions to manipulate users appropriate to the database.
+- `password` _(string: <required>)_: Specifies the password to use when connecting with the `username`.
 
-- `mongodb_config_json` _(required)_: path to JSON file containing Vault MongoDB configuration.  Configuration options can be found in the [MongoDB Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/mongodb#configure-connection).  Example configuration files can be found in the [mongodb configuration directory](/example-configs/mongodb/).
-- `mongodb_role_config_json`: path to a JSON file containing the MongoDB role configuration. If this is not specified, a default configuration will be used (see below).
+### Role Config
 
-### Default MongoDB Role Configuration
+- `name` _(string: "benchmark-role")_: Specifies the name of the role to create. This is specified as part of the URL.
+- `db_name` _(string: <required>)_: The name of the database connection to use for this role.
+- `default_ttl` _(string: "1h")_: Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (1h) or an integer number of seconds.
+- `max_ttl` _(string: "24h")_: Specifies the maximum TTL for the leases associated with this role. Accepts time suffixed strings (1h) or an integer number of seconds.
+- `creation_statements` _(list: [])_: Specifies the database statements executed to create and configure a user.  Defaults to `"{ "db": "admin", "roles": [{ "role": "readWrite" }, {"role": "read", "db": "foo"}] }"`
 
-```json
-{
-    "db_name": "mongo-benchmark-database",
-    "creation_statements": "{ \"db\": \"admin\", \"roles\": [{ \"role\": \"readWrite\" }, {\"role\": \"read\", \"db\": \"foo\"}] }",
-    "default_ttl": "1h",
-    "max_ttl": "24h"
+## Example Configuration
+
+```hcl
+test "mongodb_secret" "mongodb_test_1" {
+    weight = 100
+    config {
+        db_config {
+            name = "mongo-benchmark-database"
+            connection_url = "mongodb://{{username}}:{{password}}@127.0.0.1:27017/admin?tls=false"
+            username = "mdbadmin"
+            password = "root"
+        }
+        role_config {
+            db_name = "mongo-benchmark-database"
+        }
+    }
 }
 ```
 
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
-    -vault_addr=http://localhost:8200 \
-    -vault_token=root \
-    -pct_mongodb_read=100 \
-    -mongodb_config_json=/path/to/mongodb/config.json
-op                    count  rate       throughput  mean          95th%         99th%         successRatio
-mongo cred retrieval  687    68.602787  67.609274   146.945225ms  153.417724ms  176.005047ms  100.00%
+$ vault-benchmark run -config=example-configs/mongodb/config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op              count  rate       throughput  mean          95th%         99th%         successRatio
+mongodb_test_1  473    47.284284  46.300585   213.963008ms  222.443684ms  228.1842ms  100.00%
 ```
