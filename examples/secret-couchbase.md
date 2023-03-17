@@ -97,7 +97,7 @@ test "couchbase_secret" "couchbase_test_1" {
 ### Example Usage
 
 ```bash
-$ ./vault-benchmark run -config=couchbase.hcl
+$ vault-benchmark run -config=couchbase.hcl
 Setting up targets...
 Starting benchmarks. Will run for 1s...
 Benchmark complete!
