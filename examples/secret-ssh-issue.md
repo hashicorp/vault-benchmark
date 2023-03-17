@@ -252,7 +252,7 @@ Additional configuration examples can be found in the [ssh configuration directo
 ## Example Usage
 
 ```bash
-$ ./vault-benchmark run -config=ssh.hcl
+$ vault-benchmark run -config=ssh.hcl
 Setting up targets...
 Starting benchmarks. Will run for 5s...
 Benchmark complete!
