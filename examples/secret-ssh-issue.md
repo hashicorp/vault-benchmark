@@ -3,7 +3,7 @@
 This benchmark tests the performance of Signed SSH Certificate issue operations.
 
 ## Test Parameters
-### Role Config
+### Role Config `role`
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This
   is part of the request URL.
 
@@ -167,7 +167,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
 - `not_before_duration` `(duration: "30s")` – Specifies the duration by which to
   backdate the `ValidAfter` property. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 
-### CA Config
+### CA Config `ca`
 - `private_key` `(string: "")` – Specifies the private key part the SSH CA key
   pair; required if `generate_signing_key` is false.
 
@@ -198,7 +198,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
   to use; `256`, `384`, or `521`, with the default `0` value resulting in a
   NIST P-256 key).
 
-### Issued Cert Config
+### Issued Cert Config `issued_cert`
 - `name` `(string: "benchmark-key")` – Specifies the name of the role to create the
   certificate against. This is part of the request URL.
 
