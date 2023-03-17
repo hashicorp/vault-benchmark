@@ -165,7 +165,7 @@ This benchmark tests the performance of SSH key signing operations.
   explicit `algorithm_signer=rsa-sha` parameter or has been migrated to such.
 
 - `not_before_duration` `(duration: "30s")` – Specifies the duration by which to
-  backdate the `ValidAfter` property. Uses [duration format strings](/vault/docs/concepts/duration-format).
+  backdate the `ValidAfter` property. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 
 ### CA Config `ca`
 - `private_key` `(string: "")` – Specifies the private key part the SSH CA key
@@ -241,7 +241,7 @@ Additional configuration examples can be found in the [ssh configuration directo
 ## Example Usage
 
 ```bash
-❯ ./benchmark-vault run -config=ssh.hcl
+❯ vault-benchmark run -config=ssh.hcl
 Setting up targets...
 Starting benchmarks. Will run for 5s...
 Benchmark complete!

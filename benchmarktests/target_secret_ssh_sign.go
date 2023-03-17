@@ -228,7 +228,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 	return &SSHKeySignTest{
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "sign", config.RoleConfig.Name),
 		body:       []byte(signingConfigString),
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		header:     generateHeader(client),
 	}, nil
 }
 
