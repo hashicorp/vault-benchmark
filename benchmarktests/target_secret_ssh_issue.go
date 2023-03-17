@@ -214,7 +214,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	return &SSHIssueTest{
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "issue", config.RoleConfig.Name),
 		body:       []byte(issueConfigString),
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		header:     generateHeader(client),
 	}, nil
 }
 
