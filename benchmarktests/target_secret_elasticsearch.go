@@ -132,7 +132,6 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error mounting db: %v", err)
 	}
