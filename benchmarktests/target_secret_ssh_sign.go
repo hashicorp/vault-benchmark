@@ -139,7 +139,6 @@ func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
 
 func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
 	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -212,7 +211,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 		return nil, fmt.Errorf("error generating test RSA public key: %v", err)
 	}
 
-	config.KeySigningConfig.PublicKey = "ssh-rsa " + base64.StdEncoding.EncodeToString(pubKey.Marshal())
+	config.KeySigningConfig.PublicKey = fmt.Sprintf("ssh-rsa %v", base64.StdEncoding.EncodeToString(pubKey.Marshal()))
 
 	// Sign Config
 	signingConfig, err := structToMap(config.KeySigningConfig)
