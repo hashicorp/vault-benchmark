@@ -7,18 +7,18 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
 
 ### Elasticsearch Config
 
-- `name` _(string: "es-benchmark")_: Specifies the name for this database connection.
+- `name` _(string: "benchmark-elasticsearch")_: Specifies the name for this database connection.
 - `plugin_name` _(string: "elasticsearch-database-plugin")_: Specifies the name of the plugin to use for this connection.
 - `url` _(string: <required>)_: Specifies the connection string used to connect to the database.
 - `username` _(string: <required>)_: Specifies the name of the user to use as the "root" user when connecting to the database.
 - `password` _(string: <required>)_: Specifies the password to use when connecting with the username.
-- `allowed_roles` _(string: "internally-defined-role")_: List of the roles allowed to use this connection.
+- `allowed_roles` _(string: "benchmark-role")_: List of the roles allowed to use this connection.
 - `insecure` _(bool: true)_: Specifies if the connection should use TLS.  Not recommended for production use.
 
 ### Role Config
 
-- `name` _(string: "internally-defined-role")_: Specifies the name of the role to create.
-- `db_name` _(string: "es-benchmark")_: The name of the database connection to use for this role.
+- `name` _(string: "benchmark-role")_: Specifies the name of the role to create.
+- `db_name` _(string: "benchmark-elasticsearch")_: The name of the database connection to use for this role.
 - `default_ttl` _(string: "1h")_: Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (1h) or an integer number of seconds.
 - `max_ttl` _(string: "24h")_:  Specifies the maximum TTL for the leases associated with this role. Accepts time suffixed strings (1h) or an integer number of seconds.
 - `creation_statements` _(string: "{"elasticsearch_role_definition": {"indices": [{"names":["*"], "privileges":["read"]}]}}")_: Specifies the database statements executed to create and configure a user.

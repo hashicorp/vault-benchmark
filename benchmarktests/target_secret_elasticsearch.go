@@ -69,13 +69,13 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 		Config: &ElasticSearchSecretTestConfig{
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
-				DBName:       "es-benchmark",
-				AllowedRoles: "internally-defined-role",
+				DBName:       "benchmark-elasticsearch",
+				AllowedRoles: "benchmark-role",
 				Insecure:     true,
 			},
 			ElasticSearchRoleConfig: &ElasticSearchRoleConfig{
-				DBName:             "es-benchmark",
-				RoleName:           "internally-defined-role",
+				DBName:             "benchmark-elasticsearch",
+				RoleName:           "benchmark-role",
 				CreationStatements: `{"elasticsearch_role_definition": {"indices": [{"names":["*"], "privileges":["read"]}]}}`,
 				DefaultTTL:         "1h",
 				MaxTTL:             "24h",

@@ -14,10 +14,5 @@ test "elasticsearch_secret" "elasticsearch_test_1" {
             username = "elastic"
             password = "*M7EJ8VUbEp7lTCmfxoS"
         }
-        role_config {
-            creation_statements = "{\"elasticsearch_role_definition\": {\"indices\": [{\"names\":[\"*\"], \"privileges\":[\"read\"]}]}}"
-            default_ttl = "1h"
-            max_ttl = "24h"
-        }
     }
 }
