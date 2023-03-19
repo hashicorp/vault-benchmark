@@ -26,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[RedisSecretTestType] = func() BenchmarkBuilder { return &RedisSecret{} }
 }
 
@@ -37,28 +36,26 @@ type RedisSecret struct {
 	config     *RedisTestConfig
 }
 
-// Main Config Struct
 type RedisTestConfig struct {
 	Config *RedisSecretTestConfig `hcl:"config,block"`
 }
 
-// Intermediary struct to assist with HCL decoding
 type RedisSecretTestConfig struct {
 	RedisDBConfig          *RedisDBConfig          `hcl:"db_config,block"`
 	DynamicRedisRoleConfig *RedisDynamicRoleConfig `hcl:"dynamic_role_config,block"`
 	StaticRedisRoleConfig  *RedisStaticRoleConfig  `hcl:"static_role_config,block"`
 }
 
-// Redi DB Config
+// Redis DB Config
 type RedisDBConfig struct {
 	DBName       string   `hcl:"db_name,optional"`
 	AllowedRoles []string `hcl:"allowed_roles,optional"`
 	Host         string   `hcl:"host"`
-	Port         int      `hcl:"port"` // check default
-	Username     string   `hcl:"username"`
-	Password     string   `hcl:"password"`
-	TLS          bool     `hcl:"tls,optional"`          // check default
-	InsecureTLS  bool     `hcl:"insecure_tls,optional"` // check default
+	Port         int      `hcl:"port"`
+	Username     string   `hcl:"username,optional"`
+	Password     string   `hcl:"password,optional"`
+	TLS          bool     `hcl:"tls,optional"`
+	InsecureTLS  bool     `hcl:"insecure_tls,optional"`
 	CACert       string   `hcl:"ca_cert,optional"`
 }
 
@@ -88,15 +85,38 @@ func (s *RedisSecret) ParseConfig(body hcl.Body) error {
 				TLS:          false,
 				InsecureTLS:  true,
 			},
-			DynamicRedisRoleConfig: &RedisDynamicRoleConfig{
-				RoleName: "benchmark-redis-role",
-			},
 		},
 	}
 
 	diags := gohcl.DecodeBody(body, nil, s.config)
+
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
+	}
+
+	// add defaults
+	if s.config.Config.DynamicRedisRoleConfig != nil {
+		if s.config.Config.DynamicRedisRoleConfig.RoleName == "" {
+			s.config.Config.DynamicRedisRoleConfig.RoleName = "my-dynamic-role"
+		}
+
+		if s.config.Config.DynamicRedisRoleConfig.MaxTTL == "" {
+			s.config.Config.DynamicRedisRoleConfig.MaxTTL = "5m"
+		}
+
+		if s.config.Config.DynamicRedisRoleConfig.DefaultTTL == "" {
+			s.config.Config.DynamicRedisRoleConfig.DefaultTTL = "5m"
+		}
+	}
+
+	if s.config.Config.StaticRedisRoleConfig != nil {
+		if s.config.Config.StaticRedisRoleConfig.RoleName == "" {
+			s.config.Config.StaticRedisRoleConfig.RoleName = "my-static-role"
+		}
+
+		if s.config.Config.StaticRedisRoleConfig.RotationPeriod == "" {
+			s.config.Config.StaticRedisRoleConfig.RotationPeriod = "5m"
+		}
 	}
 
 	// Handle passed in JSON config
@@ -110,9 +130,17 @@ func (s *RedisSecret) ParseConfig(body hcl.Body) error {
 }
 
 func (s *RedisSecret) Target(client *api.Client) vegeta.Target {
+	var url string
+
+	if s.config.Config.DynamicRedisRoleConfig != nil {
+		url = fmt.Sprintf("%s%s/creds/%s", client.Address(), s.pathPrefix, s.roleName)
+	} else {
+		url = fmt.Sprintf("%s%s/static-creds/%s", client.Address(), s.pathPrefix, s.roleName)
+	}
+
 	return vegeta.Target{
 		Method: RedisSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
+		URL:    url,
 		Header: s.header,
 	}
 }
@@ -172,38 +200,52 @@ func (s *RedisSecret) Setup(client *api.Client, randomMountName bool, mountName 
 	_, err = client.Logical().Write(dbPath, dbData)
 
 	if err != nil {
-		return nil, fmt.Errorf("error creating redis db %q: %v", config.DynamicRedisRoleConfig.RoleName, err)
+		return nil, fmt.Errorf("error creating redis db %q: %v", config.RedisDBConfig.DBName, err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
-	roleData, err := structToMap(config.DynamicRedisRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding redis DB Role config from struct: %v", err)
-	}
+	// Add role config depending on static of dynamic type
+	var roleName string
+	if config.DynamicRedisRoleConfig != nil {
+		roleName = config.DynamicRedisRoleConfig.RoleName
+		roleData, err := structToMap(config.DynamicRedisRoleConfig)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding redis dynamic DB Role config from struct: %v", err)
+		}
 
-	// Set Up Role
-	rolePath := filepath.Join(secretPath, "roles", config.DynamicRedisRoleConfig.RoleName)
-	roleData["db_name"] = dbData["db_name"]
-	_, err = client.Logical().Write(rolePath, roleData)
+		// Set Up Role
+		rolePath := filepath.Join(secretPath, "roles", roleName)
+		roleData["db_name"] = config.RedisDBConfig.DBName
+		_, err = client.Logical().Write(rolePath, roleData)
 
-	if err != nil {
-		return nil, fmt.Errorf("error creating redis role %q: %v", config.DynamicRedisRoleConfig.RoleName, err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("error creating dynamic redis role %q: %v", roleName, err)
+		}
+	} else {
+		roleName = config.StaticRedisRoleConfig.RoleName
+		roleData, err := structToMap(config.StaticRedisRoleConfig)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding redis static DB Role config from struct: %v", err)
+		}
 
-	// Create Role
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.DynamicRedisRoleConfig.RoleName, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
+		// Set Up Role
+		rolePath := filepath.Join(secretPath, "static-roles", roleName)
+		roleData["db_name"] = config.RedisDBConfig.DBName
+		_, err = client.Logical().Write(rolePath, roleData)
+
+		if err != nil {
+			return nil, fmt.Errorf("error creating static redis role %q: %v", roleName, err)
+		}
 	}
 
 	return &RedisSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.DynamicRedisRoleConfig.RoleName,
+		roleName:   roleName,
+		config:     s.config,
 	}, nil
-
 }
 
+// TODO: remove when we support environment variables
 func (d *RedisDBConfig) FromJSON(path string) error {
 	if path == "" {
 		return fmt.Errorf("no redis user config passed but is required")
