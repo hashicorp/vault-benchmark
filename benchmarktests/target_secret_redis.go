@@ -81,7 +81,7 @@ func (s *RedisSecret) ParseConfig(body hcl.Body) error {
 		Config: &RedisSecretTestConfig{
 			RedisDBConfig: &RedisDBConfig{
 				DBName:       "benchmark-redis-db",
-				AllowedRoles: []string{"*"},
+				AllowedRoles: []string{"my-*-role"},
 				TLS:          false,
 				InsecureTLS:  true,
 			},
