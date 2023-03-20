@@ -17,7 +17,7 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-var flagRedisUserConfighcl string
+var flagRedisUserConfigHCL string
 
 // Constants for test
 const (
@@ -120,8 +120,8 @@ func (s *RedisSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	// Handle passed in JSON config
-	if flagRedisUserConfighcl != "" {
-		err := s.config.Config.RedisDBConfig.FromJSON(flagRedisUserConfighcl)
+	if flagRedisUserConfigHCL != "" {
+		err := s.config.Config.RedisDBConfig.FromJSON(flagRedisUserConfigHCL)
 		if err != nil {
 			return fmt.Errorf("error loading redis user config from JSON: %v", err)
 		}
@@ -161,8 +161,9 @@ func (s *RedisSecret) GetTargetInfo() TargetInfo {
 	return tInfo
 }
 
+// TODO: remove redis_test_user_json flag when we support environment variables
 func (s *RedisSecret) Flags(fs *flag.FlagSet) {
-	fs.StringVar(&flagRedisUserConfighcl, "redis_test_user_json", "", "When provided, the location of user credentials to test redis secrets engine.")
+	fs.StringVar(&flagRedisUserConfigHCL, "redis_test_user_json", "", "When provided, the location of user credentials to test redis secrets engine.")
 }
 
 func (s *RedisSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
