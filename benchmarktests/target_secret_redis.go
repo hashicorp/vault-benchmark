@@ -206,36 +206,36 @@ func (s *RedisSecret) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Add role config depending on static of dynamic type
 	var roleName string
+	var rolePath string
+	var roleData map[string]interface{}
+
 	if config.DynamicRedisRoleConfig != nil {
 		roleName = config.DynamicRedisRoleConfig.RoleName
-		roleData, err := structToMap(config.DynamicRedisRoleConfig)
+		roleData, err = structToMap(config.DynamicRedisRoleConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding redis dynamic DB Role config from struct: %v", err)
 		}
 
 		// Set Up Role
-		rolePath := filepath.Join(secretPath, "roles", roleName)
+		rolePath = filepath.Join(secretPath, "roles", roleName)
 		roleData["db_name"] = config.RedisDBConfig.DBName
-		_, err = client.Logical().Write(rolePath, roleData)
-
-		if err != nil {
-			return nil, fmt.Errorf("error creating dynamic redis role %q: %v", roleName, err)
-		}
 	} else {
 		roleName = config.StaticRedisRoleConfig.RoleName
-		roleData, err := structToMap(config.StaticRedisRoleConfig)
+		roleData, err = structToMap(config.StaticRedisRoleConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding redis static DB Role config from struct: %v", err)
 		}
 
 		// Set Up Role
-		rolePath := filepath.Join(secretPath, "static-roles", roleName)
+		rolePath = filepath.Join(secretPath, "static-roles", roleName)
 		roleData["db_name"] = config.RedisDBConfig.DBName
-		_, err = client.Logical().Write(rolePath, roleData)
 
-		if err != nil {
-			return nil, fmt.Errorf("error creating static redis role %q: %v", roleName, err)
-		}
+	}
+
+	_, err = client.Logical().Write(rolePath, roleData)
+
+	if err != nil {
+		return nil, fmt.Errorf("error creating redis role %q: %v", roleName, err)
 	}
 
 	return &RedisSecret{
