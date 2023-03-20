@@ -247,8 +247,6 @@ test "ssh_issue" "ssh_issue_test1" {
 }
 ```
 
-Additional configuration examples can be found in the [ssh configuration directory](/example-configs/ssh/).
-
 ## Example Usage
 
 ```bash
