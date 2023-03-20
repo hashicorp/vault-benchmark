@@ -33,8 +33,15 @@ func (s *StatusCheck) ParseConfig(body hcl.Body) error {
 }
 
 func (s *StatusCheck) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+	var h http.Header
+	switch s.pathPrefix {
+	case "metrics":
+		h = http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{"root"}}
+	default:
+		h = generateHeader(client)
+	}
 	return &StatusCheck{
-		header:     generateHeader(client),
+		header:     h,
 		pathPrefix: "/v1/sys/" + s.pathPrefix,
 	}, nil
 }
