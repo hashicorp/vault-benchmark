@@ -1,23 +1,31 @@
 # System Status Configuration Options
 
-## Test Parameters (minimum 1 required)
+## Example Configuration
 
-- `pct_ha_status`: percent of requests that are ha status requests (/sys/ha-status)
-- `pct_seal_status`: percent of requests that are seal status requests (/sys/seal-status)
-- `pct_metrics`: percent of requests that are read requests to metrics (/sys/metrics)
+```hcl
+test "ha_status" "ha_status_test_1" {
+    weight = 30
+}
 
-## Example Usage
+test "seal_status" "seal_status_test_1" {
+    weight = 30
+}
+
+test "metrics" "metrics_test_1" {
+    weight = 40
+}
+```
+
+### Example Usage
 
 ```bash
-$ benchmark-vault -pct_ha_status=100
-op         count   rate          throughput    mean       95th%      99th%       successRatio
-ha status  307299  30731.021169  30728.013045  316.743µs  717.639µs  1.705715ms  100.00%
-
-$ benchmark-vault -pct_seal_status=100
-op           count   rate          throughput    mean       95th%      99th%       successRatio
-seal status  510343  51034.352310  51033.783069  173.612µs  434.735µs  1.116063ms  100.00%
-
-$ benchmark-vault -pct_metrics=100
-op       count   rate          throughput    mean       95th%      99th%       successRatio
-metrics  305119  30512.043407  30509.221162  311.575µs  853.498µs  2.214729ms  100.00%
+$ vault-benchmark run -config=example-configs/status/config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op                  count  rate         throughput   mean       95th%       99th%       successRatio
+ha_status_test_1    68233  6823.507691  6823.057809  596.062µs  1.31989ms   2.008227ms  100.00%
+metrics_test_1      91391  9139.507851  9139.160661  326.684µs  684.966µs   994.849µs   100.00%
+seal_status_test_1  68126  6812.806087  6812.420493  412.102µs  1.055864ms  1.577493ms  100.00%
 ```
