@@ -12,7 +12,6 @@ test "elasticsearch_secret" "elasticsearch_test_1" {
         db_config {
             url = "https://localhost:9200"
             username = "elastic"
-            password = "*M7EJ8VUbEp7lTCmfxoS"
-        }
+            password = "password"        }
     }
 }

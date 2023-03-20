@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
@@ -30,7 +30,6 @@ type ElasticSearchTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	timeout    time.Duration
 	config     *ElasticSearchTestConfig
 }
 
@@ -44,24 +43,31 @@ type ElasticSearchSecretTestConfig struct {
 }
 
 type ElasticSearchConfig struct {
-	DBName       string `hcl:"name,optional"`
-	PluginName   string `hcl:"plugin_name,optional"`
-	AllowedRoles string `hcl:"allowed_roles,optional"`
-	URL          string `hcl:"url"`
-	Username     string `hcl:"username"`
-	Password     string `hcl:"password"`
-	Insecure     bool   `hcl:"insecure,optional"`
-	CACert       string `hcl:"ca_cert,optional"`
-	ClientCert   string `hcl:"client_cert,optional"`
-	ClientKey    string `hcl:"client_key,optional"`
+	DBName           string   `hcl:"name,optional"`
+	PluginName       string   `hcl:"plugin_name,optional"`
+	AllowedRoles     []string `hcl:"allowed_roles,optional"`
+	URL              string   `hcl:"url"`
+	Username         string   `hcl:"username"`
+	Password         string   `hcl:"password"`
+	CACert           string   `hcl:"ca_cert,optional"`
+	ClientCert       string   `hcl:"client_cert,optional"`
+	ClientKey        string   `hcl:"client_key,optional"`
+	TLSServerName    string   `hcl:"tls_server_name,optional"`
+	Insecure         bool     `hcl:"insecure,optional"`
+	UsernameTemplate string   `hcl:"username_template,optional"`
+	UseOldXPath      bool     `hcl:"use_old_xpath,optional"`
 }
 
 type ElasticSearchRoleConfig struct {
-	RoleName           string `hcl:"name,optional"`
-	DBName             string `hcl:"db_name,optional"`
-	DefaultTTL         string `hcl:"default_ttl,optional"`
-	MaxTTL             string `hcl:"max_ttl,optional"`
-	CreationStatements string `hcl:"creation_statements,optional"`
+	RoleName             string   `hcl:"name,optional"`
+	DBName               string   `hcl:"db_name,optional"`
+	DefaultTTL           string   `hcl:"default_ttl,optional"`
+	MaxTTL               string   `hcl:"max_ttl,optional"`
+	CreationStatements   []string `hcl:"creation_statements,optional"`
+	RevocationStatements []string `hcl:"revocation_statements,optional"`
+	RollbackStatements   []string `hcl:"rollback_statements,optional"`
+	RenewStatements      []string `hcl:"renew_statements,optional"`
+	CredentialType       string   `hcl:"credential_type,optional"`
 }
 
 func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
@@ -70,13 +76,13 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
 				DBName:       "benchmark-elasticsearch",
-				AllowedRoles: "benchmark-role",
+				AllowedRoles: []string{"benchmark-role"},
 				Insecure:     true,
 			},
 			ElasticSearchRoleConfig: &ElasticSearchRoleConfig{
 				DBName:             "benchmark-elasticsearch",
 				RoleName:           "benchmark-role",
-				CreationStatements: `{"elasticsearch_role_definition": {"indices": [{"names":["*"], "privileges":["read"]}]}}`,
+				CreationStatements: []string{`{"elasticsearch_role_definition": {"indices": [{"names":["*"], "privileges":["read"]}]}}`},
 				DefaultTTL:         "1h",
 				MaxTTL:             "24h",
 			},
@@ -93,15 +99,13 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 
 func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
-		Method: "GET",
+		Method: ElasticSearchSecretTestMethod,
 		URL:    client.Address() + e.pathPrefix + "/creds/" + e.roleName,
 		Header: e.header,
 	}
 }
 
 func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
-	client.SetClientTimeout(e.timeout)
-
 	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -143,7 +147,8 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 	}
 
 	// Write DB config
-	_, err = client.Logical().Write(secretPath+"/config/"+config.ElasticSearchConfig.DBName, elasticSearchConfigData)
+	dbPath := filepath.Join(secretPath, "config", config.ElasticSearchConfig.DBName)
+	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
 	}
@@ -155,7 +160,8 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 	}
 
 	// Create Role
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.ElasticSearchRoleConfig.RoleName, elasticSearchRoleConfigData)
+	rolePath := filepath.Join(secretPath, "roles", config.ElasticSearchRoleConfig.RoleName)
+	_, err = client.Logical().Write(rolePath, elasticSearchRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Elasticsearch db role: %v", err)
 	}
