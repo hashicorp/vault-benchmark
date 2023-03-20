@@ -49,6 +49,7 @@ type ElasticSearchConfig struct {
 	URL              string   `hcl:"url"`
 	Username         string   `hcl:"username"`
 	Password         string   `hcl:"password"`
+	PasswordPolicy   string   `hcl:"password_policy,optional"`
 	CACert           string   `hcl:"ca_cert,optional"`
 	ClientCert       string   `hcl:"client_cert,optional"`
 	ClientKey        string   `hcl:"client_key,optional"`
@@ -59,15 +60,13 @@ type ElasticSearchConfig struct {
 }
 
 type ElasticSearchRoleConfig struct {
-	RoleName             string   `hcl:"name,optional"`
-	DBName               string   `hcl:"db_name,optional"`
-	DefaultTTL           string   `hcl:"default_ttl,optional"`
-	MaxTTL               string   `hcl:"max_ttl,optional"`
-	CreationStatements   []string `hcl:"creation_statements,optional"`
-	RevocationStatements []string `hcl:"revocation_statements,optional"`
-	RollbackStatements   []string `hcl:"rollback_statements,optional"`
-	RenewStatements      []string `hcl:"renew_statements,optional"`
-	CredentialType       string   `hcl:"credential_type,optional"`
+	RoleName           string            `hcl:"name,optional"`
+	DBName             string            `hcl:"db_name,optional"`
+	DefaultTTL         string            `hcl:"default_ttl,optional"`
+	MaxTTL             string            `hcl:"max_ttl,optional"`
+	CreationStatements []string          `hcl:"creation_statements,optional"`
+	CredentialType     string            `hcl:"credential_type,optional"`
+	CredentialConfig   map[string]string `hcl:"credential_config,optional"`
 }
 
 func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
