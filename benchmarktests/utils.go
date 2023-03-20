@@ -213,7 +213,3 @@ func IsFile(path string) (bool, error) {
 
 	return true, nil
 }
-
-func BoolPtr(b bool) *bool {
-	return &b
-}
