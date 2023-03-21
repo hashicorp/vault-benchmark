@@ -18,7 +18,6 @@ This benchmark tests the performance of the transit operations.
 ## Example Configuration
 
 ```hcl
-# Test selection and options
 test "transit_sign" "transit_sign_test_1" {
     weight = 25
 }
@@ -26,7 +25,9 @@ test "transit_sign" "transit_sign_test_1" {
 test "transit_verify" "transit_verify_test_1" {
     weight = 25
     config {
-        signature_algorithm = "pkcs1v15"
+        verify_config {
+            signature_algorithm = "pkcs1v15"
+        }
     }
 }
 
@@ -40,6 +41,7 @@ test "transit_decrypt" "transit_decrypt_test_1" {
         payload_len = 64
     }
 }
+
 ```
 
 ## Example Usage
