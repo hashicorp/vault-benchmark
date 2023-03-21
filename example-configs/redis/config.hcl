@@ -5,11 +5,11 @@ duration      = "2s"
 report_mode   = "terse"
 random_mounts = true
 
-# Test selection and options
-test "redis_secret" "redis_secret_1" {
-  weight = 100
+
+test "redis_dynamic_secret" "redis_dynamic_secret_1" {
+  weight = 40
   config {
-    db_config {
+    db {
       host          = "localhost"
       db_name       = "redis"
       port          = "6379"
@@ -19,7 +19,7 @@ test "redis_secret" "redis_secret_1" {
       tls           = false
     }
 
-    dynamic_role_config {
+    role {
       role_name           = "my-dynamic-role"
       creation_statements = "[\"+@admin\"]"
       default_ttl         = "5m"
@@ -27,3 +27,25 @@ test "redis_secret" "redis_secret_1" {
     }
   }
 }
+
+test "redis_static_secret" "redis_static_secret_1" {
+  weight = 60 
+  config {
+    db {
+      host          = "localhost"
+      db_name       = "redis"
+      port          = "6379"
+      allowed_roles = ["my-*-role"]
+      username      = "user"
+      password      = "pass"
+      tls           = false
+    }
+
+    role {
+      role_name       = "my-s-role"
+      rotation_period = "5m"
+      username        = "my-static-role"
+    }
+  }
+}
+
