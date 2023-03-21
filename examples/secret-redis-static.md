@@ -1,6 +1,6 @@
 # Redis Secret Configuration Options
 
-This benchmark will test the dynamic generation of redis credentials.
+This benchmark will test the tatic generation of redis credentials.
 
 ## Test Parameters
 ### DB Config
@@ -14,19 +14,18 @@ This benchmark will test the dynamic generation of redis credentials.
 - `insecure_tls` _(bool: false)_: Specifies whether to skip verification of the server certificate when using TLS.
 - `ca_cert` _(string: optional)_: Specifies whether to use TLS when connecting to Redis.
 
-### Dynamic Role Config
-- `role_name` _(string: "my-dynamic-role")_: Specifies the name of the role to create. 
-- `default_ttl` _(string: "0")_: Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (1h) or an integer number of seconds. Defaults to system/engine default TTL time.
-- `max_ttl` _(string: "0")_:  Specifies the maximum TTL for the leases associated with this role. Accepts time suffixed strings (1h) or an integer number of seconds. Defaults to sys/mounts's default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer.
-- `creation_statements` _(list)_: Specifies the database statements executed to create and configure a user. See the plugin's API page for more information on support and formatting for this parameter.
+### Static Role Config
+- `role_name` _(string: "my-static-role")_: Specifies the name of the role to create. 
+- `rotation_period` _(string/int)_ – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
+- `username` _(string: <required>)_ – Specifies the database username that this Vault role corresponds to.
 
 ## Example Configuration 
-### Dynamic Roles
+### Static Roles
 ```hcl
-test "redis_secret" "redis_secret_1" {
-  weight = 100
+test "redis_static_secret" "redis_static_secret_1" {
+  weight = 60 
   config {
-    db_config {
+    db {
       host          = "localhost"
       db_name       = "redis"
       port          = "6379"
@@ -36,42 +35,7 @@ test "redis_secret" "redis_secret_1" {
       tls           = false
     }
 
-    dynamic_role_config {
-      role_name           = "my-dynamic-role"
-      creation_statements = "[\"+@admin\"]"
-      default_ttl         = "5m"
-      max_ttl             = "1h"
-    }
-  }
-}
-```
-
-```bash
-$ vault-benchmark run -config=example-configs/config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 10s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate         throughput   mean        95th%       99th%       successRatio
-redis_secret_1  14715  7357.516554  7353.852030  1.356368ms  1.840712ms  2.205115ms  100.00%
-```
-
-### HCL and JSON
-```hcl
-test "redis_secret" "redis_secret_2" {
-  weight = 100
-  config {
-    db_config {
-      host          = "localhost"
-      db_name       = "redis"
-      port          = "6379"
-      allowed_roles = ["my-*-role"]
-      username      = "user"
-      password      = "pass"
-      tls           = false
-    }
-
-    static_role_config {
+    role {
       role_name       = "my-s-role"
       rotation_period = "5m"
       username        = "my-static-role"
@@ -87,5 +51,37 @@ Starting benchmarks. Will run for 10s...
 Benchmark complete!
 Target: http://127.0.0.1:8200
 op              count  rate         throughput   mean        95th%       99th%       successRatio
-redis_secret_2  5262   2631.008386  2626.538988  3.803433ms  4.842362ms  6.183915ms  100.00%
+redis_static_secret_1   4359   2179.418817  2176.057613  3.535716ms  4.601893ms  6.903003ms  100.00%
+```
+
+### HCL and JSON
+```hcl
+test "redis_static_secret" "redis_static_secret_1" {
+  weight = 60 
+  config {
+    db {
+      host          = "localhost"
+      db_name       = "redis"
+      port          = "6379"
+      allowed_roles = ["my-*-role"]
+      tls           = false
+    }
+
+    role {
+      role_name       = "my-s-role"
+      rotation_period = "5m"
+      username        = "my-static-role"
+    }
+  }
+}
+```
+
+```bash
+$ vault-benchmark run -config=example-configs/config.hcl -redis_static_test_user_json=user.json
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op              count  rate         throughput   mean        95th%       99th%       successRatio
+redis_static_secret_1   4359   2179.418817  2176.057613  3.535716ms  4.601893ms  6.903003ms  100.00%
 ```
