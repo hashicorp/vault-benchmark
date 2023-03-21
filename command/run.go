@@ -294,7 +294,7 @@ func (r *RunCommand) Run(args []string) int {
 		cluster.Token = conf.VaultToken
 	}
 	if conf.VaultToken == "" && cluster.Token == "" {
-		benchmarkLogger.Error("must specify one of cluster_json, vault_token, or $VAULT_TOKEN")
+		benchmarkLogger.Error("must specify one of the following: cluster_json, vault_token, or $VAULT_TOKEN")
 		return 1
 	}
 
