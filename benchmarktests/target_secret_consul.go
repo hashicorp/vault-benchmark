@@ -143,7 +143,7 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	}
 	c.logger = c.logger.Named(secretPath)
 
-	c.logger.Trace("mounting consul secrets engine at path", "path", hclog.Fmt("%v", secretPath))
+	c.logger.Trace("mounting consul secrets engine", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "consul",
 	})
