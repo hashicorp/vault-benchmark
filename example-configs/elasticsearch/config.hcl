@@ -7,11 +7,12 @@ random_mounts = true
 
 # Test selection and options
 test "elasticsearch_secret" "elasticsearch_test_1" {
-    weight = 100
-    config {
-        db_config {
-            url = "https://localhost:9200"
-            username = "elastic"
-            password = "password"        }
+  weight = 100
+  config {
+    db_config {
+      url      = "https://localhost:9200"
+      username = "elastic"
+      password = "password"
     }
+  }
 }
