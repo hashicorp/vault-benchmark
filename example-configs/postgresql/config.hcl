@@ -6,7 +6,7 @@ report_mode = "terse"
 random_mounts = true
 
 
-test "postgresql_secret" "approle_test_1" {
+test "postgresql_secret" "postgresql_test_1" {
     weight = 100
     config {
         db_config {
