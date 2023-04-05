@@ -117,22 +117,10 @@ func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 	j.config = &JWTTestConfig{
 		Config: &JWTAuthTestConfig{
 			JWTRoleConfig: &JWTRoleConfig{
-				Name:                "benchmark-role",
-				RoleType:            "jwt",
-				AllowedRedirectUris: []string{"http://127.0.0.1"},
-				BoundAudiences:      "https://vault.plugin.auth.jwt.test",
-				BoundSubject:        "r3qXcK2bix9eFECzsU3Sbmh0K16fatW6@clients",
-				UserClaim:           "https://vault/user",
-				GroupsClaim:         "https://vault/groups",
-				Policies:            []string{"test"},
-				TokenPeriod:         "3s",
-				TokenTTL:            "1s",
-				TokenNumUses:        12,
-				TokenMaxTTL:         "5s",
-				ClaimMappings: map[string]string{
-					"first_name":   "name",
-					"/org/primary": "primary_org",
-				},
+				Name:           "benchmark-role",
+				RoleType:       "jwt",
+				BoundAudiences: "https://vault.plugin.auth.jwt.test",
+				UserClaim:      "https://vault/user",
 			},
 			JWTAuthConfig: &JWTAuthConfig{
 				BoundIssuer: "https://team-vault.auth0.com/",
