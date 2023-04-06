@@ -2,6 +2,8 @@ package benchmarktests
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
@@ -23,17 +25,8 @@ import (
 
 // Constants for test
 const (
-	JWTAuthTestType          = "jwt_auth"
-	JWTAuthTestMethod        = "POST"
-	ecdsaPrivKey      string = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIKfldwWLPYsHjRL9EVTsjSbzTtcGRu6icohNfIqcb6A+oAoGCCqGSM49
-AwEHoUQDQgAE4+SFvPwOy0miy/FiTT05HnwjpEbSq+7+1q9BFxAkzjgKnlkXk5qx
-hzXQvRmS4w9ZsskoTZtuUI+XX7conJhzCQ==
------END EC PRIVATE KEY-----`
-	ecdsaPubKey string = `-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4+SFvPwOy0miy/FiTT05HnwjpEbS
-q+7+1q9BFxAkzjgKnlkXk5qxhzXQvRmS4w9ZsskoTZtuUI+XX7conJhzCQ==
------END PUBLIC KEY-----`
+	JWTAuthTestType   = "jwt_auth"
+	JWTAuthTestMethod = "POST"
 )
 
 func init() {
@@ -76,7 +69,7 @@ type JWTAuthConfig struct {
 	JWTSupportedAlgs     []string `hcl:"jwt_supported_algs,optional"`
 	DefaultRole          string   `hcl:"default_role,optional"`
 	ProviderConfig       string   `hcl:"provider_config,optional"`
-	NamespaceInState     bool     `hcl:"namespace_in_state,optional"`
+	NamespaceInState     *bool    `hcl:"namespace_in_state,optional"`
 }
 
 // JWT Role Config
@@ -122,9 +115,7 @@ func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 				BoundAudiences: "https://vault.plugin.auth.jwt.test",
 				UserClaim:      "https://vault/user",
 			},
-			JWTAuthConfig: &JWTAuthConfig{
-				BoundIssuer: "https://team-vault.auth0.com/",
-			},
+			JWTAuthConfig: &JWTAuthConfig{},
 		},
 	}
 
@@ -182,6 +173,11 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error enabling jwt: %v", err)
 	}
 
+	privKey, pubKey, err := generateECDSAKeys()
+	if err != nil {
+		panic(err)
+	}
+
 	// Decode JWTRoleConfig struct into mapstructure to pass with request
 	jwtRoleConfig, err := structToMap(config.JWTRoleConfig)
 	if err != nil {
@@ -190,7 +186,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 
 	// Default `jwt_validation_pubkeys` if neither `jwt_validation_pubkeys`, `jwks_url` nor `oidc_discovery_url` are set
 	if config.JWTAuthConfig.JWTValidationPubKeys == nil && config.JWTAuthConfig.JWKSUrl == "" && config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
-		config.JWTAuthConfig.JWTValidationPubKeys = []string{ecdsaPubKey}
+		config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
 	// Decode JWTAuthConfig struct into mapstructure to pass with request
@@ -211,7 +207,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error writing JWT role: %v", err)
 	}
 
-	jwtData, _ := j.getTestJWT(ecdsaPrivKey)
+	jwtData, _ := j.getTestJWT(privKey)
 
 	return &JWTAuth{
 		header:     generateHeader(client),
@@ -262,4 +258,34 @@ func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
 	}
 
 	return raw, key
+}
+
+func generateECDSAKeys() (string, string, error) {
+	// Generate a new ECDSA private key
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate ECDSA private key: %w", err)
+	}
+
+	// Encode the private key in PEM format
+	privKeyBytes, err := x509.MarshalECPrivateKey(privKey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encode ECDSA private key: %w", err)
+	}
+	privKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: privKeyBytes,
+	})
+
+	// Encode the public key in PEM format
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encode ECDSA public key: %w", err)
+	}
+	pubKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyBytes,
+	})
+
+	return string(privKeyPEM), string(pubKeyPEM), nil
 }
