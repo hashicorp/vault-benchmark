@@ -56,7 +56,7 @@ type CassandraDBConfig struct {
 	Username         string   `hcl:"username"`
 	Password         string   `hcl:"password"`
 	AllowedRoles     []string `hcl:"allowed_roles,optional"`
-	TLS              bool     `hcl:"tls,optional"`
+	TLS              *bool    `hcl:"tls,optional"`
 	InsecureTLS      bool     `hcl:"insecure_tls,optional"`
 	TLSServerName    string   `hcl:"tls_server_name,optional"`
 	PEMBundle        string   `hcl:"pem_bundle,optional"`
@@ -84,6 +84,7 @@ type CassandraRoleConfig struct {
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
 func (s *CassandraSecret) ParseConfig(body hcl.Body) error {
+	t := true
 	// provide defaults
 	s.config = &CassandraTestConfig{
 		Config: &CassandraSecretTestConfig{
@@ -92,6 +93,7 @@ func (s *CassandraSecret) ParseConfig(body hcl.Body) error {
 				PluginName:   "cassandra-database-plugin",
 				AllowedRoles: []string{"benchmark-role"},
 				Port:         9042,
+				TLS:          &t,
 			},
 			CassandraRoleConfig: &CassandraRoleConfig{
 				Name:   "benchmark-role",
