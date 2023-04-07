@@ -23,7 +23,7 @@ This benchmark will test the tatic generation of redis credentials.
 ### Static Roles
 ```hcl
 test "redis_static_secret" "redis_static_secret_1" {
-  weight = 60 
+  weight = 100
   config {
     db {
       host          = "localhost"
