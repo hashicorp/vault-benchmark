@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
-	"regexp"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
@@ -176,8 +176,8 @@ func (t *TransitTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (t *TransitTest) Cleanup(client *api.Client) error {
-	re := regexp.MustCompile(`(?m)/v1/(\S+)/\S+/\S+`)
-	_, err := client.Logical().Delete(re.ReplaceAllString(t.pathPrefix, "/sys/mounts/$1"))
+	parts := strings.Split(t.pathPrefix, "/")
+	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[3]))
 
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -210,7 +210,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error mounting transit backend: %v", err)
 	}
 
 	// Generate Keys for testing
@@ -221,19 +221,19 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", config.TransitConfigKeys.Name), keysConfigData)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error writing Transit Keys config: %v", err)
 	}
 
 	// Generate our payload and context
 	rawPayload, err := uuid.GenerateRandomBytes(config.PayloadLen)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error generating random payload: %v", err)
 	}
 	base64Payload := base64.StdEncoding.EncodeToString(rawPayload)
 
 	rawContext, err := uuid.GenerateRandomBytes(config.ContextLen)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error generating random context: %v", err)
 	}
 	base64Context := base64.StdEncoding.EncodeToString(rawContext)
 
@@ -260,7 +260,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", verifyConfig.Name), verifyData)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error signing data: %v", err)
 		}
 		if resp == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign data: no response or invalid signature: %v", resp)
@@ -302,7 +302,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", decryptConfig.Name), data)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error encrypting data: %v", err)
 		}
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt data: no response or invalid ciphertext: %v", resp)
