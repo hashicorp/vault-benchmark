@@ -186,11 +186,10 @@ func (t *TransitTest) Cleanup(client *api.Client) error {
 }
 
 func (t *TransitTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     TransitSecretTestMethod,
 		pathPrefix: t.pathPrefix,
 	}
-	return tInfo
 }
 func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
