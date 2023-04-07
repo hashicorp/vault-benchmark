@@ -30,6 +30,7 @@ func init() {
 }
 
 type SSHKeySignTest struct {
+	mountPath  string
 	pathPrefix string
 	body       []byte
 	header     http.Header
@@ -49,7 +50,7 @@ type SSHKeySignTestConfig struct {
 type SSHKeySignCAConfig struct {
 	PrivateKey         string `hcl:"private_key,optional"`
 	PublicKey          string `hcl:"public_key,optional"`
-	GenerateSigningKey bool   `hcl:"generate_signing_key,optional"`
+	GenerateSigningKey *bool  `hcl:"generate_signing_key,optional"`
 	KeyType            string `hcl:"key_type,optional"`
 	KeyBits            int    `hcl:"key_bits,optional"`
 }
@@ -138,7 +139,7 @@ func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/", 1))
+	_, err := client.Logical().Delete(strings.Replace(s.mountPath, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -146,11 +147,10 @@ func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
 }
 
 func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     SSHKeySignTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
-	return tInfo
 }
 
 func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -225,6 +225,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 	}
 
 	return &SSHKeySignTest{
+		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "sign", config.RoleConfig.Name),
 		body:       []byte(signingConfigString),
 		header:     generateHeader(client),
