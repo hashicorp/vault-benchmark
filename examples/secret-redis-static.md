@@ -57,7 +57,7 @@ redis_static_secret_1   4359   2179.418817  2176.057613  3.535716ms  4.601893ms 
 ### HCL and JSON
 ```hcl
 test "redis_static_secret" "redis_static_secret_1" {
-  weight = 60 
+  weight = 100
   config {
     db {
       host          = "localhost"
