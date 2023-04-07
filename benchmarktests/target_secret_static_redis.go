@@ -45,22 +45,28 @@ type RedisStaticSecretTestConfig struct {
 
 // Redis DB Config
 type RedisDBConfig struct {
-	DBName       string   `hcl:"db_name,optional"`
-	PluginName   string   `hcl:"plugin_name,optional"`
-	AllowedRoles []string `hcl:"allowed_roles,optional"`
-	Host         string   `hcl:"host"`
-	Port         int      `hcl:"port"`
-	Username     string   `hcl:"username,optional"`
-	Password     string   `hcl:"password,optional"`
-	TLS          bool     `hcl:"tls,optional"`
-	InsecureTLS  bool     `hcl:"insecure_tls,optional"`
-	CACert       string   `hcl:"ca_cert,optional"`
+	// Common
+	DBName           string   `hcl:"db_name,optional"`
+	PluginName       string   `hcl:"plugin_name,optional"`
+	AllowedRoles     []string `hcl:"allowed_roles,optional"`
+	CACert           string   `hcl:"ca_cert,optional"`
+	PluginVersion    string   `hcl:"plugin_version,optional"`
+	VerifyConnection *bool    `hcl:"verify_connection,optional"`
+
+	// Redis specific
+	Host        string `hcl:"host"`
+	Port        int    `hcl:"port"`
+	Username    string `hcl:"username,optional"`
+	Password    string `hcl:"password,optional"`
+	TLS         bool   `hcl:"tls,optional"`
+	InsecureTLS bool   `hcl:"insecure_tls,optional"`
 }
 
 type RedisStaticRoleConfig struct {
 	RoleName       string `hcl:"role_name,optional"`
 	RotationPeriod string `hcl:"rotation_period,optional"`
 	Username       string `hcl:"username"`
+	InsecureTLS    bool   `hcl:"insecure_tls,optional"`
 }
 
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
@@ -68,14 +74,16 @@ type RedisStaticRoleConfig struct {
 // parameters will be set here.
 func (s *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
+	t := true
 	s.config = &RedisStaticTestConfig{
 		Config: &RedisStaticSecretTestConfig{
 			DBConfig: &RedisDBConfig{
-				DBName:       "benchmark-redis-db",
-				PluginName:   "redis-database-plugin",
-				AllowedRoles: []string{"my-*-role"},
-				TLS:          false,
-				InsecureTLS:  true,
+				DBName:           "benchmark-redis-db",
+				PluginName:       "redis-database-plugin",
+				AllowedRoles:     []string{"my-*-role"},
+				TLS:              false,
+				InsecureTLS:      true,
+				VerifyConnection: &t,
 			},
 			RoleConfig: &RedisStaticRoleConfig{
 				RoleName:       "my-static-role",
