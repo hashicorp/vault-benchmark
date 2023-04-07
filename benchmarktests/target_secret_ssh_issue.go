@@ -26,6 +26,7 @@ func init() {
 }
 
 type SSHIssueTest struct {
+	mountPath  string
 	pathPrefix string
 	body       []byte
 	header     http.Header
@@ -45,7 +46,7 @@ type SSHIssueTestConfig struct {
 type SSHCAConfig struct {
 	PrivateKey         string `hcl:"private_key,optional"`
 	PublicKey          string `hcl:"public_key,optional"`
-	GenerateSigningKey bool   `hcl:"generate_signing_key,optional"`
+	GenerateSigningKey *bool  `hcl:"generate_signing_key,optional"`
 	KeyType            string `hcl:"key_type,optional"`
 	KeyBits            int    `hcl:"key_bits,optional"`
 }
@@ -138,8 +139,7 @@ func (s *SSHIssueTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SSHIssueTest) Cleanup(client *api.Client) error {
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/", 1))
-
+	_, err := client.Logical().Delete(strings.Replace(s.mountPath, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -147,11 +147,10 @@ func (s *SSHIssueTest) Cleanup(client *api.Client) error {
 }
 
 func (s *SSHIssueTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     SSHIssueTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
-	return tInfo
 }
 
 func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -212,6 +211,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	return &SSHIssueTest{
+		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "issue", config.RoleConfig.Name),
 		body:       []byte(issueConfigString),
 		header:     generateHeader(client),
