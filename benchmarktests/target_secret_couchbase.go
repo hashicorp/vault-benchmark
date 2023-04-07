@@ -45,7 +45,7 @@ type CouchbaseConfig struct {
 	Name             string   `hcl:"name,optional"`
 	PluginName       string   `hcl:"plugin_name,optional"`
 	PluginVersion    string   `hcl:"plugin_version,optional"`
-	VerifyConnection string   `hcl:"verify_connection,optional"`
+	VerifyConnection *bool    `hcl:"verify_connection,optional"`
 	AllowedRoles     []string `hcl:"allowed_roles,optional"`
 	PasswordPolicy   string   `hcl:"password_policy,optional"`
 	Username         string   `hcl:"username,optional"`
@@ -133,7 +133,6 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error mounting db engine: %v", err)
 	}
