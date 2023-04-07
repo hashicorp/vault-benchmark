@@ -99,14 +99,14 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 		Config: &TransformTokenizationTestConfig{
 			RoleConfig: &TransformRoleConfig{
 				Name:            "test",
-				Transformations: []string{"testTransformation"},
+				Transformations: []string{"testtransformation"},
 			},
 			TokenizationConfig: &TransformTokenizationConfig{
-				Name:         "testTransformation",
+				Name:         "testtransformation",
 				AllowedRoles: []string{"test"},
 			},
 			InputConfig: &TransformInputConfig{
-				Transformation: "testTransformation",
+				Transformation: "testtransformation",
 				Value:          "123456789",
 			},
 		},
@@ -122,7 +122,7 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: TransformTokenizationTestMethod,
-		URL:    client.Address() + t.pathPrefix + "encode" + t.roleName,
+		URL:    client.Address() + t.pathPrefix + "/encode/" + t.roleName,
 		Body:   t.body,
 		Header: t.header,
 	}
@@ -175,7 +175,6 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 
 		// Setup store
 		storePath := filepath.Join(secretPath, "stores", config.StoreConfig.Name)
-		fmt.Println(storePath)
 		_, err = client.Logical().Write(storePath, storeConfigData)
 		if err != nil {
 			return nil, fmt.Errorf("error creating store %q: %v", config.StoreConfig.Name, err)
@@ -189,7 +188,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 			}
 
 			// Setup store
-			storeSchemaPath := filepath.Join(secretPath, "stores", config.StoreSchemaConfig.Name)
+			storeSchemaPath := filepath.Join(secretPath, "stores", config.StoreSchemaConfig.Name, "schema")
 			_, err = client.Logical().Write(storeSchemaPath, storeSchemaConfigData)
 			if err != nil {
 				return nil, fmt.Errorf("error creating store %q: %v", config.StoreSchemaConfig.Name, err)
