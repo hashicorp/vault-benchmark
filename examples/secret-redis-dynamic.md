@@ -59,7 +59,7 @@ redis_dynamic_secret_1  2851   1425.689320  1425.157666  1.609672ms  3.118899ms 
 ### HCL and JSON
 ```hcl
 test "redis_dynamic_secret" "redis_dynamic_secret_1" {
-  weight = 40
+  weight = 100
   config {
     db {
       host          = "localhost"
