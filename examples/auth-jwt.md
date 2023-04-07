@@ -4,10 +4,6 @@ This benchmark tests the performance of logins using the jwt auth method.
 
 ## Test Parameters
 
-### JWT Config
-
-- `bound_issuer` _(string: "https://team-vault.auth0.com")_: The value against which to match the iss claim in a JWT.
-
 ### Role Config
 
 - `name` _(string: "benchmark-role")_: Specifies the name of the role to create.
