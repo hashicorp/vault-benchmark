@@ -24,7 +24,7 @@ This benchmark will test the dynamic generation of redis credentials.
 ### Dynamic Roles
 ```hcl
 test "redis_dynamic_secret" "redis_dynamic_secret_1" {
-  weight = 40
+  weight = 100
   config {
     db {
       host          = "localhost"
