@@ -25,7 +25,7 @@ RUN set -eux && \
     apk update && apk upgrade libretls && \
     apk add --no-cache ca-certificates libcap su-exec iputils
 
-COPY dist/benchmark-vault /bin/
+COPY dist/vault-benchmark /bin/
 
 USER vault
-CMD ["/bin/benchmark-vault"]
+CMD ["/bin/vault-benchmark"]

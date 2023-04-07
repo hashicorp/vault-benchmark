@@ -15,6 +15,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/posener/complete v1.1.1
 	github.com/prometheus/client_golang v1.7.1
+	github.com/sethvargo/go-password v0.2.0
 	github.com/tsenart/vegeta/v12 v12.8.4
 	golang.org/x/crypto v0.0.0-20220517005047-85d78b3ac167
 )

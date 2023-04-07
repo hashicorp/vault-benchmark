@@ -1,34 +1,84 @@
 # PostgreSQL Secret Configuration Options
 
-This benchmark will test the dynamic generation of PostgreSQL credentials. In order to use this test, configuration for the PostgreSQL instance must be provided as a JSON file using the `postgresql_config_json` flag. The primary required fields are the `username` and `password` for the user configured in PostgreSQL for Vault to use, as well as the `connection_url` field that defines the address to be used as well as any other parameters that need to be passed via the URL. A role configuration file can also be passed via the `postgresql_role_config_json` flag. This allows more specific options to be specified if required by the PostgreSQL environment setup.
+This benchmark will test the dynamic generation of PostgreSQL credentials.
 
-## Test Parameters (minimum 1 required)
+## Test Parameters
+### DB Config
+- `name` _(string: "benchmark-postgres")_: Name for this database connection. This is specified as part of the URL.
+- `verify_connection` _(optional)_: Specifies if the connection is verified during initial configuration. Defaults to true.
+- `allowed_roles` _(list: ["benchmark_role"])_: List of the roles allowed to use this connection. 
+- `root_rotation_statements` _(optional)_: Specifies the database statements to be executed to rotate the root user's credentials.
+- `password_policy` _(optional)_: The name of the password policy to use when generating passwords for this database. If not specified, this will use a default policy defined as: 20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
+- `connection_url` _(string: <required>)_: Specifies the PostgreSQL DSN. This field can be templated and supports passing the username and password parameters in the following format {{field_name}}. Certificate authentication can be used by setting ?sslinline=true and giving the SSL credentials in the sslrootcert, sslcert and sslkey credentials. A templated connection URL is required when using root credential rotation. This field supports both format string types, URI and keyword/value. Both formats support multiple host connection strings. 
+- `max_open_connections` _(int: 4)_: Specifies the maximum number of open connections to the database.
+- `max_idle_connections` _(int: 0)_: Specifies the maximum number of idle connections to the database. 
+- `max_connection_lifetime` _(string: "0s")_: Specifies the maximum amount of time a connection may be reused.
+- `username` _(string: "")_: The root credential username used in the connection URL.
+- `password` _(string: "")_: The root credential password used in the connection URL.
 
-- `pct_postgresql_read`: percent of requests that are PostgreSQL credential generations
 
-## Additional Parameters
+### Role Config
+- `name` _(string: "benchmark-role")_: Specifies the name of the role to create. This is specified as part of the URL.
+- db_name` _(string: "benchmark-postgres")_: The name of the database connection to use for this role.
 
-- `postgresql_config_json` _(required)_: path to JSON file containing Vault PostgreSQL configuration.  Configuration options can be found in the [PostgreSQL Vault documentation](https://www.vaultproject.io/api-docs/secret/databases/postgresql#configure-connection).  Example configuration files can be found in the [postgresql configuration directory](/example-configs/postgresql/).
-- `postgresql_role_config_json`: path to a JSON file containing the PostgreSQL role configuration. If this is not specified, a default configuration will be used (see below).
+## Example Configuration 
+### Only HCL
+```hcl
+test "postgresql_secret" "postgres_test_1" {
+    weight = 100
+    config {
+        db_config {
+            connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
+            username = "username"
+            password = "password"
+        }
 
-### Default PostgreSQL Role Configuration
-
-```json
-{
- "default_ttl": "1h",
- "max_ttl": "24h",
- "creation_statements": "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+        role_config {
+            creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+        }
+    }
 }
 ```
 
-### Example Usage
+```bash
+$ vault-benchmark run -config=example-configs/config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op              count  rate        throughput  mean         95th%        99th%        successRatio
+approle_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.667201ms  100.00%
+```
+
+### HCL and JSON
+```hcl
+test "postgresql_secret" "postgres_test_1" {
+    weight = 100
+    config {
+        db_config {
+            connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
+        }
+
+        role_config {
+            creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+        }
+    }
+}
+```
+
+```json
+{
+    "username": "username",
+    "password": "password"
+}
+```
 
 ```bash
-$ benchmark-vault \
-    -vault_addr=http://localhost:8200 \
-    -vault_token=root \
-    -pct_postgresql_read=100 \
-    -postgresql_config_json=/path/to/postgresql/config.json
-op                    count  rate       throughput  mean          95th%         99th%         successRatio
-postgresql cred retrieval  1000   100.000000  0.000000    1.000000ms   1.000000ms   1.000000ms   0.00%
+$ vault-benchmark run -config=example-configs/config.hcl -postgres_test_user_json=user.json
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op              count  rate        throughput  mean         95th%        99th%        successRatio
+postgres_test_1  260    259.460333  245.044207  40.086479ms  59.975645ms  68.40487ms  100.00%
 ```

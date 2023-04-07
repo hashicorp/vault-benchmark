@@ -54,22 +54,19 @@ func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
 // LoadConfig populates a VaultBenchmarkCoreConfig struct from the
 // passed in HCL config file
 func (c *VaultBenchmarkCoreConfig) LoadConfig(path string) error {
+	var fileBuf []byte
+
 	// File Validity checking
-	f, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
-	if f.IsDir() {
-		return fmt.Errorf("location is a directory, not a file")
-	}
-
-	fileBuf, err := os.ReadFile(path)
-	if err != nil {
+	if ok, err := benchmarktests.IsFile(path); ok {
+		fileBuf, err = os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to open file: %v", err)
+		}
+	} else {
 		return fmt.Errorf("failed to open file: %v", err)
 	}
 
-	err = ParseConfig(fileBuf, path, c)
+	err := ParseConfig(fileBuf, path, c)
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
 	}
