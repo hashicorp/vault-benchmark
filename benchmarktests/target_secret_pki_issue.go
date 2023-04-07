@@ -178,22 +178,22 @@ type PKIIssueRoleConfig struct {
 	Name                         string   `hcl:"name,optional"`
 	TTL                          string   `hcl:"ttl,optional"`
 	MaxTTL                       string   `hcl:"max_ttl,optional"`
-	AllowLocalhost               bool     `hcl:"allow_localhost,optional"`
+	AllowLocalhost               *bool    `hcl:"allow_localhost,optional"`
 	AllowedDomains               []string `hcl:"allowed_domains,optional"`
 	AllowedDomainsTemplate       bool     `hcl:"allowed_domain_template,optional"`
 	AllowBareDomains             bool     `hcl:"allow_bare_domains,optional"`
 	AllowSubdomains              bool     `hcl:"allow_subdomains,optional"`
 	AllowGlobDomains             bool     `hcl:"allow_glob_domains,optional"`
-	AllowWildcardCertificates    bool     `hcl:"allow_wildcard_certificates,optional"`
+	AllowWildcardCertificates    *bool    `hcl:"allow_wildcard_certificates,optional"`
 	AllowAnyName                 bool     `hcl:"allow_any_name,optional"`
-	EnforceHostnames             bool     `hcl:"enforce_hostnames,optional"`
-	AllowIPSANS                  bool     `hcl:"allow_ip_sans,optional"`
+	EnforceHostnames             *bool    `hcl:"enforce_hostnames,optional"`
+	AllowIPSANS                  *bool    `hcl:"allow_ip_sans,optional"`
 	AllowedURISANS               string   `hcl:"allowed_uri_sans,optional"`
 	AllowedURISANSTemplate       bool     `hcl:"allowed_uri_sans_template,optional"`
 	AllowedOtherSANS             string   `hcl:"allowed_other_sans,optional"`
 	AllowedSerialNumbers         string   `hcl:"allowed_serial_numbers,optional"`
-	ServerFlag                   bool     `hcl:"server_flag,optional"`
-	ClientFlag                   bool     `hcl:"client_flag,optional"`
+	ServerFlag                   *bool    `hcl:"server_flag,optional"`
+	ClientFlag                   *bool    `hcl:"client_flag,optional"`
 	CodeSigningFlag              bool     `hcl:"code_signing_flag,optional"`
 	EmailProtectionFlag          bool     `hcl:"email_protection_flag,optional"`
 	KeyType                      string   `hcl:"key_type,optional"`
@@ -203,8 +203,8 @@ type PKIIssueRoleConfig struct {
 	KeyUsage                     []string `hcl:"key_usage,optional"`
 	ExtKeyUsage                  []string `hcl:"ext_key_usage,optional"`
 	ExtKeyUsageOIDS              string   `hcl:"ext_key_usage_oids,optional"`
-	UseCSRCommonName             bool     `hcl:"use_csr_common_name,optional"`
-	UseCSRSANS                   bool     `hcl:"use_csr_sans,optional"`
+	UseCSRCommonName             *bool    `hcl:"use_csr_common_name,optional"`
+	UseCSRSANS                   *bool    `hcl:"use_csr_sans,optional"`
 	OU                           string   `hcl:"ou,optional"`
 	Organization                 string   `hcl:"organization,optional"`
 	Country                      string   `hcl:"countrty,optional"`
@@ -214,7 +214,7 @@ type PKIIssueRoleConfig struct {
 	PostalCode                   string   `hcl:"postal_code,optional"`
 	GenerateLease                bool     `hcl:"generate_lease,optional"`
 	NoStore                      bool     `hcl:"no_store,optional"`
-	RequireCN                    bool     `hcl:"require_cn,optional"`
+	RequireCN                    *bool    `hcl:"require_cn,optional"`
 	PolicyIdentifiers            []string `hcl:"policy_identifiers,optional"`
 	BasicConstrainsValidForNonCA bool     `hcl:"basic_constraints_valid_for_non_ca,optional"`
 	NotBeforeDuration            string   `hcl:"not_before_duration,optional"`
@@ -241,9 +241,7 @@ func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
 			RoleConfig: &PKIIssueRoleConfig{
 				Name:            "benchmark-issue",
 				AllowSubdomains: true,
-				AllowLocalhost:  true,
 				AllowAnyName:    true,
-				AllowIPSANS:     true,
 				TTL:             "5m",
 			},
 			IssueConfig: &PKIIssueCertConfig{
