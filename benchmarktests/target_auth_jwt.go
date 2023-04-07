@@ -146,11 +146,10 @@ func (j *JWTAuth) Cleanup(client *api.Client) error {
 }
 
 func (j *JWTAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     JWTAuthTestMethod,
 		pathPrefix: j.pathPrefix,
 	}
-	return tInfo
 }
 
 func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
