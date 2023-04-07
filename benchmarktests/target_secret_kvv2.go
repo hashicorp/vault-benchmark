@@ -147,6 +147,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		},
 	}
 
+	// TODO: Find more deterministic way of avoiding this
 	// Avoid error of the form:
 	// * Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
 	time.Sleep(2 * time.Second)
