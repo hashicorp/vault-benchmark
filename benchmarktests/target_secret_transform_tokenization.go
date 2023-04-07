@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
@@ -98,15 +97,15 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 	t.config = &TransformTestConfig{
 		Config: &TransformTokenizationTestConfig{
 			RoleConfig: &TransformRoleConfig{
-				Name:            "test",
-				Transformations: []string{"testtransformation"},
+				Name:            "benchmark-role",
+				Transformations: []string{"benchmarktransformation"},
 			},
 			TokenizationConfig: &TransformTokenizationConfig{
-				Name:         "testtransformation",
-				AllowedRoles: []string{"test"},
+				Name:         "benchmarktransformation",
+				AllowedRoles: []string{"benchmark-role"},
 			},
 			InputConfig: &TransformInputConfig{
-				Transformation: "testtransformation",
+				Transformation: "benchmarktransformation",
 				Value:          "123456789",
 			},
 		},
@@ -162,8 +161,6 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	if err != nil {
 		return nil, fmt.Errorf("error enabling transform secrets engine: %v", err)
 	}
-
-	time.Sleep(1 * time.Second)
 
 	// Create Store config if provided
 	if config.StoreConfig != nil {
