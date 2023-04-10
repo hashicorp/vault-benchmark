@@ -127,11 +127,10 @@ func (s *CassandraSecret) Cleanup(client *api.Client) error {
 }
 
 func (s *CassandraSecret) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     CassandraSecretTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
-	return tInfo
 }
 
 func (s *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
