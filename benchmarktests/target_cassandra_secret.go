@@ -27,7 +27,7 @@ func init() {
 	TestList[CassandraSecretTestType] = func() BenchmarkBuilder { return &CassandraSecret{} }
 }
 
-// Postgres Secret Test Struct
+// Cassandra Secret Test Struct
 type CassandraSecret struct {
 	pathPrefix string
 	roleName   string
