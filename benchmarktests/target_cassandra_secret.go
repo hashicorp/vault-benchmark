@@ -174,7 +174,7 @@ func (s *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 	// Decode Role Config struct into mapstructure to pass with request
 	roleData, err := structToMap(config.CassandraRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding postgres DB Role config from struct: %v", err)
+		return nil, fmt.Errorf("error decoding cassandra DB Role config from struct: %v", err)
 	}
 
 	// Set Up Role
