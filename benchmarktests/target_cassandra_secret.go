@@ -163,9 +163,6 @@ func (s *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 	// Set up db
 	dbPath := filepath.Join(secretPath, "config", config.CassandraDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
-
-	fmt.Printf("dbData %+v\n", dbData)
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating cassandra db %q: %v", config.CassandraRoleConfig.Name, err)
 	}
