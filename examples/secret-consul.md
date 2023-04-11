@@ -14,7 +14,7 @@ This benchmark will test the dynamic generation of Consul credentials.
 ### Role Config
 
 - `name` _(string: "benchmark-role")_: Specifies the name of an existing role against which to create this Consul credential. This is part of the request URL.
-- `token_type` _(string: "client") - Specifies the type of token to create when using this role. Valid values are "client" or "management". If a "management" token, the policy parameter is not required. Defaults to "client".
+- `token_type` _(string: "client")_: Specifies the type of token to create when using this role. Valid values are "client" or "management". If a "management" token, the policy parameter is not required. Defaults to "client".
 - `local` _(bool: false)_: Indicates that the token should not be replicated globally and instead be local to the current datacenter. Only available in Consul 1.4 and greater.
 
 ## Example Configuration
