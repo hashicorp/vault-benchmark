@@ -157,7 +157,7 @@ type PKIIssueIntCAConfig struct {
 	PermittedDNSDomains string `hcl:"permitted_dns_domains,optional"`
 	OU                  string `hcl:"ou,optional"`
 	Organization        string `hcl:"organization,optional"`
-	Country             string `hcl:"countrty,optional"`
+	Country             string `hcl:"country,optional"`
 	Locality            string `hcl:"locality,optional"`
 	Province            string `hcl:"province,optional"`
 	StreetAddress       string `hcl:"street_address,optional"`
