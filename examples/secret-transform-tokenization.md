@@ -109,7 +109,7 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
   may be skipped and will be inferred. If multiple transformations exist, one
   must be specified.
 
-- `ttl` `(duration "0") -
+- `ttl` `(duration "0")` -
   Specifies the TTL of the resulting token. Only applicable for tokenization
   transformations.
 
