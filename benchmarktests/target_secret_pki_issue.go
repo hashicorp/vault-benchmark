@@ -93,7 +93,7 @@ type PKIIssueRootConfig struct {
 	PermittedDNSDomains string `hcl:"permitted_dns_domains,optional"`
 	OU                  string `hcl:"ou,optional"`
 	Organization        string `hcl:"organization,optional"`
-	Country             string `hcl:"countrty,optional"`
+	Country             string `hcl:"country,optional"`
 	Locality            string `hcl:"locality,optional"`
 	Province            string `hcl:"province,optional"`
 	StreetAddress       string `hcl:"street_address,optional"`
@@ -127,7 +127,7 @@ type PKIIssueIntCSRConfig struct {
 	ExcludeCNFromSANS   bool   `hcl:"exclude_cn_from_sans,optional"`
 	OU                  string `hcl:"ou,optional"`
 	Organization        string `hcl:"organization,optional"`
-	Country             string `hcl:"countrty,optional"`
+	Country             string `hcl:"country,optional"`
 	Locality            string `hcl:"locality,optional"`
 	Province            string `hcl:"province,optional"`
 	StreetAddress       string `hcl:"street_address,optional"`
@@ -157,7 +157,7 @@ type PKIIssueIntCAConfig struct {
 	PermittedDNSDomains string `hcl:"permitted_dns_domains,optional"`
 	OU                  string `hcl:"ou,optional"`
 	Organization        string `hcl:"organization,optional"`
-	Country             string `hcl:"countrty,optional"`
+	Country             string `hcl:"country,optional"`
 	Locality            string `hcl:"locality,optional"`
 	Province            string `hcl:"province,optional"`
 	StreetAddress       string `hcl:"street_address,optional"`
@@ -207,7 +207,7 @@ type PKIIssueRoleConfig struct {
 	UseCSRSANS                   *bool    `hcl:"use_csr_sans,optional"`
 	OU                           string   `hcl:"ou,optional"`
 	Organization                 string   `hcl:"organization,optional"`
-	Country                      string   `hcl:"countrty,optional"`
+	Country                      string   `hcl:"country,optional"`
 	Locality                     string   `hcl:"locality,optional"`
 	Province                     string   `hcl:"province,optional"`
 	StreetAddress                string   `hcl:"street_address,optional"`
