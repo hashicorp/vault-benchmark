@@ -127,7 +127,7 @@ type PKIIssueIntCSRConfig struct {
 	ExcludeCNFromSANS   bool   `hcl:"exclude_cn_from_sans,optional"`
 	OU                  string `hcl:"ou,optional"`
 	Organization        string `hcl:"organization,optional"`
-	Country             string `hcl:"countrty,optional"`
+	Country             string `hcl:"country,optional"`
 	Locality            string `hcl:"locality,optional"`
 	Province            string `hcl:"province,optional"`
 	StreetAddress       string `hcl:"street_address,optional"`
