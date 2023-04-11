@@ -303,13 +303,13 @@ func (p *PKIIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	// Create Root CA
 	err = p.createRootCA(client, secretPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating root CA: %v", err)
 	}
 
 	// Create and sign Intermediate CA
 	path, err := p.createIntermediateCA(client, secretPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating intermediate CA: %v", err)
 	}
 
 	// Decode Issue Config
@@ -345,7 +345,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 		},
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating root pki mount: %v", err)
 	}
 	p.rootpath = rootPath
 
@@ -354,7 +354,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	// Code: 404. Errors: * no handler for route "9679cb02-65a4-f625-2f27-68d51e46af46-root/root/generate/internal". route entry not found.
 	delay, err := time.ParseDuration(config.SetupDelay)
 	if err != nil {
-		return err
+		return fmt.Errorf("error parsing duration: %v", err)
 	}
 	time.Sleep(delay)
 
@@ -367,7 +367,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	// Setup Root CA
 	_, err = cli.Logical().Write(filepath.Join(rootPath, "root", "generate", config.RootCAConfig.Type), rootData)
 	if err != nil {
-		return err
+		return fmt.Errorf("error generating root CA: %v", err)
 	}
 
 	_, err = cli.Logical().Write(filepath.Join(rootPath, "config", "urls"), map[string]interface{}{
@@ -390,7 +390,7 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error mounting intermediate pki engine: %v", err)
 	}
 	p.intpath = intPath
 
@@ -399,7 +399,7 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 	// Code: 404. Errors: * no handler for route "9679cb02-65a4-f625-2f27-68d51e46af46-root/root/generate/internal". route entry not found.
 	delay, err := time.ParseDuration(config.SetupDelay)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error parsing duration: %v", err)
 	}
 	time.Sleep(delay)
 
@@ -412,7 +412,7 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 	// Create Intermediate CSR
 	resp, err := cli.Logical().Write(filepath.Join(intPath, "intermediate", "generate", config.IntermediateCSRConfig.Type), intCSRData)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error generating intermediate CA: %v", err)
 	}
 	config.IntermediateCAConfig.CSR = resp.Data["csr"].(string)
 
@@ -424,7 +424,7 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 
 	resp, err = cli.Logical().Write(filepath.Join(rootPath, "root", "sign-intermediate"), intSignData)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error signing intermediate cert: %v", err)
 	}
 
 	// Set Intermediate signed certificate
@@ -432,19 +432,19 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 		"certificate": strings.Join([]string{resp.Data["certificate"].(string), resp.Data["issuing_ca"].(string)}, "\n"),
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error setting intermediate signed cert: %v", err)
 	}
 
 	// Decode Role config to map to pass with request
 	roleData, err := structToMap(config.RoleConfig)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Create Role
 	_, err = cli.Logical().Write(filepath.Join(intPath, "roles", config.RoleConfig.Name), roleData)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error creating role: %v", err)
 	}
 
 	return filepath.Join(intPath, "issue", config.RoleConfig.Name), nil
