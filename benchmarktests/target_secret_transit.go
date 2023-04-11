@@ -177,7 +177,7 @@ func (t *TransitTest) Target(client *api.Client) vegeta.Target {
 
 func (t *TransitTest) Cleanup(client *api.Client) error {
 	parts := strings.Split(t.pathPrefix, "/")
-	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[3]))
+	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
 
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
