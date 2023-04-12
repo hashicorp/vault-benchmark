@@ -199,3 +199,17 @@ func generateHeader(client *api.Client) http.Header {
 		"X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")},
 	}
 }
+
+func IsFile(path string) (bool, error) {
+	// File Validity checking
+	f, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	if f.IsDir() {
+		return false, fmt.Errorf("location is a directory, not a file")
+	}
+
+	return true, nil
+}

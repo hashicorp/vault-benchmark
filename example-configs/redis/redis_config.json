@@ -1,9 +1,0 @@
-{
-    "host": "localhost",
-    "db_name": "redis",
-    "port": 6379,
-    "username": "vault-admin",
-    "password": "vault",
-    "allowed_roles": ["my-*-role"],
-    "tls": false
-  }

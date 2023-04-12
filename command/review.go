@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/vault-tools/benchmark-vault/benchmarktests"
+	"github.com/hashicorp/vault-benchmark/benchmarktests"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )

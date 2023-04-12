@@ -47,7 +47,7 @@ Starting benchmarks. Will run for 10s...
 Benchmark complete!
 Target: http://127.0.0.1:8200
 op              count  rate        throughput  mean         95th%        99th%        successRatio
-approle_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.667201ms  100.00%
+postgres_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.667201ms  100.00%
 ```
 
 ### HCL and JSON

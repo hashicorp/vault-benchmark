@@ -177,29 +177,6 @@ type TestSpecification struct {
 func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clientCAPem string) (*TargetMulti, error) {
 	var tm TargetMulti
 
-	if spec.PctKvv2Read > 0 || spec.PctKvv2Write > 0 {
-		kvv2, err := setupKvv2(client, spec.RandomMounts, spec.NumKVs, spec.KVSize)
-		if err != nil {
-			return nil, err
-		}
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv2 read",
-			method:     "GET",
-			pathPrefix: kvv2.pathPrefix,
-			percent:    spec.PctKvv2Read,
-			target:     kvv2.read,
-			cleanup:    kvv2.cleanup,
-		})
-		tm.fractions = append(tm.fractions, targetFraction{
-			name:       "kvv2 write",
-			method:     "POST",
-			pathPrefix: kvv2.pathPrefix,
-			percent:    spec.PctKvv2Write,
-			target:     kvv2.write,
-			cleanup:    kvv2.cleanup,
-		})
-	}
-
 	if spec.PctElasticSearchRead > 0 {
 		es, err := setupElasticSearch(client, spec.RandomMounts, &spec.ElasticSearchDBConfig, &spec.ElasticSearchRoleConfig)
 		if err != nil {
@@ -490,7 +467,6 @@ func BuildTargets(spec TestSpecification, client *api.Client, caPEM string, clie
 			cleanup:    redis.cleanup,
 		})
 	}
-
 	if spec.PctCouchbaseRead > 0 {
 		couchbase, err := setupCouchbase(client, spec.RandomMounts, &spec.CouchbaseConfig, &spec.CouchbaseRoleConfig, spec.Timeout)
 		if err != nil {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/hashicorp/vault-tools/benchmark-vault/command"
+	"github.com/hashicorp/vault-benchmark/command"
 )
 
 func init() {
