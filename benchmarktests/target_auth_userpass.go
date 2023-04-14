@@ -82,7 +82,6 @@ func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 
 func (u *UserpassAuth) Cleanup(client *api.Client) error {
 	u.logger.Trace("unmounting", "path", hclog.Fmt("%v", u.pathPrefix))
-
 	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -91,11 +90,10 @@ func (u *UserpassAuth) Cleanup(client *api.Client) error {
 }
 
 func (u *UserpassAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     UserpassAuthTestMethod,
 		pathPrefix: u.pathPrefix,
 	}
-	return tInfo
 }
 
 func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -110,7 +108,6 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 			log.Fatalf("can't create UUID")
 		}
 	}
-
 	u.logger = u.logger.Named(authPath)
 
 	// Create Userpass Auth Mount
@@ -129,9 +126,8 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
 	}
 
-	userPath := filepath.Join("auth", authPath, "users", config.Username)
-
 	u.logger.Trace("writing userpass config")
+	userPath := filepath.Join("auth", authPath, "users", config.Username)
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating userpass user %q: %v", config.Username, err)
@@ -142,6 +138,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		user:       config.Username,
 		password:   config.Password,
+		logger:     u.logger,
 	}, nil
 }
 

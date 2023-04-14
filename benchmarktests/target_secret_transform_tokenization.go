@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -33,6 +34,7 @@ type TransformTokenizationTest struct {
 	body       []byte
 	roleName   string
 	config     *TransformTestConfig
+	logger     hclog.Logger
 }
 
 type TransformTestConfig struct {
@@ -135,6 +137,7 @@ func (t *TransformTokenizationTest) GetTargetInfo() TargetInfo {
 }
 
 func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
+	t.logger.Trace("unmounting", "path", hclog.Fmt("%v", t.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -146,6 +149,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	var err error
 	secretPath := mountName
 	config := t.config.Config
+	t.logger = targetLogger.Named(TransformTokenizationTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -153,8 +157,10 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 			log.Fatalf("can't create UUID")
 		}
 	}
+	t.logger = t.logger.Named(secretPath)
 
 	// Create Transform mount
+	t.logger.Trace("mounting transform secrets engine at", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "transform",
 	})
@@ -164,13 +170,17 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 
 	// Create Store config if provided
 	if config.StoreConfig != nil {
+		t.logger.Trace("configuring store")
+
 		// Decode Store config struct to mapstructure to pass with request
+		t.logger.Trace("decoding store config data")
 		storeConfigData, err := structToMap(config.StoreConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding store config from struct: %v", err)
 		}
 
 		// Setup store
+		t.logger.Trace("writing store config", "store", hclog.Fmt("%v", config.StoreConfig.Name))
 		storePath := filepath.Join(secretPath, "stores", config.StoreConfig.Name)
 		_, err = client.Logical().Write(storePath, storeConfigData)
 		if err != nil {
@@ -178,13 +188,17 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 		}
 
 		if config.StoreSchemaConfig != nil {
+			t.logger.Trace("configuring store schema")
+
 			// Decode Store config struct to mapstructure to pass with request
+			t.logger.Trace("decoding store schema config data")
 			storeSchemaConfigData, err := structToMap(config.StoreSchemaConfig)
 			if err != nil {
 				return nil, fmt.Errorf("error decoding store schema config from struct: %v", err)
 			}
 
 			// Setup store
+			t.logger.Trace("writing schema for store", "store", hclog.Fmt("%v", config.StoreSchemaConfig.Name))
 			storeSchemaPath := filepath.Join(secretPath, "stores", config.StoreSchemaConfig.Name, "schema")
 			_, err = client.Logical().Write(storeSchemaPath, storeSchemaConfigData)
 			if err != nil {
@@ -194,12 +208,14 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	}
 
 	// Decode Role data
+	t.logger.Trace("decoding role config data")
 	roleConfigData, err := structToMap(config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Create Role
+	t.logger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
 	rolePath := filepath.Join(secretPath, "role", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfigData)
 	if err != nil {
@@ -207,12 +223,14 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	}
 
 	// Decode Tokenization Transformation data
+	t.logger.Trace("decoding tokenization config data")
 	tokenizationConfigData, err := structToMap(config.TokenizationConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding tokenization config from struct: %v", err)
 	}
 
 	// Create Transformation
+	t.logger.Trace("writing tokenization transformation", "name", hclog.Fmt("%v", config.TokenizationConfig.Name))
 	transformationPath := filepath.Join(secretPath, "transformations", "tokenization", config.TokenizationConfig.Name)
 	_, err = client.Logical().Write(transformationPath, tokenizationConfigData)
 	if err != nil {
@@ -220,6 +238,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	}
 
 	// Decode test data to be transformed
+	t.logger.Trace("decoding test transformation data")
 	testData, err := structToMap(config.InputConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding test input data from struct: %v", err)
@@ -235,6 +254,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 		header:     generateHeader(client),
 		body:       []byte(testDataString),
 		roleName:   config.RoleConfig.Name,
+		logger:     t.logger,
 	}, nil
 }
 

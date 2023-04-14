@@ -41,15 +41,15 @@ type RabbitMQTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type RabbitMQSecretTestConfig struct {
-	RabbitMQConfig     *RabbitMQConfig     `hcl:"rabbitmq_config,block"`
-	RabbitMQRoleConfig *RabbitMQRoleConfig `hcl:"role_config,block"`
+	RabbitMQConnectionConfig *RabbitMQConnectionConfig `hcl:"connection,block"`
+	RabbitMQRoleConfig       *RabbitMQRoleConfig       `hcl:"role,block"`
 }
 
-type RabbitMQConfig struct {
+type RabbitMQConnectionConfig struct {
 	ConnectionURI    string `hcl:"connection_uri"`
 	Username         string `hcl:"username"`
 	Password         string `hcl:"password"`
-	VerifyConnection bool   `hcl:"verify_connection,optional"`
+	VerifyConnection *bool  `hcl:"verify_connection,optional"`
 	PasswordPolicy   string `hcl:"password_policy,optional"`
 	UsernameTemplate string `hcl:"username_template,optional"`
 }
@@ -64,7 +64,7 @@ type RabbitMQRoleConfig struct {
 func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	r.config = &RabbitMQTestConfig{
 		Config: &RabbitMQSecretTestConfig{
-			RabbitMQConfig: &RabbitMQConfig{},
+			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{},
 			RabbitMQRoleConfig: &RabbitMQRoleConfig{
 				Name:   "benchmark-role",
 				Vhosts: "{\"/\":{\"write\": \".*\", \"read\": \".*\"}}",
@@ -89,7 +89,6 @@ func (r *RabbitMQTest) Target(client *api.Client) vegeta.Target {
 
 func (r *RabbitMQTest) Cleanup(client *api.Client) error {
 	r.logger.Trace("unmounting", "path", hclog.Fmt("%v", r.pathPrefix))
-
 	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -98,11 +97,10 @@ func (r *RabbitMQTest) Cleanup(client *api.Client) error {
 }
 
 func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     RabbitMQSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
-	return tInfo
 }
 
 func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -123,23 +121,22 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "rabbitmq",
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("error mounting db: %v", err)
+		return nil, fmt.Errorf("error mounting RabbitMQ secrets engine: %v", err)
 	}
 
-	// Decode DB Config
-	r.logger.Trace("parsing db config data")
-	dbConfigData, err := structToMap(config.RabbitMQConfig)
+	// Decode RabbitMQ Connection Config
+	r.logger.Trace("parsing connection config data")
+	connectionConfigData, err := structToMap(config.RabbitMQConnectionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding RabbitMQ config from struct: %v", err)
 	}
 
-	// Write DB config
-	r.logger.Trace("writing db config")
-	_, err = client.Logical().Write(secretPath+"/config/connection", dbConfigData)
+	// Write connection config
+	r.logger.Trace("writing connection config")
+	_, err = client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing db config: %v", err)
+		return nil, fmt.Errorf("error writing connection config: %v", err)
 	}
 
 	// Decode Role Config
@@ -150,16 +147,17 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Create Role
-	r.logger.Trace("writing role", "name", hclog.Fmt("%v", config.RabbitMQRoleConfig.Name))
+	r.logger.Trace("creating role", "name", hclog.Fmt("%v", config.RabbitMQRoleConfig.Name))
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
+		return nil, fmt.Errorf("error creating role: %v", err)
 	}
 
 	return &RabbitMQTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.RabbitMQRoleConfig.Name,
+		logger:     r.logger,
 	}, nil
 }
 

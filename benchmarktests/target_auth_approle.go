@@ -117,11 +117,10 @@ func (a *ApproleAuth) Cleanup(client *api.Client) error {
 }
 
 func (a *ApproleAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     ApproleAuthTestMethod,
 		pathPrefix: a.pathPrefix,
 	}
-	return tInfo
 }
 
 func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {

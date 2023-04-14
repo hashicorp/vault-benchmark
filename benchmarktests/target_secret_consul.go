@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -33,7 +32,6 @@ type ConsulTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	timeout    time.Duration
 	config     *ConsulTestConfig
 	logger     hclog.Logger
 }
@@ -111,10 +109,8 @@ func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *ConsulTest) Cleanup(client *api.Client) error {
-	client.SetClientTimeout(c.timeout)
-
+	c.logger.Trace("unmounting", "path", hclog.Fmt("%v", c.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -122,11 +118,10 @@ func (c *ConsulTest) Cleanup(client *api.Client) error {
 }
 
 func (c *ConsulTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     ConsulSecretTestMethod,
 		pathPrefix: c.pathPrefix,
 	}
-	return tInfo
 }
 
 func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -147,7 +142,6 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "consul",
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error mounting consul: %v", err)
 	}
@@ -200,7 +194,7 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.ConsulRoleConfig.Name,
-		timeout:    c.timeout,
+		logger:     c.logger,
 	}, nil
 }
 

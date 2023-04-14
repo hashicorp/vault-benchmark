@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -33,6 +34,7 @@ type MongoDBTest struct {
 	header     http.Header
 	roleName   string
 	config     *MongoDBTestConfig
+	logger     hclog.Logger
 }
 
 type MongoDBTestConfig struct {
@@ -113,8 +115,8 @@ func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *MongoDBTest) Cleanup(client *api.Client) error {
+	m.logger.Trace("unmounting", "path", hclog.Fmt("%v", m.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -122,17 +124,17 @@ func (m *MongoDBTest) Cleanup(client *api.Client) error {
 }
 
 func (m *MongoDBTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     MongoDBSecretTestMethod,
 		pathPrefix: m.pathPrefix,
 	}
-	return tInfo
 }
 
 func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := m.config.Config
+	m.logger = targetLogger.Named(MongoDBSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -140,34 +142,39 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 			log.Fatalf("can't create UUID")
 		}
 	}
+	m.logger = m.logger.Named(secretPath)
 
+	m.logger.Trace("mounting database secrets engine at", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error mounting db: %v", err)
 	}
 
 	// Decode DB Config
+	m.logger.Trace("parsing db config data")
 	dbConfigData, err := structToMap(config.MongoDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding MongoDB config from struct: %v", err)
 	}
 
 	// Write DB config
+	m.logger.Trace("writing db config", "name", hclog.Fmt("%v", config.MongoDBConfig.Name))
 	_, err = client.Logical().Write(secretPath+"/config/"+config.MongoDBConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
 
 	// Decode Role Config
+	m.logger.Trace("parsing role config data")
 	roleConfigData, err := structToMap(config.MongoDBRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding MongoDB Role config from struct: %v", err)
 	}
 
 	// Create Role
+	m.logger.Trace("writing role", "name", hclog.Fmt("%v", config.MongoDBRoleConfig.Name))
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.MongoDBRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db role: %v", err)
@@ -177,6 +184,7 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.MongoDBRoleConfig.Name,
+		logger:     m.logger,
 	}, nil
 }
 

@@ -105,16 +105,14 @@ func (k *KVV1Test) GetTargetInfo() TargetInfo {
 	default:
 		method = KVV1ReadTestMethod
 	}
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     method,
 		pathPrefix: k.pathPrefix,
 	}
-	return tInfo
 }
 
 func (k *KVV1Test) Cleanup(client *api.Client) error {
 	k.logger.Trace("unmounting", "path", hclog.Fmt("%v", k.pathPrefix))
-
 	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -150,9 +148,11 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 			"foo": 1,
 		},
 	}
+
 	if setupIndex != "" {
 		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
 	}
+
 	var lastIndex string
 	k.logger.Trace("seeding secrets")
 	for i := 1; i <= config.NumKVs; i++ {
@@ -175,6 +175,7 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 		header:     headers,
 		numKVs:     k.config.Config.NumKVs,
 		kvSize:     k.config.Config.KVSize,
+		logger:     k.logger,
 	}, nil
 }
 

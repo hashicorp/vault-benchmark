@@ -54,7 +54,7 @@ type PostgreSQLSecretTestConfig struct {
 // PostgreSQL DB Config
 type PostgreSQLDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
-	VerifyConnection       bool     `hcl:"verify_connection,optional"`
+	VerifyConnection       *bool    `hcl:"verify_connection,optional"`
 	AllowedRoles           []string `hcl:"allowed_roles,optional"`
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 	PasswordPolicy         string   `hcl:"password_policy,optional"`
@@ -134,11 +134,10 @@ func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
 }
 
 func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     PostgreSQLSecretTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
-	return tInfo
 }
 
 func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -160,9 +159,8 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("error enabling postgresql secrets engine: %v", err)
+		return nil, fmt.Errorf("error enabling db secrets engine: %v", err)
 	}
 
 	// Decode DB Config struct into mapstructure to pass with request
@@ -176,7 +174,6 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	s.logger.Trace("writing postgres db config data")
 	dbPath := filepath.Join(secretPath, "config", config.PostgreSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating postgresql db %q: %v", config.PostgreSQLRoleConfig.Name, err)
 	}

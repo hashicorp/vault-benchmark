@@ -150,6 +150,7 @@ func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (l *LDAPAuth) Cleanup(client *api.Client) error {
+	l.logger.Trace("unmounting", "path", hclog.Fmt("%v", l.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -158,11 +159,10 @@ func (l *LDAPAuth) Cleanup(client *api.Client) error {
 }
 
 func (l *LDAPAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     LDAPAuthTestMethod,
 		pathPrefix: l.pathPrefix,
 	}
-	return tInfo
 }
 
 func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -177,7 +177,6 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 			log.Fatalf("can't create UUID")
 		}
 	}
-
 	l.logger = l.logger.Named(authPath)
 
 	// Create LDAP Auth mount
@@ -208,6 +207,7 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   config.LDAPTestUserConfig.Username,
 		authPass:   config.LDAPTestUserConfig.Password,
+		logger:     l.logger,
 	}, nil
 }
 

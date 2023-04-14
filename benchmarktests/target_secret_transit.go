@@ -2,6 +2,7 @@ package benchmarktests
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -38,6 +40,7 @@ type TransitTest struct {
 	body       []byte
 	header     http.Header
 	config     *TransitTestConfig
+	logger     hclog.Logger
 }
 
 type TransitTestConfig struct {
@@ -177,8 +180,8 @@ func (t *TransitTest) Target(client *api.Client) vegeta.Target {
 
 func (t *TransitTest) Cleanup(client *api.Client) error {
 	parts := strings.Split(t.pathPrefix, "/")
+	t.logger.Trace("unmounting", "path", hclog.Fmt("%v", parts[2]))
 	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -195,6 +198,16 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 	var err error
 	secretPath := mountName
 	config := t.config.Config
+	switch t.action {
+	case "sign":
+		t.logger = targetLogger.Named(TransitSignSecretTestType)
+	case "verify":
+		t.logger = targetLogger.Named(TransitVerifySecretTestType)
+	case "encrypt":
+		t.logger = targetLogger.Named(TransitEncryptSecretTestType)
+	case "decrypt":
+		t.logger = targetLogger.Named(TransitDecryptSecretTestType)
+	}
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -202,7 +215,9 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 			log.Fatalf("can't create UUID")
 		}
 	}
+	t.logger = t.logger.Named(secretPath)
 
+	t.logger.Trace("mounting transit secrets engine at", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "transit",
 		Config: api.MountConfigInput{
@@ -214,17 +229,20 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// Generate Keys for testing
+	t.logger.Trace("decoding Transit keys config data")
 	keysConfigData, err := structToMap(config.TransitConfigKeys)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Transit Keys config from struct: %v", err)
+		return nil, fmt.Errorf("error decoding Transit keys config from struct: %v", err)
 	}
 
+	t.logger.Trace("generating test keys", "name", hclog.Fmt("%v", config.TransitConfigKeys.Name))
 	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", config.TransitConfigKeys.Name), keysConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Transit Keys config: %v", err)
 	}
 
 	// Generate our payload and context
+	t.logger.Trace("generating test payload and context")
 	rawPayload, err := uuid.GenerateRandomBytes(config.PayloadLen)
 	if err != nil {
 		return nil, fmt.Errorf("error generating random payload: %v", err)
@@ -240,80 +258,129 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 	// Now dispatch the operation.
 	switch t.action {
 	case "sign":
-		signConfig := config.TransitConfigSign
-		secretPath = filepath.Join(secretPath, "sign", signConfig.Name)
+		secretPath = filepath.Join(secretPath, "sign", config.TransitConfigSign.Name)
+		t.logger.Trace("decoding sign config data")
+		signConfigData, err := structToMap(config.TransitConfigSign)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding sign config from struct: %v", err)
+		}
+
+		signingDataString, err := json.Marshal(signConfigData)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling signing config data: %v", err)
+		}
+
 		return &TransitTest{
 			pathPrefix: "/v1/" + secretPath,
 			header:     generateHeader(client),
-			body:       []byte(fmt.Sprintf(`{"hash_algorithm":"%s","input":"%s","signature_algorithm":"%s","marshaling_algorithm":"%s"}`, signConfig.HashAlgorithm, base64Payload, signConfig.SignatureAlgorithm, signConfig.MarshalingAlgorithm)),
+			body:       []byte(signingDataString),
+			logger:     t.logger,
 		}, nil
 
 	case "verify":
-		verifyConfig := config.TransitConfigVerify
-		verifyData, err := structToMap(verifyConfig)
+		t.logger.Trace("decoding transit verify config data")
+		signData, err := structToMap(config.TransitConfigVerify)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding Transit Keys config from struct: %v", err)
+			return nil, fmt.Errorf("error decoding transit verify config from struct: %v", err)
 		}
-		verifyPath := filepath.Join(secretPath, "verify", verifyConfig.Name)
+		verifyPath := filepath.Join(secretPath, "verify", config.TransitConfigVerify.Name)
 
 		// Sign the payload first
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", verifyConfig.Name), verifyData)
-
+		t.logger.Trace("signing payload")
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", config.TransitConfigVerify.Name), signData)
 		if err != nil {
 			return nil, fmt.Errorf("error signing data: %v", err)
 		}
+
 		if resp == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign data: no response or invalid signature: %v", resp)
+		}
+		config.TransitConfigVerify.Input = resp.Data["signature"].(string)
+
+		t.logger.Trace("decoding transit verify config data")
+		verifyData, err := structToMap(config.TransitConfigVerify)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding transit verify config from struct: %v", err)
+		}
+
+		verifyDataString, err := json.Marshal(verifyData)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling transit verify data: %v", err)
 		}
 
 		return &TransitTest{
 			pathPrefix: "/v1/" + verifyPath,
 			header:     generateHeader(client),
-			body:       []byte(fmt.Sprintf(`{"hash_algorithm":"%s","input":"%s","signature":"%s","signature_algorithm":"%s","marshaling_algorithm":"%s"}`, verifyConfig.HashAlgorithm, base64Payload, resp.Data["signature"], verifyConfig.SignatureAlgorithm, verifyConfig.MarshalingAlgorithm)),
+			body:       []byte(verifyDataString),
+			logger:     t.logger,
 		}, nil
-	case "encrypt":
-		contextStr := ""
 
+	case "encrypt":
 		if config.TransitConfigKeys.Derived {
-			contextStr = fmt.Sprintf(`,"context":"%s"`, base64Context)
+			config.TransitConfigEncrypt.Context = base64Context
 		}
 
-		encryptConfig := config.TransitConfigEncrypt
-		encryptPath := filepath.Join(secretPath, "encrypt", encryptConfig.Name)
+		t.logger.Trace("decoding transit encrypt config data")
+		encryptData, err := structToMap(config.TransitConfigEncrypt)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding transit encrypt config from struct: %v", err)
+		}
 
+		encryptDataString, err := json.Marshal(encryptData)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling transit encrypt data: %v", err)
+		}
+
+		encryptPath := filepath.Join(secretPath, "encrypt", config.TransitConfigEncrypt.Name)
 		return &TransitTest{
 			pathPrefix: "/v1/" + encryptPath,
 			header:     generateHeader(client),
-			body:       []byte(fmt.Sprintf(`{"plaintext":"%s"%s}`, base64Payload, contextStr)),
+			body:       []byte(encryptDataString),
+			logger:     t.logger,
 		}, nil
+
 	case "decrypt":
+		// Encrypt test payload
 		data := map[string]interface{}{
 			"plaintext": base64Payload,
 		}
-		contextStr := ""
-		if config.TransitConfigKeys.Derived {
-			data["context"] = base64Context
-			contextStr = fmt.Sprintf(`,"context":"%s"`, base64Context)
-		}
 
-		// Encrypt the payload first
-		decryptConfig := config.TransitConfigDecrypt
-		decryptPath := filepath.Join(secretPath, "decrypt", decryptConfig.Name)
-
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", decryptConfig.Name), data)
+		t.logger.Trace("encrypting test payload")
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", config.TransitConfigDecrypt.Name), data)
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting data: %v", err)
 		}
+
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt data: no response or invalid ciphertext: %v", resp)
+		}
+
+		// Prepare for decryption
+		if config.TransitConfigKeys.Derived {
+			config.TransitConfigDecrypt.Context = base64Context
+		}
+
+		decryptPath := filepath.Join(secretPath, "decrypt", config.TransitConfigDecrypt.Name)
+
+		t.logger.Trace("decoding transit decrypt config data")
+		decryptData, err := structToMap(config.TransitConfigDecrypt)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding transit decrypt config: %v", err)
+		}
+
+		decryptDataString, err := json.Marshal(decryptData)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling transit decrypt data: %v", err)
 		}
 
 		// Now decrypt it
 		return &TransitTest{
 			pathPrefix: "/v1/" + decryptPath,
 			header:     generateHeader(client),
-			body:       []byte(fmt.Sprintf(`{"ciphertext":"%s"%s}`, resp.Data["ciphertext"], contextStr)),
+			body:       []byte(decryptDataString),
+			logger:     t.logger,
 		}, nil
+
 	default:
 		return nil, fmt.Errorf("unknown or unsupported transit operation: %v", t.action)
 	}

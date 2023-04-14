@@ -76,7 +76,9 @@ type CertAuthRoleConfig struct {
 
 func (c *CertAuth) ParseConfig(body hcl.Body) error {
 	c.config = &CertAuthTestConfig{
-		Config: &CertAuthRoleConfig{},
+		Config: &CertAuthRoleConfig{
+			Name: "benchmark-vault",
+		},
 	}
 
 	diags := gohcl.DecodeBody(body, nil, c.config)
@@ -95,11 +97,10 @@ func (c *CertAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *CertAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     CertAuthTestMethod,
 		pathPrefix: c.pathPrefix,
 	}
-	return tInfo
 }
 
 func (c *CertAuth) SetCert(cert *tls.Certificate) {

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -41,6 +42,7 @@ type JWTAuth struct {
 	header     http.Header
 	token      string
 	config     *JWTTestConfig
+	logger     hclog.Logger
 }
 
 // Main Config Struct
@@ -138,6 +140,7 @@ func (j *JWTAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (j *JWTAuth) Cleanup(client *api.Client) error {
+	j.logger.Trace("unmounting", "path", hclog.Fmt("%v", j.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(j.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -156,6 +159,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	var err error
 	authPath := mountName
 	config := j.config.Config
+	j.logger = targetLogger.Named(JWTAuthTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -163,8 +167,10 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 			log.Fatalf("can't create UUID")
 		}
 	}
+	j.logger = j.logger.Named(authPath)
 
 	// Create JWT Auth mount
+	j.logger.Trace("mounting jwt auth method at path", "path", hclog.Fmt("%v", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "jwt",
 	})
@@ -172,12 +178,14 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error enabling jwt: %v", err)
 	}
 
+	j.logger.Trace("generating ecdsa keys")
 	privKey, pubKey, err := generateECDSAKeys()
 	if err != nil {
 		panic(err)
 	}
 
 	// Decode JWTRoleConfig struct into mapstructure to pass with request
+	j.logger.Trace("parsing role config data")
 	jwtRoleConfig, err := structToMap(config.JWTRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding jwt auth config from struct: %v", err)
@@ -185,27 +193,32 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 
 	// Default `jwt_validation_pubkeys` if neither `jwt_validation_pubkeys`, `jwks_url` nor `oidc_discovery_url` are set
 	if config.JWTAuthConfig.JWTValidationPubKeys == nil && config.JWTAuthConfig.JWKSUrl == "" && config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
+		j.logger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
 		config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
 	// Decode JWTAuthConfig struct into mapstructure to pass with request
+	j.logger.Trace("parsing auth config data")
 	jwtAuthConfig, err := structToMap(config.JWTAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding jwt auth config from struct: %v", err)
 	}
 
 	// Write JWT config
+	j.logger.Trace("writing auth config")
 	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing JWT config: %v", err)
 	}
 
 	// Write JWT role
+	j.logger.Trace("writing role", "name", hclog.Fmt("%v", config.JWTRoleConfig.Name))
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing JWT role: %v", err)
 	}
 
+	j.logger.Trace("generating test jwt")
 	jwtData, _ := j.getTestJWT(privKey)
 
 	return &JWTAuth{
@@ -213,6 +226,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		role:       config.JWTRoleConfig.Name,
 		token:      jwtData,
+		logger:     j.logger,
 	}, nil
 }
 

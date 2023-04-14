@@ -191,8 +191,8 @@ func (r *RunCommand) Flags() *FlagSets {
 		Name:    "log_level",
 		Target:  &r.flagLogLevel,
 		Default: "INFO",
-		//EnvVar:  "VAULT_BENCHMARK_LOG_LEVEL",
-		Usage: "Level to emit logs. Options are: INFO, WARN, DEBUG, TRACE.",
+		EnvVar:  "VAULT_BENCHMARK_LOG_LEVEL",
+		Usage:   "Level to emit logs. Options are: INFO, WARN, DEBUG, TRACE.",
 	})
 
 	f.BoolVar(&BoolVar{
