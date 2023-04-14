@@ -295,7 +295,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		if resp == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign data: no response or invalid signature: %v", resp)
 		}
-		config.TransitConfigVerify.Input = resp.Data["signature"].(string)
+		config.TransitConfigVerify.Signature = resp.Data["signature"].(string)
 
 		t.logger.Trace("decoding transit verify config data")
 		verifyData, err := structToMap(config.TransitConfigVerify)
@@ -319,6 +319,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		if config.TransitConfigKeys.Derived {
 			config.TransitConfigEncrypt.Context = base64Context
 		}
+		config.TransitConfigEncrypt.Plaintext = base64Payload
 
 		t.logger.Trace("decoding transit encrypt config data")
 		encryptData, err := structToMap(config.TransitConfigEncrypt)
@@ -341,12 +342,17 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	case "decrypt":
 		// Encrypt test payload
-		data := map[string]interface{}{
+		testEncryptData := map[string]interface{}{
 			"plaintext": base64Payload,
 		}
 
+		if config.TransitConfigKeys.Derived {
+			config.TransitConfigDecrypt.Context = base64Context
+			testEncryptData["context"] = base64Context
+		}
+
 		t.logger.Trace("encrypting test payload")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", config.TransitConfigDecrypt.Name), data)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", config.TransitConfigDecrypt.Name), testEncryptData)
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting data: %v", err)
 		}
@@ -355,11 +361,9 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 			return nil, fmt.Errorf("unable to encrypt data: no response or invalid ciphertext: %v", resp)
 		}
 
-		// Prepare for decryption
-		if config.TransitConfigKeys.Derived {
-			config.TransitConfigDecrypt.Context = base64Context
-		}
+		config.TransitConfigDecrypt.Ciphertext = resp.Data["ciphertext"].(string)
 
+		// Prepare for decryption
 		decryptPath := filepath.Join(secretPath, "decrypt", config.TransitConfigDecrypt.Name)
 
 		t.logger.Trace("decoding transit decrypt config data")
