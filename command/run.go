@@ -575,6 +575,7 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Name:    "log_level",
 		Target:  &r.flagLogLevel,
 		Default: "INFO",
+		EnvVar:  "VAULT_BENCHMARK_LOG_LEVEL",
 	})
 
 	config.LogLevel = r.flagLogLevel
