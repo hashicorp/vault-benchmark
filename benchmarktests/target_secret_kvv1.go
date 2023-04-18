@@ -132,7 +132,6 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 			log.Fatalf("can't create UUID")
 		}
 	}
-	k.logger = k.logger.Named(mountPath)
 
 	var setupIndex string
 	k.logger.Trace("mounting kvv1 secrets engine at path", "path", hclog.Fmt("%v", mountPath))
@@ -142,6 +141,8 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 	if err != nil {
 		return nil, fmt.Errorf("error mounting kvv1: %v", err)
 	}
+
+	setupLogger := k.logger.Named(mountPath)
 
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -154,7 +155,7 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	var lastIndex string
-	k.logger.Trace("seeding secrets")
+	setupLogger.Trace("seeding secrets")
 	for i := 1; i <= config.NumKVs; i++ {
 		if i == config.NumKVs-1 {
 			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))

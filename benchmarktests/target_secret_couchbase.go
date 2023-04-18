@@ -132,7 +132,6 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 			log.Fatalf("can't create UUID")
 		}
 	}
-	c.logger = c.logger.Named(secretPath)
 
 	// Create Database Secret Mount
 	c.logger.Trace("mounting database secrets engine at", "path", hclog.Fmt("%v", secretPath))
@@ -143,15 +142,17 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 		return nil, fmt.Errorf("error mounting db engine: %v", err)
 	}
 
+	setupLogger := c.logger.Named(secretPath)
+
 	// Decode DB Config struct into mapstructure to pass with request
-	c.logger.Trace("parsing db config data")
+	setupLogger.Trace("parsing db config data")
 	dbData, err := structToMap(config.DBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding db config from struct: %v", err)
 	}
 
 	// Write Config
-	c.logger.Trace("writing db config", "name", hclog.Fmt("%v", config.DBConfig.Name))
+	setupLogger.Trace("writing db config", "name", hclog.Fmt("%v", config.DBConfig.Name))
 	dbPath := filepath.Join(secretPath, "config", config.DBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
@@ -159,14 +160,14 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 	}
 
 	// Decode Role Config struct into mapstructure to pass with request
-	c.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	roleData, err := structToMap(config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Create Role
-	c.logger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
 	rolePath := filepath.Join(secretPath, "roles", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {

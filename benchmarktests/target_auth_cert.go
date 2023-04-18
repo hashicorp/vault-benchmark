@@ -120,11 +120,9 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 	}
 
-	c.logger = c.logger.Named(authPath)
-
 	if config.Certificate == "" {
 		// Create self-signed CA
-		c.logger.Trace("creating self-signed CA")
+		c.logger.Trace("no CA provided; creating self-signed CA")
 		benchCA, err := GenerateCA()
 		if err != nil {
 			log.Fatalf("error generating benchmark CA: %v", err)
@@ -172,15 +170,17 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		return nil, fmt.Errorf("error enabling cert auth: %v", err)
 	}
 
+	setupLogger := c.logger.Named(authPath)
+
 	// Decode config into map to pass with request
-	c.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	roleData, err := structToMap(config)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Set up role
-	c.logger.Trace("writing role", "name", hclog.Fmt("%v", config.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.Name))
 	rolePath := filepath.Join("auth", authPath, "certs", config.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {

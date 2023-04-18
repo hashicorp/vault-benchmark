@@ -108,7 +108,6 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 			log.Fatalf("can't create UUID")
 		}
 	}
-	u.logger = u.logger.Named(authPath)
 
 	// Create Userpass Auth Mount
 	u.logger.Trace("mounting userpass auth method at path", "path", hclog.Fmt("%v", authPath))
@@ -119,14 +118,16 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error enabling userpass auth: %v", err)
 	}
 
+	setupLogger := u.logger.Named(authPath)
+
 	// Decode Config struct into mapstructure to pass with request
-	u.logger.Trace("parsing userpass config data")
+	setupLogger.Trace("parsing userpass config data")
 	userData, err := structToMap(config)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
 	}
 
-	u.logger.Trace("writing userpass config")
+	setupLogger.Trace("writing userpass config")
 	userPath := filepath.Join("auth", authPath, "users", config.Username)
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {

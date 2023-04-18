@@ -167,7 +167,6 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 			log.Fatalf("can't create UUID")
 		}
 	}
-	j.logger = j.logger.Named(authPath)
 
 	// Create JWT Auth mount
 	j.logger.Trace("mounting jwt auth method at path", "path", hclog.Fmt("%v", authPath))
@@ -178,14 +177,16 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error enabling jwt: %v", err)
 	}
 
-	j.logger.Trace("generating ecdsa keys")
+	setupLogger := j.logger.Named(authPath)
+
+	setupLogger.Trace("generating ecdsa keys")
 	privKey, pubKey, err := generateECDSAKeys()
 	if err != nil {
 		panic(err)
 	}
 
 	// Decode JWTRoleConfig struct into mapstructure to pass with request
-	j.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	jwtRoleConfig, err := structToMap(config.JWTRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding jwt auth config from struct: %v", err)
@@ -193,32 +194,32 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 
 	// Default `jwt_validation_pubkeys` if neither `jwt_validation_pubkeys`, `jwks_url` nor `oidc_discovery_url` are set
 	if config.JWTAuthConfig.JWTValidationPubKeys == nil && config.JWTAuthConfig.JWKSUrl == "" && config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
-		j.logger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
+		setupLogger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
 		config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
 	// Decode JWTAuthConfig struct into mapstructure to pass with request
-	j.logger.Trace("parsing auth config data")
+	setupLogger.Trace("parsing auth config data")
 	jwtAuthConfig, err := structToMap(config.JWTAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding jwt auth config from struct: %v", err)
 	}
 
 	// Write JWT config
-	j.logger.Trace("writing auth config")
+	setupLogger.Trace("writing auth config")
 	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing JWT config: %v", err)
 	}
 
 	// Write JWT role
-	j.logger.Trace("writing role", "name", hclog.Fmt("%v", config.JWTRoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.JWTRoleConfig.Name))
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing JWT role: %v", err)
 	}
 
-	j.logger.Trace("generating test jwt")
+	setupLogger.Trace("generating test jwt")
 	jwtData, _ := j.getTestJWT(privKey)
 
 	return &JWTAuth{

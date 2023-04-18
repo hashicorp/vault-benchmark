@@ -146,7 +146,6 @@ func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 			log.Fatalf("can't create UUID")
 		}
 	}
-	c.logger = c.logger.Named(secretPath)
 
 	// Create Database Secret Mount
 	c.logger.Trace("mounting database secrets engine at", "path", hclog.Fmt("%v", secretPath))
@@ -157,15 +156,17 @@ func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 		return nil, fmt.Errorf("error enabling cassandra secrets engine: %v", err)
 	}
 
+	setupLogger := c.logger.Named(secretPath)
+
 	// Decode DB Config struct into mapstructure to pass with request
-	c.logger.Trace("parsing db config data")
+	setupLogger.Trace("parsing db config data")
 	dbData, err := structToMap(config.CassandraDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding db config from struct: %v", err)
 	}
 
 	// Set up db
-	c.logger.Trace("writing db config", "name", hclog.Fmt("%v", config.CassandraDBConfig.Name))
+	setupLogger.Trace("writing db config", "name", hclog.Fmt("%v", config.CassandraDBConfig.Name))
 	dbPath := filepath.Join(secretPath, "config", config.CassandraDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
@@ -173,14 +174,14 @@ func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 	}
 
 	// Decode Role Config struct into mapstructure to pass with request
-	c.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	roleData, err := structToMap(config.CassandraRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding cassandra DB Role config from struct: %v", err)
 	}
 
 	// Set Up Role
-	c.logger.Trace("writing role", "name", hclog.Fmt("%v", config.CassandraRoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.CassandraRoleConfig.Name))
 	rolePath := filepath.Join(secretPath, "roles", config.CassandraRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {

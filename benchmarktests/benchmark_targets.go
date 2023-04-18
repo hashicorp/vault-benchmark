@@ -116,10 +116,13 @@ func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
 }
 
 func (tm TargetMulti) DebugInfo(client *api.Client) {
+	debugInfoHeader := "\n=== Debug Info ===\n"
+	debugInfoHeader += fmt.Sprintf("Client: %s\n", client.Address())
+	debugInfoFooter := "==================\n"
 	for index, benchTarget := range tm.targets {
-		targetDebugInfo := fmt.Sprintf("\nTarget %d: %v\n", index, benchTarget.Name) +
-			fmt.Sprintf("\tMethod: %v\n", benchTarget.Method) +
-			fmt.Sprintf("\tPath Prefix: %v\n", benchTarget.PathPrefix)
+		targetDebugInfo := debugInfoHeader + fmt.Sprintf("Target %d: %v\n", index, benchTarget.Name) +
+			fmt.Sprintf("Method: %v\n", benchTarget.Method) +
+			fmt.Sprintf("Path Prefix: %v\n", benchTarget.PathPrefix)
 
 		target := benchTarget.Target(client)
 		req, err := target.Request()
@@ -127,7 +130,7 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 			targetLogger.Error(fmt.Sprintf("Got err building target: %v", err))
 			os.Exit(1)
 		}
-		targetLogger.Debug(targetDebugInfo + fmt.Sprintf("\tRequest: %v", req.URL.String()))
+		targetLogger.Debug(targetDebugInfo + fmt.Sprintf("Request: %v\n", req.URL.String()) + debugInfoFooter)
 
 		resp, err := client.CloneConfig().HttpClient.Do(req)
 		if err != nil {
@@ -139,8 +142,8 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 			targetLogger.Debug(fmt.Sprintf("Got err reading response body: %v", err))
 			os.Exit(1)
 		}
-		targetLogger.Debug(targetDebugInfo + fmt.Sprintf("\tResponse: %v\n", resp) +
-			fmt.Sprintf("\tResponse Body: %v", string(rawBody)))
+		targetLogger.Debug(targetDebugInfo + fmt.Sprintf("Response: %v\n", resp.Status) +
+			fmt.Sprintf("Response Body: %v", string(rawBody)) + debugInfoFooter)
 		if resp.StatusCode >= 400 {
 			targetLogger.Debug("Got error response from server on testing request; exiting")
 			os.Exit(1)
@@ -148,7 +151,7 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 	}
 }
 
-func BuildTargets(tests []*BenchmarkTarget, client *api.Client, logger hclog.Logger, string, clientCAPem string, randomMounts bool) (*TargetMulti, error) {
+func BuildTargets(tests []*BenchmarkTarget, client *api.Client, logger hclog.Logger, randomMounts bool) (*TargetMulti, error) {
 	var tm TargetMulti
 	var err error
 	targetLogger = logger

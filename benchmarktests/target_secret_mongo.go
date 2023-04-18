@@ -142,7 +142,6 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 			log.Fatalf("can't create UUID")
 		}
 	}
-	m.logger = m.logger.Named(secretPath)
 
 	m.logger.Trace("mounting database secrets engine at", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
@@ -152,29 +151,31 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 		return nil, fmt.Errorf("error mounting db: %v", err)
 	}
 
+	setupLogger := m.logger.Named(secretPath)
+
 	// Decode DB Config
-	m.logger.Trace("parsing db config data")
+	setupLogger.Trace("parsing db config data")
 	dbConfigData, err := structToMap(config.MongoDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding MongoDB config from struct: %v", err)
 	}
 
 	// Write DB config
-	m.logger.Trace("writing db config", "name", hclog.Fmt("%v", config.MongoDBConfig.Name))
+	setupLogger.Trace("writing db config", "name", hclog.Fmt("%v", config.MongoDBConfig.Name))
 	_, err = client.Logical().Write(secretPath+"/config/"+config.MongoDBConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
 
 	// Decode Role Config
-	m.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	roleConfigData, err := structToMap(config.MongoDBRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding MongoDB Role config from struct: %v", err)
 	}
 
 	// Create Role
-	m.logger.Trace("writing role", "name", hclog.Fmt("%v", config.MongoDBRoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.MongoDBRoleConfig.Name))
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.MongoDBRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db role: %v", err)

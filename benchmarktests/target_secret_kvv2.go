@@ -137,7 +137,6 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 			log.Fatalf("can't create UUID")
 		}
 	}
-	k.logger = k.logger.Named(mountPath)
 
 	k.logger.Trace("mounting kvv2 secrets engine at", "path", hclog.Fmt("%v", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
@@ -150,6 +149,8 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		return nil, fmt.Errorf("error mounting kvv2: %v", err)
 	}
 
+	setupLogger := k.logger.Named(mountPath)
+
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{
 			"foo": 1,
@@ -161,7 +162,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	// * Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
 	time.Sleep(2 * time.Second)
 
-	k.logger.Trace("seeding secrets")
+	setupLogger.Trace("seeding secrets")
 	for i := 1; i <= config.NumKVs; i++ {
 		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {

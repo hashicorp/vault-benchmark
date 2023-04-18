@@ -177,7 +177,6 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 			log.Fatalf("can't create UUID")
 		}
 	}
-	l.logger = l.logger.Named(authPath)
 
 	// Create LDAP Auth mount
 	l.logger.Trace("mounting ldap auth method at path", "path", hclog.Fmt("%v", authPath))
@@ -188,15 +187,17 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		return nil, fmt.Errorf("error enabling ldap: %v", err)
 	}
 
+	setupLogger := l.logger.Named(authPath)
+
 	// Decode LDAPConfig struct into mapstructure to pass with request
-	l.logger.Trace("parsing ldap mount config data")
+	setupLogger.Trace("parsing ldap mount config data")
 	ldapAuthConfig, err := structToMap(config.LDAPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ldap auth config from struct: %v", err)
 	}
 
 	// Write LDAP config
-	l.logger.Trace("writing mount config")
+	setupLogger.Trace("writing mount config")
 	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing LDAP config: %v", err)

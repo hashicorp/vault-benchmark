@@ -135,7 +135,6 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 			log.Fatalf("can't create UUID")
 		}
 	}
-	a.logger = a.logger.Named(authPath)
 
 	// Create AppRole Auth Mount
 	a.logger.Trace("mounting approle auth method at path", "path", hclog.Fmt("%v", authPath))
@@ -145,16 +144,17 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	if err != nil {
 		return nil, fmt.Errorf("error enabling approle auth: %v", err)
 	}
+	setupLogger := a.logger.Named(authPath)
 
 	// Decode RoleConfig struct into mapstructure to pass with request
-	a.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	roleData, err := structToMap(config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Set Up Role
-	a.logger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
 	rolePath := filepath.Join("auth", authPath, "role", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
@@ -162,21 +162,21 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// Get Role ID
-	a.logger.Trace("getting role-id")
+	setupLogger.Trace("getting role-id")
 	roleSecret, err := client.Logical().Read(rolePath + "/role-id")
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle role-id: %v", err)
 	}
 
 	// Decode SecretIDConfig struct into map to pass with request
-	a.logger.Trace("parsing secretID config data")
+	setupLogger.Trace("parsing secretID config data")
 	secretIDData, err := structToMap(config.SecretIDConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding secretID config from struct: %v", err)
 	}
 
 	// Get SecretID
-	a.logger.Trace("getting secret-id")
+	setupLogger.Trace("getting secret-id")
 	secretId, err := client.Logical().Write(rolePath+"/secret-id", secretIDData)
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle secret-id: %v", err)

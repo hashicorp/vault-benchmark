@@ -152,7 +152,6 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 			log.Fatalf("can't create UUID")
 		}
 	}
-	s.logger = s.logger.Named(secretPath)
 
 	// Create Database Secret Mount
 	s.logger.Trace("mounting db secrets engine at path", "path", hclog.Fmt("%v", secretPath))
@@ -163,15 +162,17 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 		return nil, fmt.Errorf("error enabling db secrets engine: %v", err)
 	}
 
+	setupLogger := s.logger.Named(secretPath)
+
 	// Decode DB Config struct into mapstructure to pass with request
-	s.logger.Trace("parsing postgres db config data")
+	setupLogger.Trace("parsing postgres db config data")
 	dbData, err := structToMap(config.PostgreSQLDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding db config from struct: %v", err)
 	}
 
 	// Set up db
-	s.logger.Trace("writing postgres db config data")
+	setupLogger.Trace("writing postgres db config data")
 	dbPath := filepath.Join(secretPath, "config", config.PostgreSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
@@ -179,14 +180,14 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	}
 
 	// Decode Role Config struct into mapstructure to pass with request
-	s.logger.Trace("parsing role config data")
+	setupLogger.Trace("parsing role config data")
 	roleData, err := structToMap(config.PostgreSQLRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding postgres DB Role config from struct: %v", err)
 	}
 
 	// Create Role
-	s.logger.Trace("writing role", "name", hclog.Fmt("%v", config.PostgreSQLRoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.PostgreSQLRoleConfig.Name))
 	rolePath := filepath.Join(secretPath, "roles", config.PostgreSQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {

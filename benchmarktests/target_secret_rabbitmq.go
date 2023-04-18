@@ -115,7 +115,6 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 			log.Fatalf("can't create UUID")
 		}
 	}
-	r.logger = r.logger.Named(secretPath)
 
 	r.logger.Trace("mounting rabbitmq secrets mount at path", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
@@ -125,29 +124,31 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error mounting RabbitMQ secrets engine: %v", err)
 	}
 
+	setupLogger := r.logger.Named(secretPath)
+
 	// Decode RabbitMQ Connection Config
-	r.logger.Trace("parsing connection config data")
+	setupLogger.Trace("parsing connection config data")
 	connectionConfigData, err := structToMap(config.RabbitMQConnectionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding RabbitMQ config from struct: %v", err)
 	}
 
 	// Write connection config
-	r.logger.Trace("writing connection config")
+	setupLogger.Trace("writing connection config")
 	_, err = client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing connection config: %v", err)
 	}
 
 	// Decode Role Config
-	r.logger.Trace("parsing role config")
+	setupLogger.Trace("parsing role config")
 	roleConfigData, err := structToMap(config.RabbitMQRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding RabbitMQ Role config from struct: %v", err)
 	}
 
 	// Create Role
-	r.logger.Trace("creating role", "name", hclog.Fmt("%v", config.RabbitMQRoleConfig.Name))
+	setupLogger.Trace("creating role", "name", hclog.Fmt("%v", config.RabbitMQRoleConfig.Name))
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating role: %v", err)

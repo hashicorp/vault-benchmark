@@ -170,7 +170,6 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 			log.Fatalf("can't create UUID")
 		}
 	}
-	s.logger = s.logger.Named(mountPath)
 
 	// Create SSH Secrets engine Mount
 	s.logger.Trace("mounting ssh secrets engine at", "path", hclog.Fmt("%v", mountPath))
@@ -181,15 +180,17 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 		return nil, fmt.Errorf("error mounting ssh secrets engine: %v", err)
 	}
 
+	setupLogger := s.logger.Named(mountPath)
+
 	// Decode CA Config into mapstructure to pass with request
-	s.logger.Trace("decoding ca config data")
+	setupLogger.Trace("decoding ca config data")
 	caConfig, err := structToMap(config.CAConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ca config from struct: %v", err)
 	}
 
 	// Write CA Config
-	s.logger.Trace("writing ca config")
+	setupLogger.Trace("writing ca config")
 	caPath := filepath.Join(mountPath, "config", "ca")
 	_, err = client.Logical().Write(caPath, caConfig)
 	if err != nil {
@@ -197,14 +198,14 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 	}
 
 	// Decode Role Config into mapstructure to pass with request
-	s.logger.Trace("decoding role config data")
+	setupLogger.Trace("decoding role config data")
 	roleConfig, err := structToMap(config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Write Role
-	s.logger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
 	rolePath := filepath.Join(mountPath, "roles", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
@@ -225,7 +226,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 			if errors.Is(IsDirectoryErr, err) {
 				return nil, fmt.Errorf("error parsing public key from file: %v", err)
 			}
-			s.logger.Trace("parsing provided public key")
+			setupLogger.Trace("parsing provided public key")
 			// Attempt to parse public key to verify its in a valid format
 			_, _, _, _, err := ssh.ParseAuthorizedKey([]byte(*config.KeySigningConfig.PublicKey))
 			if err != nil {
@@ -234,7 +235,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 		}
 	} else {
 		// Create test key-pair
-		s.logger.Trace("generating test RSA key-pair")
+		setupLogger.Trace("generating test RSA key-pair")
 		tKeyPair, err := rsa.GenerateKey(rand.Reader, 4096)
 		if err != nil {
 			return nil, fmt.Errorf("error generating test RSA key-pair: %v", err)
@@ -251,7 +252,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountNa
 	}
 
 	// Sign Config
-	s.logger.Trace("decoding key signing config data")
+	setupLogger.Trace("decoding key signing config data")
 	signingConfig, err := structToMap(config.KeySigningConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding key signing config from struct: %v", err)

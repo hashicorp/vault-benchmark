@@ -215,7 +215,6 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 			log.Fatalf("can't create UUID")
 		}
 	}
-	t.logger = t.logger.Named(secretPath)
 
 	t.logger.Trace("mounting transit secrets engine at", "path", hclog.Fmt("%v", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
@@ -228,21 +227,22 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		return nil, fmt.Errorf("error mounting transit backend: %v", err)
 	}
 
+	setupLogger := t.logger.Named(secretPath)
 	// Generate Keys for testing
-	t.logger.Trace("decoding Transit keys config data")
+	setupLogger.Trace("decoding Transit keys config data")
 	keysConfigData, err := structToMap(config.TransitConfigKeys)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding Transit keys config from struct: %v", err)
 	}
 
-	t.logger.Trace("generating test keys", "name", hclog.Fmt("%v", config.TransitConfigKeys.Name))
+	setupLogger.Trace("generating test keys", "name", hclog.Fmt("%v", config.TransitConfigKeys.Name))
 	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", config.TransitConfigKeys.Name), keysConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Transit Keys config: %v", err)
 	}
 
 	// Generate our payload and context
-	t.logger.Trace("generating test payload and context")
+	setupLogger.Trace("generating test payload and context")
 	rawPayload, err := uuid.GenerateRandomBytes(config.PayloadLen)
 	if err != nil {
 		return nil, fmt.Errorf("error generating random payload: %v", err)
@@ -259,7 +259,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 	switch t.action {
 	case "sign":
 		secretPath = filepath.Join(secretPath, "sign", config.TransitConfigSign.Name)
-		t.logger.Trace("decoding sign config data")
+		setupLogger.Trace("decoding sign config data")
 		signConfigData, err := structToMap(config.TransitConfigSign)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding sign config from struct: %v", err)
@@ -278,7 +278,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		}, nil
 
 	case "verify":
-		t.logger.Trace("decoding transit verify config data")
+		setupLogger.Trace("decoding transit verify config data")
 		signData, err := structToMap(config.TransitConfigVerify)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding transit verify config from struct: %v", err)
@@ -286,7 +286,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		verifyPath := filepath.Join(secretPath, "verify", config.TransitConfigVerify.Name)
 
 		// Sign the payload first
-		t.logger.Trace("signing payload")
+		setupLogger.Trace("signing payload")
 		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", config.TransitConfigVerify.Name), signData)
 		if err != nil {
 			return nil, fmt.Errorf("error signing data: %v", err)
@@ -297,7 +297,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		}
 		config.TransitConfigVerify.Signature = resp.Data["signature"].(string)
 
-		t.logger.Trace("decoding transit verify config data")
+		setupLogger.Trace("decoding transit verify config data")
 		verifyData, err := structToMap(config.TransitConfigVerify)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding transit verify config from struct: %v", err)
@@ -321,7 +321,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		}
 		config.TransitConfigEncrypt.Plaintext = base64Payload
 
-		t.logger.Trace("decoding transit encrypt config data")
+		setupLogger.Trace("decoding transit encrypt config data")
 		encryptData, err := structToMap(config.TransitConfigEncrypt)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding transit encrypt config from struct: %v", err)
@@ -351,7 +351,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 			testEncryptData["context"] = base64Context
 		}
 
-		t.logger.Trace("encrypting test payload")
+		setupLogger.Trace("encrypting test payload")
 		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", config.TransitConfigDecrypt.Name), testEncryptData)
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting data: %v", err)
@@ -366,7 +366,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		// Prepare for decryption
 		decryptPath := filepath.Join(secretPath, "decrypt", config.TransitConfigDecrypt.Name)
 
-		t.logger.Trace("decoding transit decrypt config data")
+		setupLogger.Trace("decoding transit decrypt config data")
 		decryptData, err := structToMap(config.TransitConfigDecrypt)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding transit decrypt config: %v", err)

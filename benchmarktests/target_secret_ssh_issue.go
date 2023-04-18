@@ -168,7 +168,6 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 			log.Fatalf("can't create UUID")
 		}
 	}
-	s.logger = s.logger.Named(mountPath)
 
 	// Create SSH Secrets engine Mount
 	s.logger.Trace("mounting ssh secrets engine at", "path", hclog.Fmt("%v", mountPath))
@@ -179,15 +178,17 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error mounting ssh secrets engine: %v", err)
 	}
 
+	setupLogger := s.logger.Named(mountPath)
+
 	// Decode CA Config into mapstructure to pass with request
-	s.logger.Trace("decoding ca config data")
+	setupLogger.Trace("decoding ca config data")
 	caConfig, err := structToMap(config.CAConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ca config from struct: %v", err)
 	}
 
 	// Write CA Config
-	s.logger.Trace("writing ca config")
+	setupLogger.Trace("writing ca config")
 	caPath := filepath.Join(mountPath, "config", "ca")
 	_, err = client.Logical().Write(caPath, caConfig)
 	if err != nil {
@@ -195,14 +196,14 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Decode Role Config into mapstructure to pass with request
-	s.logger.Trace("decoding role config data")
+	setupLogger.Trace("decoding role config data")
 	roleConfig, err := structToMap(config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
 	}
 
 	// Write Role
-	s.logger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
 	rolePath := filepath.Join(mountPath, "roles", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
@@ -210,7 +211,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Issue Config
-	s.logger.Trace("decoding ca issue config data")
+	setupLogger.Trace("decoding ca issue config data")
 	issueConfig, err := structToMap(config.IssuedCertConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ca issue config from struct: %v", err)

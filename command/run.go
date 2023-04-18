@@ -328,7 +328,6 @@ func (r *RunCommand) Run(args []string) int {
 
 	// Create vault clients
 	var clients []*vaultapi.Client
-	var clientCert string
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
@@ -392,19 +391,9 @@ func (r *RunCommand) Run(args []string) int {
 		}
 	}
 
-	var caPEM string
-	if conf.CAPEMFile != "" {
-		b, err := os.ReadFile(conf.CAPEMFile)
-		if err != nil {
-			benchmarkLogger.Error("error opening CA PEM file", "error", hclog.Fmt("%v", err))
-			return 1
-		}
-		caPEM = string(b)
-	}
-
 	testRunning.WithLabelValues(annoValues...).Set(1)
 	benchmarkLogger.Info("setting up targets")
-	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], benchmarkLogger, caPEM, clientCert, conf.RandomMounts)
+	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], benchmarkLogger, conf.RandomMounts)
 	if err != nil {
 		benchmarkLogger.Error(fmt.Sprintf("target setup failed: %v", err))
 		return 1
@@ -423,8 +412,8 @@ func (r *RunCommand) Run(args []string) int {
 					benchmarkLogger.SetLevel(hclog.Debug)
 				}
 				l.Lock()
-				benchmarkLogger.Debug("=== Debug Info ===\n")
-				benchmarkLogger.Debug(fmt.Sprintf("Client: %s\n", client.Address()))
+				benchmarkLogger.Debug("=== Debug Info ===")
+				benchmarkLogger.Debug(fmt.Sprintf("Client: %s", client.Address()))
 				tm.DebugInfo(client)
 				l.Unlock()
 			}
