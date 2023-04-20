@@ -112,7 +112,7 @@ func (k *KVV2Test) GetTargetInfo() TargetInfo {
 }
 
 func (k *KVV2Test) Cleanup(client *api.Client) error {
-	k.logger.Trace("unmounting", "path", hclog.Fmt("%v", k.pathPrefix))
+	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -138,7 +138,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 	}
 
-	k.logger.Trace("mounting kvv2 secrets engine at", "path", hclog.Fmt("%v", mountPath))
+	k.logger.Trace(mountLogMessage("secrets", "kvv2", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 		Options: map[string]string{
@@ -146,7 +146,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error mounting kvv2: %v", err)
+		return nil, fmt.Errorf("error mounting kv secrets engine: %v", err)
 	}
 
 	setupLogger := k.logger.Named(mountPath)
@@ -166,7 +166,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	for i := 1; i <= config.NumKVs; i++ {
 		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
-			return nil, fmt.Errorf("error writing kv: %v", err)
+			return nil, fmt.Errorf("error writing kv secret: %v", err)
 		}
 	}
 

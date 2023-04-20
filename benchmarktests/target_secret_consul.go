@@ -109,7 +109,7 @@ func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *ConsulTest) Cleanup(client *api.Client) error {
-	c.logger.Trace("unmounting", "path", hclog.Fmt("%v", c.pathPrefix))
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -137,7 +137,7 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 		}
 	}
 
-	c.logger.Trace("mounting consul secrets engine", "path", hclog.Fmt("%v", secretPath))
+	c.logger.Trace(mountLogMessage("secrets", "consul", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "consul",
 	})
@@ -148,14 +148,14 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	setupLogger := c.logger.Named(secretPath)
 
 	// Decode Consul Config
-	setupLogger.Trace("parsing consul config")
+	setupLogger.Trace(parsingConfigLogMessage("consul"))
 	consulConfigData, err := structToMap(config.ConsulConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Consul config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing consul config from struct: %v", err)
 	}
 
 	// Write Consul config
-	setupLogger.Trace("writing consul config")
+	setupLogger.Trace(writingLogMessage("consul config"))
 	_, err = client.Logical().Write(secretPath+"/config/access", consulConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul config: %v", err)
@@ -169,10 +169,10 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	}
 
 	// Decode Role Config
-	setupLogger.Trace("parsing consul role config")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	consulRoleConfigData, err := structToMap(config.ConsulRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Consul Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	switch {
@@ -185,10 +185,10 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	}
 
 	// Create Role
-	setupLogger.Trace("writing consul role", "name", hclog.Fmt("%v", config.ConsulRoleConfig.Name))
+	setupLogger.Trace(writingLogMessage("consul role"), "name", config.ConsulRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
+		return nil, fmt.Errorf("error writing consul role: %v", err)
 	}
 
 	return &ConsulTest{

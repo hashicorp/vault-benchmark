@@ -34,7 +34,6 @@ type CertAuth struct {
 	pathPrefix string
 	header     http.Header
 	config     *CertAuthTestConfig
-	clientCert *tls.Certificate
 	logger     hclog.Logger
 }
 
@@ -103,10 +102,6 @@ func (c *CertAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (c *CertAuth) SetCert(cert *tls.Certificate) {
-	c.clientCert = cert
-}
-
 func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -122,7 +117,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	if config.Certificate == "" {
 		// Create self-signed CA
-		c.logger.Trace("no CA provided; creating self-signed CA")
+		c.logger.Warn("no CA provided; creating self-signed CA")
 		benchCA, err := GenerateCA()
 		if err != nil {
 			log.Fatalf("error generating benchmark CA: %v", err)
@@ -162,7 +157,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	// Create Cert Auth mount
-	c.logger.Trace("mounting cert auth at path", "path", hclog.Fmt("%v", authPath))
+	c.logger.Trace(mountLogMessage("auth", "cert", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "cert",
 	})
@@ -173,14 +168,14 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	setupLogger := c.logger.Named(authPath)
 
 	// Decode config into map to pass with request
-	setupLogger.Trace("parsing role config data")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(config)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set up role
-	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.Name))
+	setupLogger.Trace(writingLogMessage("role"), "name", config.Name)
 	rolePath := filepath.Join("auth", authPath, "certs", config.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
@@ -195,7 +190,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 }
 
 func (c *CertAuth) Cleanup(client *api.Client) error {
-	c.logger.Trace("unmounting", "path", hclog.Fmt("%v", c.pathPrefix))
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)

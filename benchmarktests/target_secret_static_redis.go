@@ -119,10 +119,10 @@ func (r *RedisStaticSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (r *RedisStaticSecret) Cleanup(client *api.Client) error {
-	r.logger.Trace("unmounting", "path", hclog.Fmt("%v", r.pathPrefix))
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
-		return fmt.Errorf("error cleaning up redis mount: %v", err)
+		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
 	return nil
 }
@@ -153,43 +153,43 @@ func (r *RedisStaticSecret) Setup(client *api.Client, randomMountName bool, moun
 	}
 
 	// Create Database Secret Mount
-	r.logger.Trace("mounting database secrets engine at", "path", hclog.Fmt("%v", secretPath))
+	r.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error enabling redis secrets engine: %v", err)
+		return nil, fmt.Errorf("error enabling database secrets engine: %v", err)
 	}
 
 	setupLogger := r.logger.Named(secretPath)
 
 	// Decode DB Config struct into mapstructure to pass with request
-	setupLogger.Trace("parsing db config data")
+	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(config.DBConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding redis db config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
-	setupLogger.Trace("writing db config", "name", hclog.Fmt("%v", config.DBConfig.Name))
+	setupLogger.Trace(writingLogMessage("redis db config"), "name", config.DBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", config.DBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating redis db %q: %v", config.DBConfig.Name, err)
+		return nil, fmt.Errorf("error writing redis db config: %v", err)
 	}
 
-	setupLogger.Trace("parsing role config data")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(config.RoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding redis static DB Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set Up Role
-	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace(writingLogMessage("redis role"), "name", config.RoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating redis role %q: %v", config.RoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing redis role %q: %v", config.RoleConfig.Name, err)
 	}
 
 	return &RedisStaticSecret{

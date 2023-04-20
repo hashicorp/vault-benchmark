@@ -81,7 +81,7 @@ func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (u *UserpassAuth) Cleanup(client *api.Client) error {
-	u.logger.Trace("unmounting", "path", hclog.Fmt("%v", u.pathPrefix))
+	u.logger.Trace(cleanupLogMessage(u.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -110,7 +110,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Create Userpass Auth Mount
-	u.logger.Trace("mounting userpass auth method at path", "path", hclog.Fmt("%v", authPath))
+	u.logger.Trace(mountLogMessage("auth", "userpass", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "userpass",
 	})
@@ -121,13 +121,13 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 	setupLogger := u.logger.Named(authPath)
 
 	// Decode Config struct into mapstructure to pass with request
-	setupLogger.Trace("parsing userpass config data")
+	setupLogger.Trace(parsingConfigLogMessage("user"))
 	userData, err := structToMap(config)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing user config from struct: %v", err)
 	}
 
-	setupLogger.Trace("writing userpass config")
+	setupLogger.Trace(writingLogMessage("user config"))
 	userPath := filepath.Join("auth", authPath, "users", config.Username)
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {

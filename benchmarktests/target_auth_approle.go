@@ -108,7 +108,7 @@ func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *ApproleAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace("unmounting", "path", hclog.Fmt("%v", a.pathPrefix))
+	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -137,7 +137,7 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// Create AppRole Auth Mount
-	a.logger.Trace("mounting approle auth method at path", "path", hclog.Fmt("%v", authPath))
+	a.logger.Trace(mountLogMessage("auth", "approle", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "approle",
 	})
@@ -147,14 +147,14 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	setupLogger := a.logger.Named(authPath)
 
 	// Decode RoleConfig struct into mapstructure to pass with request
-	setupLogger.Trace("parsing role config data")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(config.RoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set Up Role
-	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace(writingLogMessage("role"), "name", config.RoleConfig.Name)
 	rolePath := filepath.Join("auth", authPath, "role", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
@@ -163,16 +163,16 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Get Role ID
 	setupLogger.Trace("getting role-id")
-	roleSecret, err := client.Logical().Read(rolePath + "/role-id")
+	roleIDSecret, err := client.Logical().Read(rolePath + "/role-id")
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle role-id: %v", err)
 	}
 
 	// Decode SecretIDConfig struct into map to pass with request
-	setupLogger.Trace("parsing secretID config data")
+	setupLogger.Trace(parsingConfigLogMessage("secret-id"))
 	secretIDData, err := structToMap(config.SecretIDConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding secretID config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing secret-id config from struct: %v", err)
 	}
 
 	// Get SecretID
@@ -185,7 +185,7 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	return &ApproleAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		roleID:     roleSecret.Data["role_id"].(string),
+		roleID:     roleIDSecret.Data["role_id"].(string),
 		role:       config.RoleConfig.Name,
 		secretID:   secretId.Data["secret_id"].(string),
 		logger:     a.logger,

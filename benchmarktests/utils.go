@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	IsDirectoryErr = errors.New("location is a directory, not a file")
+	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
 
 func omitEmpty(in interface{}) {
@@ -213,7 +213,7 @@ func IsFile(path string) (bool, error) {
 	}
 
 	if f.IsDir() {
-		return false, IsDirectoryErr
+		return false, ErrIsDirectory
 	}
 
 	return true, nil

@@ -141,7 +141,7 @@ func (s *SSHIssueTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SSHIssueTest) Cleanup(client *api.Client) error {
-	s.logger.Trace("unmounting", "path", hclog.Fmt("%v", s.pathPrefix))
+	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(s.mountPath, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -170,7 +170,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Create SSH Secrets engine Mount
-	s.logger.Trace("mounting ssh secrets engine at", "path", hclog.Fmt("%v", mountPath))
+	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "ssh",
 	})
@@ -181,14 +181,14 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	setupLogger := s.logger.Named(mountPath)
 
 	// Decode CA Config into mapstructure to pass with request
-	setupLogger.Trace("decoding ca config data")
+	setupLogger.Trace(parsingConfigLogMessage("ca"))
 	caConfig, err := structToMap(config.CAConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ca config from struct: %v", err)
 	}
 
 	// Write CA Config
-	setupLogger.Trace("writing ca config")
+	setupLogger.Trace(writingLogMessage("ca config"))
 	caPath := filepath.Join(mountPath, "config", "ca")
 	_, err = client.Logical().Write(caPath, caConfig)
 	if err != nil {
@@ -196,25 +196,25 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Decode Role Config into mapstructure to pass with request
-	setupLogger.Trace("decoding role config data")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfig, err := structToMap(config.RoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Write Role
-	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.RoleConfig.Name))
+	setupLogger.Trace(writingLogMessage("ssh role"), "name", config.RoleConfig.Name)
 	rolePath := filepath.Join(mountPath, "roles", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error writing role: %v", err)
+		return nil, fmt.Errorf("error writing ssh role: %v", err)
 	}
 
 	// Issue Config
-	setupLogger.Trace("decoding ca issue config data")
+	setupLogger.Trace(parsingConfigLogMessage("ca issue"))
 	issueConfig, err := structToMap(config.IssuedCertConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding ca issue config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing ca issue config from struct: %v", err)
 	}
 
 	issueConfigString, err := json.Marshal(issueConfig)

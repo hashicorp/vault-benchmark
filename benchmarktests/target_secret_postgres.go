@@ -125,7 +125,7 @@ func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace("unmounting", "path", hclog.Fmt("%v", s.pathPrefix))
+	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -154,44 +154,44 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	}
 
 	// Create Database Secret Mount
-	s.logger.Trace("mounting db secrets engine at path", "path", hclog.Fmt("%v", secretPath))
+	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error enabling db secrets engine: %v", err)
+		return nil, fmt.Errorf("error mounting db secrets engine: %v", err)
 	}
 
 	setupLogger := s.logger.Named(secretPath)
 
 	// Decode DB Config struct into mapstructure to pass with request
-	setupLogger.Trace("parsing postgres db config data")
+	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(config.PostgreSQLDBConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding db config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
-	setupLogger.Trace("writing postgres db config data")
+	setupLogger.Trace(writingLogMessage("postgres db config"), "name", config.PostgreSQLDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", config.PostgreSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating postgresql db %q: %v", config.PostgreSQLRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing postgresql db config: %v", err)
 	}
 
 	// Decode Role Config struct into mapstructure to pass with request
-	setupLogger.Trace("parsing role config data")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(config.PostgreSQLRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding postgres DB Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.PostgreSQLRoleConfig.Name))
+	setupLogger.Trace(writingLogMessage("postgres role"), "name", config.PostgreSQLRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", config.PostgreSQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating postgresql role %q: %v", config.PostgreSQLRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing postgresql role %q: %v", config.PostgreSQLRoleConfig.Name, err)
 	}
 
 	return &PostgreSQLSecret{

@@ -115,7 +115,7 @@ func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *MongoDBTest) Cleanup(client *api.Client) error {
-	m.logger.Trace("unmounting", "path", hclog.Fmt("%v", m.pathPrefix))
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -143,42 +143,42 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 		}
 	}
 
-	m.logger.Trace("mounting database secrets engine at", "path", hclog.Fmt("%v", secretPath))
+	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error mounting db: %v", err)
+		return nil, fmt.Errorf("error mounting db secrets engine: %v", err)
 	}
 
 	setupLogger := m.logger.Named(secretPath)
 
 	// Decode DB Config
-	setupLogger.Trace("parsing db config data")
+	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbConfigData, err := structToMap(config.MongoDBConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding MongoDB config from struct: %v", err)
+		return nil, fmt.Errorf("error decoding mongodb config from struct: %v", err)
 	}
 
 	// Write DB config
-	setupLogger.Trace("writing db config", "name", hclog.Fmt("%v", config.MongoDBConfig.Name))
+	setupLogger.Trace(writingLogMessage("mongodb config"), "name", config.MongoDBConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/config/"+config.MongoDBConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
 
 	// Decode Role Config
-	setupLogger.Trace("parsing role config data")
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfigData, err := structToMap(config.MongoDBRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding MongoDB Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace("writing role", "name", hclog.Fmt("%v", config.MongoDBRoleConfig.Name))
+	setupLogger.Trace(writingLogMessage("mongodb role"), "name", config.MongoDBRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.MongoDBRoleConfig.Name, roleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
+		return nil, fmt.Errorf("error writing mongodb role %q: %v", config.MongoDBRoleConfig.Name, err)
 	}
 
 	return &MongoDBTest{
