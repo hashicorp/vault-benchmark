@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -31,6 +32,7 @@ type ElasticSearchTest struct {
 	header     http.Header
 	roleName   string
 	config     *ElasticSearchTestConfig
+	logger     hclog.Logger
 }
 
 type ElasticSearchTestConfig struct {
@@ -105,6 +107,7 @@ func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
+	e.logger.Trace(cleanupLogMessage(e.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -113,17 +116,17 @@ func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
 }
 
 func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     ElasticSearchSecretTestMethod,
 		pathPrefix: e.pathPrefix,
 	}
-	return tInfo
 }
 
 func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := e.config.Config
+	e.logger = targetLogger.Named(ElasticSearchSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -132,20 +135,25 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 		}
 	}
 
+	e.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error mounting db: %v", err)
+		return nil, fmt.Errorf("error mounting database secrets engine: %v", err)
 	}
 
+	setupLogger := e.logger.Named(secretPath)
+
 	// Decode DB Config
+	setupLogger.Trace(parsingConfigLogMessage("db"))
 	elasticSearchConfigData, err := structToMap(config.ElasticSearchConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding ElasticSearch config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing elasticsearch config from struct: %v", err)
 	}
 
 	// Write DB config
+	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", config.ElasticSearchConfig.DBName)
 	dbPath := filepath.Join(secretPath, "config", config.ElasticSearchConfig.DBName)
 	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
 	if err != nil {
@@ -153,22 +161,25 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 	}
 
 	// Decode Role Config
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	elasticSearchRoleConfigData, err := structToMap(config.ElasticSearchRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding ElasticSearch Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
+	setupLogger.Trace(writingLogMessage("elasticsearc role"), "name", config.ElasticSearchRoleConfig.RoleName)
 	rolePath := filepath.Join(secretPath, "roles", config.ElasticSearchRoleConfig.RoleName)
 	_, err = client.Logical().Write(rolePath, elasticSearchRoleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing Elasticsearch db role: %v", err)
+		return nil, fmt.Errorf("error writing elasticsearch role %q: %v", config.ElasticSearchRoleConfig.RoleName, err)
 	}
 
 	return &ElasticSearchTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.ElasticSearchRoleConfig.RoleName,
+		logger:     e.logger,
 	}, nil
 }
 

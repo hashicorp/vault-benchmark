@@ -60,11 +60,10 @@ func (s *StatusCheck) Cleanup(client *api.Client) error {
 }
 
 func (s *StatusCheck) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     StatusTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
-	return tInfo
 }
 
 func (s *StatusCheck) Flags(fs *flag.FlagSet) {}

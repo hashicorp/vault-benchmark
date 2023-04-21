@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -32,8 +32,8 @@ type ConsulTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	timeout    time.Duration
 	config     *ConsulTestConfig
+	logger     hclog.Logger
 }
 
 type ConsulTestConfig struct {
@@ -109,10 +109,8 @@ func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *ConsulTest) Cleanup(client *api.Client) error {
-	client.SetClientTimeout(c.timeout)
-
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -120,17 +118,17 @@ func (c *ConsulTest) Cleanup(client *api.Client) error {
 }
 
 func (c *ConsulTest) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     ConsulSecretTestMethod,
 		pathPrefix: c.pathPrefix,
 	}
-	return tInfo
 }
 
 func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := c.config.Config
+	c.logger = targetLogger.Named(ConsulSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -139,36 +137,42 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 		}
 	}
 
+	c.logger.Trace(mountLogMessage("secrets", "consul", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "consul",
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error mounting consul: %v", err)
 	}
 
-	// Decode DB Config
+	setupLogger := c.logger.Named(secretPath)
+
+	// Decode Consul Config
+	setupLogger.Trace(parsingConfigLogMessage("consul"))
 	consulConfigData, err := structToMap(config.ConsulConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Consul config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing consul config from struct: %v", err)
 	}
 
-	// Write DB config
+	// Write Consul config
+	setupLogger.Trace(writingLogMessage("consul config"))
 	_, err = client.Logical().Write(secretPath+"/config/access", consulConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul config: %v", err)
 	}
 
 	// Get consul version
+	setupLogger.Trace("parsing consul version from config")
 	v, err := version.NewVersion(config.ConsulConfig.Version)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul version: %v", err)
 	}
 
 	// Decode Role Config
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	consulRoleConfigData, err := structToMap(config.ConsulRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Consul Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	switch {
@@ -181,16 +185,17 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	}
 
 	// Create Role
+	setupLogger.Trace(writingLogMessage("consul role"), "name", config.ConsulRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
+		return nil, fmt.Errorf("error writing consul role: %v", err)
 	}
 
 	return &ConsulTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.ConsulRoleConfig.Name,
-		timeout:    c.timeout,
+		logger:     c.logger,
 	}, nil
 }
 

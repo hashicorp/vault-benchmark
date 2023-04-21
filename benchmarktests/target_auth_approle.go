@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -34,6 +35,7 @@ type ApproleAuth struct {
 	header     http.Header
 	secretID   string
 	config     *ApproleTestConfig
+	logger     hclog.Logger
 }
 
 // Main Config Struct
@@ -106,6 +108,7 @@ func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *ApproleAuth) Cleanup(client *api.Client) error {
+	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
@@ -114,17 +117,17 @@ func (a *ApproleAuth) Cleanup(client *api.Client) error {
 }
 
 func (a *ApproleAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     ApproleAuthTestMethod,
 		pathPrefix: a.pathPrefix,
 	}
-	return tInfo
 }
 
 func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	config := a.config.Config
+	a.logger = targetLogger.Named(ApproleAuthTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -134,20 +137,24 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// Create AppRole Auth Mount
+	a.logger.Trace(mountLogMessage("auth", "approle", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "approle",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error enabling approle auth: %v", err)
 	}
+	setupLogger := a.logger.Named(authPath)
 
 	// Decode RoleConfig struct into mapstructure to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(config.RoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set Up Role
+	setupLogger.Trace(writingLogMessage("role"), "name", config.RoleConfig.Name)
 	rolePath := filepath.Join("auth", authPath, "role", config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
@@ -155,29 +162,33 @@ func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// Get Role ID
-	roleSecret, err := client.Logical().Read(rolePath + "/role-id")
+	setupLogger.Trace("getting role-id")
+	roleIDSecret, err := client.Logical().Read(rolePath + "/role-id")
 	if err != nil {
-		return nil, fmt.Errorf("error reading approle role_id: %v", err)
+		return nil, fmt.Errorf("error reading approle role-id: %v", err)
 	}
 
 	// Decode SecretIDConfig struct into map to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("secret-id"))
 	secretIDData, err := structToMap(config.SecretIDConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding secretID config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing secret-id config from struct: %v", err)
 	}
 
 	// Get SecretID
+	setupLogger.Trace("getting secret-id")
 	secretId, err := client.Logical().Write(rolePath+"/secret-id", secretIDData)
 	if err != nil {
-		return nil, fmt.Errorf("error reading approle secret_id: %v", err)
+		return nil, fmt.Errorf("error reading approle secret-id: %v", err)
 	}
 
 	return &ApproleAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		roleID:     roleSecret.Data["role_id"].(string),
+		roleID:     roleIDSecret.Data["role_id"].(string),
 		role:       config.RoleConfig.Name,
 		secretID:   secretId.Data["secret_id"].(string),
+		logger:     a.logger,
 	}, nil
 }
 

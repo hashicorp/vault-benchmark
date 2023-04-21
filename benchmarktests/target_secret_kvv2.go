@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -40,6 +41,7 @@ type KVV2Test struct {
 	action     string
 	numKVs     int
 	kvSize     int
+	logger     hclog.Logger
 }
 
 type KVV2TestConfig struct {
@@ -103,16 +105,15 @@ func (k *KVV2Test) GetTargetInfo() TargetInfo {
 	default:
 		method = KVV2ReadTestMethod
 	}
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     method,
 		pathPrefix: k.pathPrefix,
 	}
-	return tInfo
 }
 
 func (k *KVV2Test) Cleanup(client *api.Client) error {
+	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -123,6 +124,12 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	var err error
 	mountPath := mountName
 	config := k.config.Config
+	switch k.action {
+	case "write":
+		k.logger = targetLogger.Named(KVV1WriteTestType)
+	default:
+		k.logger = targetLogger.Named(KVV1ReadTestType)
+	}
 
 	if randomMountName {
 		mountPath, err = uuid.GenerateUUID()
@@ -131,6 +138,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 	}
 
+	k.logger.Trace(mountLogMessage("secrets", "kvv2", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 		Options: map[string]string{
@@ -138,8 +146,10 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error mounting kvv2: %v", err)
+		return nil, fmt.Errorf("error mounting kv secrets engine: %v", err)
 	}
+
+	setupLogger := k.logger.Named(mountPath)
 
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -152,10 +162,11 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	// * Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
 	time.Sleep(2 * time.Second)
 
+	setupLogger.Trace("seeding secrets")
 	for i := 1; i <= config.NumKVs; i++ {
 		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
-			return nil, fmt.Errorf("error writing kv: %v", err)
+			return nil, fmt.Errorf("error writing kv secret: %v", err)
 		}
 	}
 
@@ -164,6 +175,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		numKVs:     k.config.Config.NumKVs,
 		kvSize:     k.config.Config.KVSize,
+		logger:     k.logger,
 	}, nil
 }
 

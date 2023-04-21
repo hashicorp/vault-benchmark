@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -32,6 +33,7 @@ type UserpassAuth struct {
 	password   string
 	header     http.Header
 	config     *UserpassTestConfig
+	logger     hclog.Logger
 }
 
 type UserpassTestConfig struct {
@@ -79,8 +81,8 @@ func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (u *UserpassAuth) Cleanup(client *api.Client) error {
+	u.logger.Trace(cleanupLogMessage(u.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
-
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
@@ -88,17 +90,17 @@ func (u *UserpassAuth) Cleanup(client *api.Client) error {
 }
 
 func (u *UserpassAuth) GetTargetInfo() TargetInfo {
-	tInfo := TargetInfo{
+	return TargetInfo{
 		method:     UserpassAuthTestMethod,
 		pathPrefix: u.pathPrefix,
 	}
-	return tInfo
 }
 
 func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	config := u.config.Config
+	u.logger = targetLogger.Named(UserpassTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -108,6 +110,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	// Create Userpass Auth Mount
+	u.logger.Trace(mountLogMessage("auth", "userpass", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "userpass",
 	})
@@ -115,14 +118,17 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		return nil, fmt.Errorf("error enabling userpass auth: %v", err)
 	}
 
+	setupLogger := u.logger.Named(authPath)
+
 	// Decode Config struct into mapstructure to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("user"))
 	userData, err := structToMap(config)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding user config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing user config from struct: %v", err)
 	}
 
+	setupLogger.Trace(writingLogMessage("user config"))
 	userPath := filepath.Join("auth", authPath, "users", config.Username)
-
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating userpass user %q: %v", config.Username, err)
@@ -133,6 +139,7 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		user:       config.Username,
 		password:   config.Password,
+		logger:     u.logger,
 	}, nil
 }
 

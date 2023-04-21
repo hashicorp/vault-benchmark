@@ -17,6 +17,7 @@ const (
 	DefaultReportMode   = "terse"
 	DefaultRandomMounts = true
 	DefaultCleanup      = false
+	DefaultLogLevel     = "INFO"
 )
 
 type VaultBenchmarkCoreConfig struct {
@@ -37,6 +38,7 @@ type VaultBenchmarkCoreConfig struct {
 	InputResults  bool                              `hcl:"input_results,optional"`
 	Cleanup       bool                              `hcl:"cleanup,optional"`
 	Debug         bool                              `hcl:"debug,optional"`
+	LogLevel      string                            `hcl:"log_level,optional"`
 }
 
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
@@ -48,6 +50,7 @@ func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
 		ReportMode:   DefaultReportMode,
 		RandomMounts: DefaultRandomMounts,
 		Cleanup:      DefaultCleanup,
+		LogLevel:     DefaultLogLevel,
 	}
 }
 

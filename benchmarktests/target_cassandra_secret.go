@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/hashicorp/go-uuid"
@@ -33,6 +34,7 @@ type CassandraSecret struct {
 	roleName   string
 	header     http.Header
 	config     *CassandraTestConfig
+	logger     hclog.Logger
 }
 
 // Main Config Struct
@@ -83,17 +85,15 @@ type CassandraRoleConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
-func (s *CassandraSecret) ParseConfig(body hcl.Body) error {
-	t := true
+func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	s.config = &CassandraTestConfig{
+	c.config = &CassandraTestConfig{
 		Config: &CassandraSecretTestConfig{
 			CassandraDBConfig: &CassandraDBConfig{
 				Name:         "benchmark-cassandra",
 				PluginName:   "cassandra-database-plugin",
 				AllowedRoles: []string{"benchmark-role"},
 				Port:         9042,
-				TLS:          &t,
 			},
 			CassandraRoleConfig: &CassandraRoleConfig{
 				Name:   "benchmark-role",
@@ -102,7 +102,7 @@ func (s *CassandraSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, s.config)
+	diags := gohcl.DecodeBody(body, nil, c.config)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
@@ -110,33 +110,35 @@ func (s *CassandraSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *CassandraSecret) Target(client *api.Client) vegeta.Target {
+func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: CassandraSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
-		Header: s.header,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
 	}
 }
 
-func (s *CassandraSecret) Cleanup(client *api.Client) error {
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
+func (c *CassandraSecret) Cleanup(client *api.Client) error {
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
 	return nil
 }
 
-func (s *CassandraSecret) GetTargetInfo() TargetInfo {
+func (c *CassandraSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     CassandraSecretTestMethod,
-		pathPrefix: s.pathPrefix,
+		pathPrefix: c.pathPrefix,
 	}
 }
 
-func (s *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := s.config.Config
+	config := c.config.Config
+	c.logger = targetLogger.Named(CassandraSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -146,44 +148,44 @@ func (s *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 	}
 
 	// Create Database Secret Mount
+	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("error enabling cassandra secrets engine: %v", err)
+		return nil, fmt.Errorf("error mounting database secrets engine: %v", err)
 	}
 
+	setupLogger := c.logger.Named(secretPath)
+
 	// Decode DB Config struct into mapstructure to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(config.CassandraDBConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding db config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
+	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", config.CassandraDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", config.CassandraDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating cassandra db %q: %v", config.CassandraRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing cassandra db config: %v", err)
 	}
 
 	// Decode Role Config struct into mapstructure to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(config.CassandraRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding cassandra DB Role config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set Up Role
+	setupLogger.Trace(writingLogMessage("role"), "name", config.CassandraRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", config.CassandraRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating cassandra role %q: %v", config.CassandraRoleConfig.Name, err)
-	}
-
-	// Create Role
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.CassandraRoleConfig.Name, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing db role: %v", err)
+		return nil, fmt.Errorf("error writing cassandra role %q: %v", config.CassandraRoleConfig.Name, err)
 	}
 
 	return &CassandraSecret{
@@ -194,4 +196,4 @@ func (s *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 
 }
 
-func (l *CassandraSecret) Flags(fs *flag.FlagSet) {}
+func (c *CassandraSecret) Flags(fs *flag.FlagSet) {}

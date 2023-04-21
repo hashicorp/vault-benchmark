@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -20,6 +21,10 @@ import (
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
 	"github.com/mitchellh/mapstructure"
+)
+
+var (
+	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
 
 func omitEmpty(in interface{}) {
@@ -208,7 +213,7 @@ func IsFile(path string) (bool, error) {
 	}
 
 	if f.IsDir() {
-		return false, fmt.Errorf("location is a directory, not a file")
+		return false, ErrIsDirectory
 	}
 
 	return true, nil

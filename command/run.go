@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault-benchmark/benchmarktests"
 	vbConfig "github.com/hashicorp/vault-benchmark/config"
 	vaultapi "github.com/hashicorp/vault/api"
@@ -48,6 +49,7 @@ type RunCommand struct {
 	flagCleanup          bool
 	flagDebug            bool
 	flagClusterJson      string
+	flagLogLevel         string
 }
 
 func (r *RunCommand) Synopsis() string {
@@ -185,6 +187,14 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Cleanup benchmark artifacts after run.",
 	})
 
+	f.StringVar(&StringVar{
+		Name:    "log_level",
+		Target:  &r.flagLogLevel,
+		Default: "INFO",
+		EnvVar:  "VAULT_BENCHMARK_LOG_LEVEL",
+		Usage:   "Level to emit logs. Options are: INFO, WARN, DEBUG, TRACE.",
+	})
+
 	f.BoolVar(&BoolVar{
 		Name:    "debug",
 		Target:  &r.flagDebug,
@@ -202,32 +212,38 @@ func (r *RunCommand) Flags() *FlagSets {
 }
 
 func (r *RunCommand) Run(args []string) int {
+	benchmarkLogger := hclog.New(&hclog.LoggerOptions{
+		Name:  "vault-benchmark",
+		Level: hclog.Info,
+	})
+
 	// Parse Flags
 	f := r.Flags()
 	if err := f.Parse(args); err != nil {
-		r.UI.Error(err.Error())
+		benchmarkLogger.Error("error parsing flags", "error", hclog.Fmt("%v", err))
 		return 1
 	}
 
 	// Load config from File
 	if r.flagVBCoreConfigPath == "" {
-		r.UI.Error("no config file location passed")
+		benchmarkLogger.Error("no config file location passed")
 		return 1
 	}
 
 	conf := vbConfig.NewVaultBenchmarkCoreConfig()
 	err := conf.LoadConfig(r.flagVBCoreConfigPath)
 	if err != nil {
-		r.UI.Error(err.Error())
+		benchmarkLogger.Error("error loading config", "error", hclog.Fmt("%v", err))
 		return 1
 	}
 
 	r.applyConfigOverrides(f, conf)
+	benchmarkLogger.SetLevel(hclog.LevelFromString(conf.LogLevel))
 
 	// Parse Duration from configuration string
 	parsedDuration, err := time.ParseDuration(conf.Duration)
 	if err != nil {
-		r.UI.Error(fmt.Sprintf("error parsing test duration from configuration: %v", err))
+		benchmarkLogger.Error("error parsing test duration from configuration", "error", hclog.Fmt("%v", err))
 	}
 
 	// Parse pprof Interval from configuration string
@@ -235,20 +251,20 @@ func (r *RunCommand) Run(args []string) int {
 	if conf.PPROFInterval != "" {
 		parsedPPROFinterval, err = time.ParseDuration(conf.PPROFInterval)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error parsing pprof interval from configuration: %v", err))
+			benchmarkLogger.Error("error parsing pprof interval from configuration", "error", hclog.Fmt("%v", err))
 			return 1
 		}
 	}
 
 	if (!conf.RandomMounts) && (conf.Cleanup) {
-		r.UI.Error("Cleanup can only be enabled when random mounts is enabled")
+		benchmarkLogger.Error("cleanup can only be enabled when random mounts is enabled")
 		return 1
 	}
 
 	switch conf.ReportMode {
 	case "terse", "verbose", "json":
 	default:
-		r.UI.Error("report_mode must be one of terse, verbose, or json")
+		benchmarkLogger.Error("report_mode must be one of terse, verbose, or json")
 	}
 
 	var cluster struct {
@@ -260,25 +276,25 @@ func (r *RunCommand) Run(args []string) int {
 	case conf.ClusterJSON != "":
 		b, err := os.ReadFile(conf.ClusterJSON)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error reading cluster_json file %q: %v", conf.ClusterJSON, err))
+			benchmarkLogger.Error(fmt.Sprintf("error reading cluster_json file: %q", conf.ClusterJSON), "error", hclog.Fmt("%v", err))
 			return 1
 		}
 		err = json.Unmarshal(b, &cluster)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error decoding cluster_json file %q: %v", conf.ClusterJSON, err))
+			benchmarkLogger.Error(fmt.Sprintf("error decoding cluster_json file: %q", conf.ClusterJSON), "error", hclog.Fmt("%v", err))
 			return 1
 		}
 	case conf.VaultAddr != "":
 		cluster.VaultAddrs = []string{conf.VaultAddr}
 	default:
-		r.UI.Error("must specify one of cluster_json, vault_addr, or $VAULT_ADDR")
+		benchmarkLogger.Error("must specify one of cluster_json, vault_addr, or $VAULT_ADDR")
 	}
 
 	if conf.VaultToken != "" {
 		cluster.Token = conf.VaultToken
 	}
 	if conf.VaultToken == "" && cluster.Token == "" {
-		r.UI.Error("must specify one of cluster_json, vault_token, or $VAULT_TOKEN")
+		benchmarkLogger.Error("must specify one of the following: cluster_json, vault_token, or $VAULT_TOKEN")
 		return 1
 	}
 
@@ -289,7 +305,7 @@ func (r *RunCommand) Run(args []string) int {
 		for _, kv := range strings.Split(conf.Annotate, ",") {
 			kvPair := strings.SplitN(kv, "=", 2)
 			if len(kvPair) != 2 || kvPair[0] == "" {
-				r.UI.Error(fmt.Sprintf("annotate should contain comma-separated list of name=value pairs, got: %s", conf.Annotate))
+				benchmarkLogger.Error("annotate should contain comma-separated list of name=value pairs", "got", conf.Annotate)
 				return 1
 			}
 			annoLabels = append(annoLabels, kvPair[0])
@@ -312,7 +328,6 @@ func (r *RunCommand) Run(args []string) int {
 
 	// Create vault clients
 	var clients []*vaultapi.Client
-	var clientCert string
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
 		cfg := vaultapi.DefaultConfig()
@@ -321,13 +336,13 @@ func (r *RunCommand) Run(args []string) int {
 		}
 		err := cfg.ConfigureTLS(tlsCfg)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error creating vault client: %v", err))
+			benchmarkLogger.Error("error creating vault client", "error", hclog.Fmt("%v", err))
 			return 1
 		}
 		cfg.Address = addr
 		client, err := vaultapi.NewClient(cfg)
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error creating vault client: %v", err))
+			benchmarkLogger.Error("error creating vault client", "error", hclog.Fmt("%v", err))
 			return 1
 		}
 		client.SetToken(cluster.Token)
@@ -349,15 +364,15 @@ func (r *RunCommand) Run(args []string) int {
 			defer wg.Done()
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				r.UI.Error(fmt.Sprintf("error running pprof: %v", err))
+				benchmarkLogger.Error("error running pprof", "error", hclog.Fmt("%v", err))
 			}
-			r.UI.Info(fmt.Sprintf("pprof: %s", out))
+			benchmarkLogger.Info(fmt.Sprintf("pprof: %s", out))
 		}()
 
 		defer func() {
 			// We can't use CommandContext because that uses sigkill, and we
 			// want the debug process to wrap things up and write indexes/etc.
-			r.UI.Info("stopping pprof")
+			benchmarkLogger.Info("stopping pprof")
 			cmd.Process.Signal(os.Interrupt)
 		}()
 	}
@@ -371,48 +386,41 @@ func (r *RunCommand) Run(args []string) int {
 			},
 		})
 		if err != nil {
-			r.UI.Error(fmt.Sprintf("error enabling audit device: %v", err))
+			benchmarkLogger.Error("error enabling audit device", "error", hclog.Fmt("%v", err))
 			return 1
 		}
-	}
-
-	var caPEM string
-	if conf.CAPEMFile != "" {
-		b, err := os.ReadFile(conf.CAPEMFile)
-		if err != nil {
-			r.UI.Error(err.Error())
-			return 1
-		}
-		caPEM = string(b)
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	r.UI.Info("Setting up targets...")
-	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], caPEM, clientCert, conf.RandomMounts)
+	benchmarkLogger.Info("setting up targets")
+	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], benchmarkLogger, conf.RandomMounts)
 	if err != nil {
-		r.UI.Error(fmt.Sprintf("target setup failed: %v", err))
+		benchmarkLogger.Error(fmt.Sprintf("target setup failed: %v", err))
 		return 1
 	}
 
 	var l sync.Mutex
 	results := make(map[string]*benchmarktests.Reporter)
-	r.UI.Info(fmt.Sprintf("Starting benchmarks. Will run for %s...", parsedDuration.String()))
+	benchmarkLogger.Info("starting benchmarks", "duration", hclog.Fmt("%v", parsedDuration.String()))
 	for _, client := range clients {
 		wg.Add(1)
 		go func(client *vaultapi.Client) {
 			defer wg.Done()
 
 			if r.flagDebug {
+				if !benchmarkLogger.IsTrace() {
+					benchmarkLogger.SetLevel(hclog.Debug)
+				}
 				l.Lock()
-				fmt.Println("=== Debug Info ===")
-				fmt.Printf("Client: %s\n", client.Address())
+				benchmarkLogger.Debug("=== Debug Info ===")
+				benchmarkLogger.Debug(fmt.Sprintf("Client: %s", client.Address()))
 				tm.DebugInfo(client)
 				l.Unlock()
 			}
 
 			rpt, err := benchmarktests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
 			if err != nil {
-				r.UI.Error(fmt.Sprint("attack error", err))
+				benchmarkLogger.Error("attack error", "err", hclog.Fmt("%v", err))
 				os.Exit(1)
 			}
 
@@ -422,15 +430,15 @@ func (r *RunCommand) Run(args []string) int {
 			l.Unlock()
 
 			if conf.Cleanup {
-				fmt.Println("Cleaning up...")
+				benchmarkLogger.Info("cleaning up targets")
 				err := tm.Cleanup(client)
 				if err != nil {
-					r.UI.Error(fmt.Sprint("cleanup error", err))
+					benchmarkLogger.Error("cleanup error", "err", hclog.Fmt("%v", err))
 				}
 				if conf.AuditPath != "" {
 					_, err := client.Logical().Delete("/sys/audit/bench-audit")
 					if err != nil {
-						r.UI.Error("Error disabling bench-audit audit device! This may require manual intervention.")
+						benchmarkLogger.Error("error disabling bench-audit audit device", "error", hclog.Fmt("%v", err))
 					}
 				}
 			}
@@ -440,8 +448,7 @@ func (r *RunCommand) Run(args []string) int {
 	wg.Wait()
 
 	testRunning.WithLabelValues(annoValues...).Set(0)
-	fmt.Println("Benchmark complete!")
-
+	benchmarkLogger.Info("benchmark complete")
 	for _, client := range clients {
 		addr := client.Address()
 		rpt := results[addr]
@@ -552,6 +559,15 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: false,
 	})
 	config.RandomMounts = r.flagRandomMounts
+
+	r.setStringFlag(f, config.LogLevel, &StringVar{
+		Name:    "log_level",
+		Target:  &r.flagLogLevel,
+		Default: "INFO",
+		EnvVar:  "VAULT_BENCHMARK_LOG_LEVEL",
+	})
+
+	config.LogLevel = r.flagLogLevel
 }
 
 func (r *RunCommand) setBoolFlag(f *FlagSets, configVal bool, fVar *BoolVar) {
