@@ -19,12 +19,8 @@ import (
 
 // Constants for test
 const (
-	LDAPAuthTestType   = "ldap_auth"
-	LDAPAuthTestMethod = "POST"
-	// TODO:
-	// Should this be a bit more dynamic? How do we handle a scenario where there may be
-	// multiple LDAP servers we want to connect to that use different credentials? Should
-	// we accomodate this?
+	LDAPAuthTestType               = "ldap_auth"
+	LDAPAuthTestMethod             = "POST"
 	LDAPAuthTestUserNameEnvVar     = VaultBenchmarkEnvVarPrefix + "LDAP_TEST_USERNAME"
 	LDAPAuthTestUserPasswordEnvVar = VaultBenchmarkEnvVarPrefix + "LDAP_TEST_PASSWORD"
 	LDAPAuthBindPassEnvVar         = VaultBenchmarkEnvVarPrefix + "LDAP_BIND_PASS"
