@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -20,6 +21,8 @@ import (
 const (
 	ElasticSearchSecretTestType   = "elasticsearch_secret"
 	ElasticSearchSecretTestMethod = "GET"
+	ElasticSearchUsernameEnvVar   = VaultBenchmarkEnvVarPrefix + "ELASTICSEARCH_USERNAME"
+	ElasticSearchPasswordEnvVar   = VaultBenchmarkEnvVarPrefix + "ELASTICSEARCH_PASSWORD"
 )
 
 func init() {
@@ -40,8 +43,8 @@ type ElasticSearchTestConfig struct {
 }
 
 type ElasticSearchSecretTestConfig struct {
-	ElasticSearchConfig     *ElasticSearchConfig     `hcl:"db_config,block"`
-	ElasticSearchRoleConfig *ElasticSearchRoleConfig `hcl:"role_config,block"`
+	ElasticSearchConfig     *ElasticSearchConfig     `hcl:"db,block"`
+	ElasticSearchRoleConfig *ElasticSearchRoleConfig `hcl:"role,block"`
 }
 
 type ElasticSearchConfig struct {
@@ -79,6 +82,8 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 				DBName:       "benchmark-elasticsearch",
 				AllowedRoles: []string{"benchmark-role"},
 				Insecure:     true,
+				Username:     os.Getenv(ElasticSearchUsernameEnvVar),
+				Password:     os.Getenv(ElasticSearchPasswordEnvVar),
 			},
 			ElasticSearchRoleConfig: &ElasticSearchRoleConfig{
 				DBName:             "benchmark-elasticsearch",
@@ -93,6 +98,14 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 	diags := gohcl.DecodeBody(body, nil, e.config)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
+	}
+
+	if e.config.Config.ElasticSearchConfig.Username == "" {
+		return fmt.Errorf("no elasticsearch username provided but required")
+	}
+
+	if e.config.Config.ElasticSearchConfig.Password == "" {
+		return fmt.Errorf("no elasticsearch password provided but required")
 	}
 
 	return nil

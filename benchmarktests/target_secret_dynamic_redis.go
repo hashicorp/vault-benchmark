@@ -1,7 +1,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -18,12 +17,12 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-var flagDynamicRedisUserConfigHCL string
-
 // Constants for test
 const (
-	RedisDynamicSecretTestType   = "redis_dynamic_secret"
-	RedisDynamicSecretTestMethod = "GET"
+	RedisDynamicSecretTestType         = "redis_dynamic_secret"
+	RedisDynamicSecretTestMethod       = "GET"
+	RedisDynamicSecretDBUsernameEnvVar = VaultBenchmarkEnvVarPrefix + "REDIS_USERNAME"
+	RedisDynamicSecretDBPasswordEnvVar = VaultBenchmarkEnvVarPrefix + "REDIS_PASSWORD"
 )
 
 func init() {
@@ -68,6 +67,8 @@ func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 				AllowedRoles: []string{"my-*-role"},
 				TLS:          false,
 				InsecureTLS:  true,
+				Username:     os.Getenv(RedisDynamicSecretDBUsernameEnvVar),
+				Password:     os.Getenv(RedisDynamicSecretDBPasswordEnvVar),
 			},
 			RoleConfig: &RedisDynamicRoleConfig{
 				Name:       "my-dynamic-role",
@@ -84,13 +85,14 @@ func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	// Handle passed in JSON config
-	if flagDynamicRedisUserConfigHCL != "" {
-		err := r.config.Config.DBConfig.FromJSON(flagDynamicRedisUserConfigHCL)
-		if err != nil {
-			return fmt.Errorf("error loading redis user config from JSON: %v", err)
-		}
+	if r.config.Config.DBConfig.Username == "" {
+		return fmt.Errorf("no redis username provided but required")
 	}
+
+	if r.config.Config.DBConfig.Password == "" {
+		return fmt.Errorf("no redis password provided but required")
+	}
+
 	return nil
 }
 
@@ -116,11 +118,6 @@ func (r *RedisDynamicSecret) GetTargetInfo() TargetInfo {
 		method:     RedisDynamicSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
-}
-
-// TODO: remove redis_test_user_json flag when we support environment variables
-func (r *RedisDynamicSecret) Flags(fs *flag.FlagSet) {
-	fs.StringVar(&flagDynamicRedisUserConfigHCL, "redis_dynamic_test_user_json", "", "When provided, the location of user credentials to test redis secrets engine.")
 }
 
 func (r *RedisDynamicSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
@@ -185,30 +182,4 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, randomMountName bool, mou
 	}, nil
 }
 
-// TODO: remove when we support environment variables
-func (d *RedisDBConfig) FromJSON(path string) error {
-	if path == "" {
-		return fmt.Errorf("no redis user config passed but is required")
-	}
-
-	// Load JSON config
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(d); err != nil {
-		return err
-	}
-
-	// Check for required fields
-	switch {
-	case d.Username == "":
-		return fmt.Errorf("no username passed but is required")
-	case d.Password == "":
-		return fmt.Errorf("no password passed but is required")
-	default:
-		return nil
-	}
-}
+func (r *RedisDynamicSecret) Flags(fs *flag.FlagSet) {}

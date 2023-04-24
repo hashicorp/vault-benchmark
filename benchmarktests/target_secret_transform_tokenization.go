@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -20,6 +21,8 @@ import (
 const (
 	TransformTokenizationTestType   = "transform_tokenization"
 	TransformTokenizationTestMethod = "POST"
+	TransformStoreUsernameEnvVar    = VaultBenchmarkEnvVarPrefix + "TRANSIT_STORE_USERNAME"
+	TransformStorePasswordEnvVar    = VaultBenchmarkEnvVarPrefix + "TRANSIT_STORE_PASSWORD"
 )
 
 func init() {
@@ -50,12 +53,12 @@ type TransformTokenizationTestConfig struct {
 }
 
 type TransformStoreConfig struct {
-	Name                     string   `hcl:"name,optional"`
-	Type                     string   `hcl:"type,optional"`
-	Driver                   string   `hcl:"driver,optional"`
-	ConnectionString         string   `hcl:"connection_string,optional"`
-	Username                 string   `hcl:"username,optional"`
-	Password                 string   `hcl:"password,optional"`
+	Name                     string   `hcl:"name"`
+	Type                     string   `hcl:"type"`
+	Driver                   string   `hcl:"driver"`
+	ConnectionString         string   `hcl:"connection_string"`
+	Username                 string   `hcl:"username"`
+	Password                 string   `hcl:"password"`
 	SupportedTransformations []string `hcl:"supported_transformations,optional"`
 	Schema                   string   `hcl:"schema,optional"`
 	MaxOpenConnections       int      `hcl:"max_open_connections,optional"`
@@ -110,6 +113,10 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 				Transformation: "benchmarktransformation",
 				Value:          "123456789",
 			},
+			StoreConfig: &TransformStoreConfig{
+				Username: os.Getenv(TransformStoreUsernameEnvVar),
+				Password: os.Getenv(TransformStorePasswordEnvVar),
+			},
 		},
 	}
 
@@ -117,6 +124,7 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+
 	return nil
 }
 
@@ -170,7 +178,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	setupLogger := t.logger.Named(secretPath)
 
 	// Create Store config if provided
-	if config.StoreConfig != nil {
+	if config.StoreConfig.Name != "" {
 		setupLogger.Trace("configuring store")
 
 		// Decode Store config struct to mapstructure to pass with request

@@ -41,8 +41,8 @@ type ConsulTestConfig struct {
 }
 
 type ConsulSecretTestConfig struct {
-	ConsulConfig     *ConsulConfig     `hcl:"consul_config,block"`
-	ConsulRoleConfig *ConsulRoleConfig `hcl:"role_config,block"`
+	ConsulConfig     *ConsulConfig     `hcl:"consul,block"`
+	ConsulRoleConfig *ConsulRoleConfig `hcl:"role,block"`
 }
 
 type ConsulConfig struct {
@@ -93,7 +93,7 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	// Ensure that the token has been set by either the environment variable or the default value
+	// Ensure that the token has been set by either the environment variable or the config
 	if c.config.Config.ConsulConfig.Token == "" {
 		return fmt.Errorf("consul token must be set")
 	}

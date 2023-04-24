@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -19,6 +20,8 @@ import (
 const (
 	CouchbaseSecretTestType   = "couchbase_secret"
 	CouchbaseSecretTestMethod = "GET"
+	CouchbaseUsernameEnvVar   = VaultBenchmarkEnvVarPrefix + "COUCHBASE_USERNAME"
+	CouchbasePasswordEnvVar   = VaultBenchmarkEnvVarPrefix + "COUCHBASE_PASSWORD"
 )
 
 func init() {
@@ -80,7 +83,9 @@ func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
 				AllowedRoles: []string{
 					"benchmark-role",
 				},
-				TLS: false,
+				TLS:      false,
+				Username: os.Getenv(CouchbaseUsernameEnvVar),
+				Password: os.Getenv(CouchbasePasswordEnvVar),
 			},
 			RoleConfig: &CouchbaseRoleConfig{
 				Name:   "benchmark-role",
@@ -93,6 +98,15 @@ func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+
+	if c.config.Config.DBConfig.Username == "" {
+		return fmt.Errorf("no couchbase username provided but required")
+	}
+
+	if c.config.Config.DBConfig.Password == "" {
+		return fmt.Errorf("no couchbase password provided but required")
+	}
+
 	return nil
 }
 

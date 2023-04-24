@@ -15,6 +15,10 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
+const (
+	VaultBenchmarkEnvVarPrefix = "VAULT_BENCHMARK_"
+)
+
 type BenchmarkBuilder interface {
 	// Target generates and returns a vegeta.Target struct which is used for the attack
 	Target(client *api.Client) vegeta.Target

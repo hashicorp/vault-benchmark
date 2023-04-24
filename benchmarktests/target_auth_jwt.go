@@ -207,7 +207,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	jwtRoleConfig, err := structToMap(config.JWTRoleConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding role from struct: %v", err)
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Write JWT role
