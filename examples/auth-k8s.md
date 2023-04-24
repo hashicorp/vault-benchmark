@@ -52,7 +52,7 @@ When Vault is running in a non-Kubernetes environment, either
   While it is strongly advised that you use `serviceaccount_uid`, you may also use `serviceaccount_name` in cases where
   you want to set the alias ahead of time, and the risks are mitigated or otherwise acceptable given your use case.
   It is very important to limit who is able to delete/create service accounts within a given cluster.
-  See the [Create an Entity Alias](/vault/api-docs/secret/identity/entity-alias#create-an-entity-alias) document
+  See the [Create an Entity Alias](https://developer.hashicorp.com/vault/api-docs/secret/identity/entity-alias#create-an-entity-alias) document
   which further expands on the potential security implications mentioned above.
 - `token_ttl` `(integer: 0 or string: "")` - The incremental lifetime for
   generated tokens. This current value of this will be referenced at renewal
