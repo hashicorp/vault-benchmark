@@ -11,8 +11,8 @@ test "mssql_secret" "mssql_test_1" {
     config {
         db_config {
             connection_url = "sqlserver://{{username}}:{{password}}@localhost:1433"
-            username = "username"
-            password = "P@SSW0RD"
+            username = "sa"
+            password = "Eralper@6"
         }
 
         role_config {

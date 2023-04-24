@@ -47,8 +47,8 @@ type MSSQLTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type MSSQLSecretTestConfig struct {
-	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db_config,block"`
-	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role_config,block"`
+	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db,block"`
+	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role,block"`
 }
 
 // MSSQL DB Config
@@ -84,9 +84,9 @@ type MSSQLRoleConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
-func (s *MSSQLSecret) ParseConfig(body hcl.Body) error {
+func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	s.config = &MSSQLTestConfig{
+	m.config = &MSSQLTestConfig{
 		Config: &MSSQLSecretTestConfig{
 			MSSQLDBConfig: &MSSQLDBConfig{
 				Name:         "benchmark-mssql",
@@ -100,14 +100,14 @@ func (s *MSSQLSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, s.config)
+	diags := gohcl.DecodeBody(body, nil, m.config)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
 	// Handle passed in JSON config
 	if flagMSSQLUserConfigJSON != "" {
-		err := s.config.Config.MSSQLDBConfig.FromJSON(flagMSSQLUserConfigJSON)
+		err := m.config.Config.MSSQLDBConfig.FromJSON(flagMSSQLUserConfigJSON)
 		if err != nil {
 			return fmt.Errorf("error loading test mssql user config from JSON: %v", err)
 		}
@@ -115,35 +115,35 @@ func (s *MSSQLSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *MSSQLSecret) Target(client *api.Client) vegeta.Target {
+func (m *MSSQLSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: MSSQLSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
-		Header: s.header,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
 	}
 }
 
-func (s *MSSQLSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
+func (m *MSSQLSecret) Cleanup(client *api.Client) error {
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
 	return nil
 }
 
-func (s *MSSQLSecret) GetTargetInfo() TargetInfo {
+func (m *MSSQLSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     MSSQLSecretTestMethod,
-		pathPrefix: s.pathPrefix,
+		pathPrefix: m.pathPrefix,
 	}
 }
 
-func (s *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := s.config.Config
-	s.logger = targetLogger.Named(MSSQLSecretTestType)
+	config := m.config.Config
+	m.logger = targetLogger.Named(MSSQLSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -153,7 +153,7 @@ func (s *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// Create Database Secret Mount
-	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
+	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
@@ -161,7 +161,7 @@ func (s *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 		return nil, fmt.Errorf("error mounting db secrets engine: %v", err)
 	}
 
-	setupLogger := s.logger.Named(secretPath)
+	setupLogger := m.logger.Named(secretPath)
 
 	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
