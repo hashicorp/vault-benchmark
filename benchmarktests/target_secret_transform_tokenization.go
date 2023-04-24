@@ -178,7 +178,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bo
 	setupLogger := t.logger.Named(secretPath)
 
 	// Create Store config if provided
-	if config.StoreConfig.Name != "" {
+	if config.StoreConfig.Type != "" {
 		setupLogger.Trace("configuring store")
 
 		// Decode Store config struct to mapstructure to pass with request
