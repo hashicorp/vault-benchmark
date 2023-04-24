@@ -25,7 +25,7 @@ This benchmark will test Vault authentication using the Kubernetes Auth method. 
 - `disable_iss_validation` `(bool: true)` **Deprecated** Disable JWT issuer validation. Allows to skip ISS validation.
 
 - `issuer` `(string: "")` **Deprecated** Optional JWT issuer. If no issuer is specified, then this plugin will use `kubernetes/serviceaccount` as the default issuer.
-See [these instructions](/vault/docs/auth/kubernetes#discovering-the-service-account-issuer) for looking up the issuer for a given Kubernetes cluster.
+See [these instructions](https://developer.hashicorp.com/vault/docs/auth/kubernetes#discovering-the-service-account-issuer) for looking up the issuer for a given Kubernetes cluster.
 
 ### Caveats
 
