@@ -1,4 +1,4 @@
-# Redis Secrets Engine Benchmark
+# Static Redis Secrets Engine Benchmark
 This benchmark will test the static generation of redis credentials. In order to use this test, configuration for the target redis database must be provided as part of the configuration. 
 
 ## Test Parameters
