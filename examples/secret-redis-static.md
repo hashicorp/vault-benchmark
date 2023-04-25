@@ -1,28 +1,34 @@
-# Static Redis Secrets Engine Benchmark
-This benchmark will test the static generation of redis credentials. In order to use this test, configuration for the target redis database must be provided as part of the configuration. 
+# Redis Static Credential Benchmark (`redis_static_secret`) 
 
-## Test Parameters
-### Database Configuration `db`
-- `name` `(string: "benchmark-redis-db")` – Specifies the name for this database connection. This is specified as part of the URL.
-- `verify_connection` `(bool: true)` – Specifies if the connection is verified during initial configuration. Defaults to true.
+This benchmark will test the static generation of redis credentials.
+
+~> We highly recommended that you use a Vault-specific user rather than the admin user
+in your database when configuring the plugin. This user will be used to
+create/update/delete users within the database so it will need to have the appropriate
+permissions to do so.
+
+## Benchmark Configuration Parameters
+### DB Configuration (`db`)
+- `name` `(string: "benchmark-redis-db")` - Name for this database connection.
+- `plugin_name` `(string: "redis-database-plugin")` - Specifies the name of the plugin to use for this connection.
 - `plugin_version` `(string: "")` - Specifies the semantic version of the plugin to use for this connection.
-- `allowed_roles` `(list: ["my-*-role"])` - List of the roles allowed to use this connection. If contains a `*` any role can use this connection.
-- `username` `(string: <required>)` – Specifies the username for Vault to use.
-- `password` `(string: <required>)` – Specifies the password corresponding to the given username.
-- `host` `(string: <required>)` – Specifies the host to connect to.
-- `port` `(int: <required>)` – Specifies the port number of the connection.
-- `tls` `(bool: false)` – Specifies whether to use TLS when connecting to Redis.
-- `insecure_tls` `(bool: false)` – Specifies whether to skip verification of the
-server certificate when using TLS.
-- `ca_cert` _(string: optional)_: Specifies whether to use TLS when connecting to Redis.
+- `verify_connection` `(bool: true)` – Specifies if the connection is verified during initial configuration. Defaults to true.
+- `allowed_roles` `(list: ["my-*-role"])` - List of the roles allowed to use this connection. 
+- `host` `(string: <required>)` - Specifies the host to connect to.
+- `port` `(int: <required>)` - Specifies the port to connect to. 
+- `username` `(string: "")` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable
+- `password` `(string: "")` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
+- `tls` `(bool: false)` - Specifies whether to use TLS when connecting to Redis.
+- `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS.
+- `ca_cert` `(string: optional)` - Specifies whether to use TLS when connecting to Redis.
 
-### Static Role Config `role`
-- `name` `(string: "my-static-role")` – Specifies the name of the role to create. This is specified as part of the URL.
-- `db_name` `(string: "benchmark-redis-db")` - The name of the database connection to use for this role.
-- `rotation_period` `(string/int: "5m")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
+### Static Role Configuration (`role`)
+- `name` `(string: "my-static-role")` - Specifies the name of the role to create. 
+- `db_name` `(string: "benchmark-redis-db")` - Specifies the name of db.  
+- `rotation_period` `(string: "")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
 - `username` `(string: <required>)` – Specifies the database username that this Vault role corresponds to.
 
-### Example vault-benchmark config map YAML
+## Example HCL 
 ```hcl
 test "redis_static_secret" "redis_static_secret_1" {
   weight = 100
@@ -47,12 +53,13 @@ test "redis_static_secret" "redis_static_secret_1" {
 }
 ```
 
+## Example Usage
 ```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-25T11:19:42.638-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-25T11:19:42.658-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-25T11:19:44.663-0500 [INFO]  vault-benchmark: benchmark complete
+$ vault-benchmark run -config=example-configs/config.hcl
+2023-04-25T11:27:49.323-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-25T11:27:49.345-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-25T11:27:51.349-0500 [INFO]  vault-benchmark: benchmark complete
 Target: http://localhost:8200
-op                     count  rate         throughput   mean        95th%       99th%        successRatio
-redis_static_secret_1  4818   2408.666450  2404.376084  4.154177ms  4.843807ms  12.356863ms  100.00%
+op                      count  rate         throughput   mean        95th%       99th%        successRatio
+redis_dynamic_secret_1  4922   2460.722400  2456.618212  4.065801ms  5.248935ms  10.719219ms  100.00%
 ```
