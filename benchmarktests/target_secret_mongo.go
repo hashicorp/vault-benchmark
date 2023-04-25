@@ -1,7 +1,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -17,11 +16,11 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-var flagMongoDBUserConfigJSON string
-
 const (
 	MongoDBSecretTestType   = "mongodb_secret"
 	MongoDBSecretTestMethod = "GET"
+	MongoDBUsernameEnvVar   = VaultBenchmarkEnvVarPrefix + "MONGODB_USERNAME"
+	MongoDBPasswordEnvVar   = VaultBenchmarkEnvVarPrefix + "MONGODB_PASSWORD"
 )
 
 func init() {
@@ -75,6 +74,8 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 			MongoDBConfig: &MongoDBConfig{
 				PluginName:   "mongodb-database-plugin",
 				AllowedRoles: []string{"benchmark-role"},
+				Username:     os.Getenv(MongoDBUsernameEnvVar),
+				Password:     os.Getenv(MongoDBPasswordEnvVar),
 			},
 			MongoDBRoleConfig: &MongoDBRoleConfig{
 				Name:               "benchmark-role",
@@ -90,17 +91,13 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	// Handle passed in JSON config
-	if flagMongoDBUserConfigJSON != "" {
-		err := m.config.Config.MongoDBConfig.FromJSON(flagMongoDBUserConfigJSON)
-		if err != nil {
-			return fmt.Errorf("error loading test mongodb user config from JSON: %v", err)
-		}
+	// Ensure that the username and password are set
+	if m.config.Config.MongoDBConfig.Username == "" {
+		return fmt.Errorf("no mongodb username provided but required")
 	}
 
-	// Ensure that the username and password are set
-	if m.config.Config.MongoDBConfig.Username == "" || m.config.Config.MongoDBConfig.Password == "" {
-		return fmt.Errorf("username and password must be set")
+	if m.config.Config.MongoDBConfig.Password == "" {
+		return fmt.Errorf("no mongodb password provided but required")
 	}
 
 	return nil
@@ -189,33 +186,4 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 	}, nil
 }
 
-func (m *MongoDBTest) Flags(fs *flag.FlagSet) {
-	fs.StringVar(&flagMongoDBUserConfigJSON, "mongodb_test_user_json", "", "When provided, the location of user credentials to test mongodb secrets engine.")
-}
-
-func (m *MongoDBConfig) FromJSON(path string) error {
-	if path == "" {
-		return fmt.Errorf("no mongodb user config passed but is required")
-	}
-
-	// Load JSON config
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(m); err != nil {
-		return err
-	}
-
-	// Check for required fields
-	switch {
-	case m.Username == "":
-		return fmt.Errorf("no username passed but is required")
-	case m.Password == "":
-		return fmt.Errorf("no password passed but is required")
-	default:
-		return nil
-	}
-}
+func (m *MongoDBTest) Flags(fs *flag.FlagSet) {}

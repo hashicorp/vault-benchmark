@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
@@ -19,6 +20,8 @@ import (
 const (
 	RabbitMQSecretTestType   = "rabbitmq_secret"
 	RabbitMQSecretTestMethod = "GET"
+	RabbitMQUsernameEnvVar   = VaultBenchmarkEnvVarPrefix + "RABBITMQ_USERNAME"
+	RabbitMQPasswordEnvVar   = VaultBenchmarkEnvVarPrefix + "RABBITMQ_PASSWORD"
 )
 
 func init() {
@@ -47,8 +50,8 @@ type RabbitMQSecretTestConfig struct {
 
 type RabbitMQConnectionConfig struct {
 	ConnectionURI    string `hcl:"connection_uri"`
-	Username         string `hcl:"username"`
-	Password         string `hcl:"password"`
+	Username         string `hcl:"username,optional"`
+	Password         string `hcl:"password,optional"`
 	VerifyConnection *bool  `hcl:"verify_connection,optional"`
 	PasswordPolicy   string `hcl:"password_policy,optional"`
 	UsernameTemplate string `hcl:"username_template,optional"`
@@ -64,7 +67,10 @@ type RabbitMQRoleConfig struct {
 func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	r.config = &RabbitMQTestConfig{
 		Config: &RabbitMQSecretTestConfig{
-			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{},
+			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{
+				Username: os.Getenv(RabbitMQUsernameEnvVar),
+				Password: os.Getenv(RabbitMQPasswordEnvVar),
+			},
 			RabbitMQRoleConfig: &RabbitMQRoleConfig{
 				Name:   "benchmark-role",
 				Vhosts: "{\"/\":{\"write\": \".*\", \"read\": \".*\"}}",
@@ -76,6 +82,15 @@ func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+
+	if r.config.Config.RabbitMQConnectionConfig.Username == "" {
+		return fmt.Errorf("no rabbitmq username provided but required")
+	}
+
+	if r.config.Config.RabbitMQConnectionConfig.Password == "" {
+		return fmt.Errorf("no rabbitmq password provided but required")
+	}
+
 	return nil
 }
 

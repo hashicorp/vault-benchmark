@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,12 +17,12 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-var flagStaticRedisUserConfigHCL string
-
 // Constants for test
 const (
-	RedisStaticSecretTestType   = "redis_static_secret"
-	RedisStaticSecretTestMethod = "GET"
+	RedisStaticSecretTestType       = "redis_static_secret"
+	RedisStaticSecretTestMethod     = "GET"
+	RedisStaticSecretUsernameEnvVar = VaultBenchmarkEnvVarPrefix + "STATIC_REDIS_USERNAME"
+	RedisStaticSecretPasswordEnvVar = VaultBenchmarkEnvVarPrefix + "STATIC_REDIS_PASSWORD"
 )
 
 func init() {
@@ -85,6 +86,8 @@ func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 				AllowedRoles: []string{"my-*-role"},
 				TLS:          false,
 				InsecureTLS:  true,
+				Username:     os.Getenv(RedisStaticSecretUsernameEnvVar),
+				Password:     os.Getenv(RedisStaticSecretPasswordEnvVar),
 			},
 			RoleConfig: &RedisStaticRoleConfig{
 				DBName:         "benchmark-redis-db",
@@ -100,13 +103,14 @@ func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	// Handle passed in JSON config
-	if flagStaticRedisUserConfigHCL != "" {
-		err := r.config.Config.DBConfig.FromJSON(flagStaticRedisUserConfigHCL)
-		if err != nil {
-			return fmt.Errorf("error loading redis user config from JSON: %v", err)
-		}
+	if r.config.Config.DBConfig.Username == "" {
+		return fmt.Errorf("no redis username provided but required")
 	}
+
+	if r.config.Config.DBConfig.Password == "" {
+		return fmt.Errorf("no redis password provided but required")
+	}
+
 	return nil
 }
 
@@ -134,10 +138,7 @@ func (r *RedisStaticSecret) GetTargetInfo() TargetInfo {
 	}
 }
 
-// TODO: remove redis_test_user_json flag when we support environment variables
-func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {
-	fs.StringVar(&flagStaticRedisUserConfigHCL, "redis_static_test_user_json", "", "When provided, the location of user credentials to test redis secrets engine.")
-}
+func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {}
 
 func (r *RedisStaticSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error

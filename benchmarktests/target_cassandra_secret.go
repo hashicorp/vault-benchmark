@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,6 +22,8 @@ import (
 const (
 	CassandraSecretTestType   = "cassandra_secret"
 	CassandraSecretTestMethod = "GET"
+	CassandraDBUsernameEnvVar = VaultBenchmarkEnvVarPrefix + "CASSANDRADB_USERNAME"
+	CassandraDBPasswordEnvVar = VaultBenchmarkEnvVarPrefix + "CASSANDRADB_PASSWORD"
 )
 
 func init() {
@@ -55,8 +58,8 @@ type CassandraDBConfig struct {
 	Hosts            string   `hcl:"hosts"`
 	Port             int      `hcl:"port,optional"`
 	ProtocolVersion  int      `hcl:"protocol_version"`
-	Username         string   `hcl:"username"`
-	Password         string   `hcl:"password"`
+	Username         string   `hcl:"username,optional"`
+	Password         string   `hcl:"password,optional"`
 	AllowedRoles     []string `hcl:"allowed_roles,optional"`
 	TLS              *bool    `hcl:"tls,optional"`
 	InsecureTLS      bool     `hcl:"insecure_tls,optional"`
@@ -94,6 +97,8 @@ func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 				PluginName:   "cassandra-database-plugin",
 				AllowedRoles: []string{"benchmark-role"},
 				Port:         9042,
+				Username:     os.Getenv(CassandraDBUsernameEnvVar),
+				Password:     os.Getenv(CassandraDBPasswordEnvVar),
 			},
 			CassandraRoleConfig: &CassandraRoleConfig{
 				Name:   "benchmark-role",
@@ -105,6 +110,14 @@ func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	diags := gohcl.DecodeBody(body, nil, c.config)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
+	}
+
+	if c.config.Config.CassandraDBConfig.Username == "" {
+		return fmt.Errorf("no cassandradb username provided but required")
+	}
+
+	if c.config.Config.CassandraDBConfig.Password == "" {
+		return fmt.Errorf("no cassandradb password provided but required")
 	}
 
 	return nil

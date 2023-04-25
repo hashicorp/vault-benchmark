@@ -1,7 +1,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -18,13 +17,13 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Override flags
-var flagLDAPTestUserConfigJSON string
-
 // Constants for test
 const (
-	LDAPAuthTestType   = "ldap_auth"
-	LDAPAuthTestMethod = "POST"
+	LDAPAuthTestType               = "ldap_auth"
+	LDAPAuthTestMethod             = "POST"
+	LDAPAuthTestUserNameEnvVar     = VaultBenchmarkEnvVarPrefix + "LDAP_TEST_USERNAME"
+	LDAPAuthTestUserPasswordEnvVar = VaultBenchmarkEnvVarPrefix + "LDAP_TEST_PASSWORD"
+	LDAPAuthBindPassEnvVar         = VaultBenchmarkEnvVarPrefix + "LDAP_BIND_PASS"
 )
 
 func init() {
@@ -46,8 +45,8 @@ type LDAPTestConfig struct {
 }
 
 type LDAPAuthTestConfig struct {
-	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"auth_config,block"`
-	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"test_user_config,block"`
+	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"auth,block"`
+	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"test_user,block"`
 }
 
 type LDAPAuthConfig struct {
@@ -86,15 +85,20 @@ type LDAPAuthConfig struct {
 }
 
 type LDAPTestUserConfig struct {
-	Username string `hcl:"username"`
-	Password string `hcl:"password"`
+	Username string `hcl:"username,optional"`
+	Password string `hcl:"password,optional"`
 }
 
 func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	l.config = &LDAPTestConfig{
 		Config: &LDAPAuthTestConfig{
-			LDAPAuthConfig:     &LDAPAuthConfig{},
-			LDAPTestUserConfig: &LDAPTestUserConfig{},
+			LDAPAuthConfig: &LDAPAuthConfig{
+				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
+			},
+			LDAPTestUserConfig: &LDAPTestUserConfig{
+				Username: os.Getenv(LDAPAuthTestUserNameEnvVar),
+				Password: os.Getenv(LDAPAuthTestUserPasswordEnvVar),
+			},
 		},
 	}
 
@@ -103,41 +107,20 @@ func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	// Handle passed in JSON config
-	if flagLDAPTestUserConfigJSON != "" {
-		err := l.config.Config.LDAPTestUserConfig.FromJSON(flagLDAPTestUserConfigJSON)
-		if err != nil {
-			return fmt.Errorf("error loading test LDAP user config from JSON: %v", err)
-		}
+	// Empty Credentials check
+	if l.config.Config.LDAPAuthConfig.BindPass == "" {
+		return fmt.Errorf("no bindpass provided for vault to use")
 	}
+
+	if l.config.Config.LDAPTestUserConfig.Username == "" {
+		return fmt.Errorf("no ldap test user username provided but required")
+	}
+
+	if l.config.Config.LDAPTestUserConfig.Password == "" {
+		return fmt.Errorf("no password provided for ldap test user %v but required", l.config.Config.LDAPTestUserConfig.Username)
+	}
+
 	return nil
-}
-
-func (u *LDAPTestUserConfig) FromJSON(path string) error {
-	if path == "" {
-		return fmt.Errorf("no LDAP user config passed but is required")
-	}
-
-	// Load JSON config
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(u); err != nil {
-		return err
-	}
-
-	// Check for required fields
-	switch {
-	case u.Username == "":
-		return fmt.Errorf("no username passed but is required")
-	case u.Password == "":
-		return fmt.Errorf("no password passed but is required")
-	default:
-		return nil
-	}
 }
 
 func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
@@ -213,6 +196,4 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 }
 
 // Func Flags accepts a flag set to assign additional flags defined in the function
-func (l *LDAPAuth) Flags(fs *flag.FlagSet) {
-	fs.StringVar(&flagLDAPTestUserConfigJSON, "ldap_test_user_json", "", "When provided, the location of user credentials to test LDAP auth.")
-}
+func (l *LDAPAuth) Flags(fs *flag.FlagSet) {}
