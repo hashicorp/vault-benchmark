@@ -45,8 +45,8 @@ type ApproleTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type ApproleAuthTestConfig struct {
-	RoleConfig     *RoleConfig     `hcl:"role_config,block"`
-	SecretIDConfig *SecretIDConfig `hcl:"secret_id_config,block"`
+	RoleConfig     *RoleConfig     `hcl:"role,block"`
+	SecretIDConfig *SecretIDConfig `hcl:"secret_id,block"`
 }
 
 // AppRole Role Config

@@ -41,8 +41,8 @@ type ConsulTestConfig struct {
 }
 
 type ConsulSecretTestConfig struct {
-	ConsulConfig     *ConsulConfig     `hcl:"consul_config,block"`
-	ConsulRoleConfig *ConsulRoleConfig `hcl:"role_config,block"`
+	ConsulConfig     *ConsulConfig     `hcl:"consul,block"`
+	ConsulRoleConfig *ConsulRoleConfig `hcl:"role,block"`
 }
 
 type ConsulConfig struct {

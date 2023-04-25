@@ -42,8 +42,8 @@ type MongoDBTestConfig struct {
 }
 
 type MongoDBSecretTestConfig struct {
-	MongoDBConfig     *MongoDBConfig     `hcl:"db_config,block"`
-	MongoDBRoleConfig *MongoDBRoleConfig `hcl:"role_config,block"`
+	MongoDBConfig     *MongoDBConfig     `hcl:"db,block"`
+	MongoDBRoleConfig *MongoDBRoleConfig `hcl:"role,block"`
 }
 
 type MongoDBConfig struct {

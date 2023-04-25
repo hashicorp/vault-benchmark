@@ -46,8 +46,8 @@ type LDAPTestConfig struct {
 }
 
 type LDAPAuthTestConfig struct {
-	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"auth_config,block"`
-	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"test_user_config,block"`
+	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"auth,block"`
+	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"test_user,block"`
 }
 
 type LDAPAuthConfig struct {
