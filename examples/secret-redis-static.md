@@ -4,7 +4,7 @@ This benchmark will test the tatic generation of redis credentials.
 
 ## Test Parameters
 ### DB Config
-- `db_name` _(string: "benchmark-postgres")_: Name for this database connection. 
+- `name` _(string: "benchmark-redis-db")_: Name for this database connection. 
 - `allowed_roles` _(list: ["my-*-role"])_: List of the roles allowed to use this connection. 
 - `host` _(string: <required>)_: Specifies the host to connect to.
 - `port` _(int: <required>)_: Specifies the port to connect to. 
@@ -15,7 +15,8 @@ This benchmark will test the tatic generation of redis credentials.
 - `ca_cert` _(string: optional)_: Specifies whether to use TLS when connecting to Redis.
 
 ### Static Role Config
-- `role_name` _(string: "my-static-role")_: Specifies the name of the role to create. 
+- `name` _(string: "my-static-role")_: Specifies the name of the role to create. 
+- `db_name` _(string: "benchmark-redis-db")_: Specifies the name of db.  
 - `rotation_period` _(string/int)_ – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
 - `username` _(string: <required>)_ – Specifies the database username that this Vault role corresponds to.
 
@@ -27,16 +28,17 @@ test "redis_static_secret" "redis_static_secret_1" {
   config {
     db {
       host          = "localhost"
-      db_name       = "redis"
+      name          = "redis"
       port          = "6379"
       allowed_roles = ["my-*-role"]
-      username      = "user"
+      username      = "default"
       password      = "pass"
       tls           = false
     }
 
     role {
-      role_name       = "my-s-role"
+      name            = "my-s-role"
+      db_name         = "redis"
       rotation_period = "5m"
       username        = "my-static-role"
     }
@@ -61,14 +63,17 @@ test "redis_static_secret" "redis_static_secret_1" {
   config {
     db {
       host          = "localhost"
-      db_name       = "redis"
+      name          = "redis"
       port          = "6379"
       allowed_roles = ["my-*-role"]
+      username      = "default"
+      password      = "pass"
       tls           = false
     }
 
     role {
-      role_name       = "my-s-role"
+      name            = "my-s-role"
+      db_name         = "redis"
       rotation_period = "5m"
       username        = "my-static-role"
     }
