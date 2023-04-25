@@ -24,7 +24,7 @@ permissions to do so.
 
 ### Static Role Configuration (`role`)
 - `name` `(string: "my-static-role")` - Specifies the name of the role to create. 
-- `db_name` `(string: "benchmark-redis-db")` - Specifies the name of db.  
+- `db_name` `(string: "benchmark-redis-db")` - Specifies the name of the database connection to use for this role.  
 - `rotation_period` `(string: "")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
 - `username` `(string: <required>)` – Specifies the database username that this Vault role corresponds to.
 
