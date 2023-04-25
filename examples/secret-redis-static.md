@@ -16,8 +16,8 @@ permissions to do so.
 - `allowed_roles` `(list: ["my-*-role"])` - List of the roles allowed to use this connection. 
 - `host` `(string: <required>)` - Specifies the host to connect to.
 - `port` `(int: <required>)` - Specifies the port to connect to. 
-- `username` `(string: "")` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable
-- `password` `(string: "")` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
+- `username` `(string: <required>)` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable
+- `password` `(string: <required>)` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
 - `tls` `(bool: false)` - Specifies whether to use TLS when connecting to Redis.
 - `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS.
 - `ca_cert` `(string: optional)` - Specifies whether to use TLS when connecting to Redis.
@@ -25,7 +25,7 @@ permissions to do so.
 ### Static Role Configuration (`role`)
 - `name` `(string: "my-static-role")` - Specifies the name of the role to create. 
 - `db_name` `(string: "benchmark-redis-db")` - Specifies the name of the database connection to use for this role.  
-- `rotation_period` `(string: "")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
+- `rotation_period` `(string: "5m")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
 - `username` `(string: <required>)` – Specifies the database username that this Vault role corresponds to.
 
 ## Example HCL 
@@ -56,10 +56,10 @@ test "redis_static_secret" "redis_static_secret_1" {
 ## Example Usage
 ```bash
 $ vault-benchmark run -config=example-configs/config.hcl
-2023-04-25T11:27:49.323-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-25T11:27:49.345-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-25T11:27:51.349-0500 [INFO]  vault-benchmark: benchmark complete
+2023-04-25T11:19:42.638-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-25T11:19:42.658-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-25T11:19:44.663-0500 [INFO]  vault-benchmark: benchmark complete
 Target: http://localhost:8200
-op                      count  rate         throughput   mean        95th%       99th%        successRatio
-redis_dynamic_secret_1  4922   2460.722400  2456.618212  4.065801ms  5.248935ms  10.719219ms  100.00%
+op                     count  rate         throughput   mean        95th%       99th%        successRatio
+redis_static_secret_1  4818   2408.666450  2404.376084  4.154177ms  4.843807ms  12.356863ms  100.00%
 ```
