@@ -39,6 +39,7 @@ type RunCommand struct {
 	flagAuditPath        string
 	flagVBCoreConfigPath string
 	flagCAPEMFile        string
+	flagVaultNamespace   string
 	flagWorkers          int
 	flagRPS              int
 	flagDuration         time.Duration
@@ -98,6 +99,14 @@ func (r *RunCommand) Flags() *FlagSets {
 		Target:  &r.flagVaultToken,
 		Default: "",
 		Usage:   "Vault Token to be used for test setup.",
+	})
+
+	f.StringVar(&StringVar{
+		Name:    "vault_namespace",
+		EnvVar:  "VAULT_NAMESPACE",
+		Target:  &r.flagVaultNamespace,
+		Usage:   "Vault Namespace to create test mounts.",
+		Default: "",
 	})
 
 	f.StringVar(&StringVar{
@@ -346,6 +355,7 @@ func (r *RunCommand) Run(args []string) int {
 			return 1
 		}
 		client.SetToken(cluster.Token)
+		client.SetNamespace(conf.VaultNamespace)
 		clients = append(clients, client)
 	}
 
@@ -509,6 +519,14 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: "http://127.0.0.1:8200",
 	})
 	config.VaultAddr = r.flagVaultAddr
+
+	r.setStringFlag(f, config.VaultNamespace, &StringVar{
+		Name:    "vault_namespace",
+		EnvVar:  "VAULT_NAMESPACE",
+		Target:  &r.flagVaultNamespace,
+		Default: "",
+	})
+	config.VaultNamespace = r.flagVaultNamespace
 
 	r.setStringFlag(f, config.ReportMode, &StringVar{
 		Name:    "report_mode",
