@@ -47,7 +47,7 @@ type MSSQLTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type MSSQLSecretTestConfig struct {
-	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db,block"`
+	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db_connection,block"`
 	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role,block"`
 }
 

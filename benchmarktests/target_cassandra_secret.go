@@ -47,7 +47,7 @@ type CassandraTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type CassandraSecretTestConfig struct {
-	CassandraDBConfig   *CassandraDBConfig   `hcl:"db,block"`
+	CassandraDBConfig   *CassandraDBConfig   `hcl:"db_connection,block"`
 	CassandraRoleConfig *CassandraRoleConfig `hcl:"role,block"`
 }
 

@@ -43,7 +43,7 @@ type ElasticSearchTestConfig struct {
 }
 
 type ElasticSearchSecretTestConfig struct {
-	ElasticSearchConfig     *ElasticSearchConfig     `hcl:"db,block"`
+	ElasticSearchConfig     *ElasticSearchConfig     `hcl:"db_connection,block"`
 	ElasticSearchRoleConfig *ElasticSearchRoleConfig `hcl:"role,block"`
 }
 
