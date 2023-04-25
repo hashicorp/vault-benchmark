@@ -1,22 +1,27 @@
-# Dynamic Secrets Engine Benchmark
-This benchmark will test the dynamic generation of redis credentials. In order to use this test, configuration for the target redis database must be provided as part of the configuration. 
+# Redis Static Credential Benchmark (`redis_dynamic_secret`) 
 
-## Test Parameters
-### Database Configuration `db`
-- `name` `(string: "benchmark-redis-db")` – Specifies the name for this database connection. This is specified as part of the URL.
-- `verify_connection` `(bool: true)` – Specifies if the connection is verified during initial configuration. Defaults to true.
+This benchmark will test the dynamic generation of redis credentials.
+
+~> We highly recommended that you use a Vault-specific user rather than the admin user
+in your database when configuring the plugin. This user will be used to
+create/update/delete users within the database so it will need to have the appropriate
+permissions to do so.
+
+## Benchmark Configuration Parametersi
+### Database Configuration (`db`)
+- `name` `(string: "benchmark-redis-db")` - Name for this database connection.
+- `plugin_name` `(string: "redis-database-plugin")` - Specifies the name of the plugin to use for this connection.
 - `plugin_version` `(string: "")` - Specifies the semantic version of the plugin to use for this connection.
-- `allowed_roles` `(list: ["my-*-role"])` - List of the roles allowed to use this connection. If contains a `*` any role can use this connection.
-- `username` `(string: <required>)` – Specifies the username for Vault to use.
-- `password` `(string: <required>)` – Specifies the password corresponding to the given username.
-- `host` `(string: <required>)` – Specifies the host to connect to.
-- `port` `(int: <required>)` – Specifies the port number of the connection.
-- `tls` `(bool: false)` – Specifies whether to use TLS when connecting to Redis.
-- `insecure_tls` `(bool: false)` – Specifies whether to skip verification of the
-server certificate when using TLS.
-- `ca_cert` _(string: optional)_: Specifies whether to use TLS when connecting to Redis.
+- `verify_connection` `(bool: true)` – Specifies if the connection is verified during initial configuration. Defaults to true.
+- `host` `(string: <required>)` - Specifies the host to connect to.
+- `port` `(int: <required>)` - Specifies the port to connect to. 
+- `username` `(string: <required>)` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable
+- `password` `(string: <required>)` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
+- `tls` `(bool: false)` - Specifies whether to use TLS when connecting to Redis.
+- `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS.
+- `ca_cert` `(string: optional)` - Specifies whether to use TLS when connecting to Redis.
 
-### Dynamic Role Config `role`
+### Dynamic Role Config (`role`)
 - `name` `(string: "my-dynamic-role")` – Specifies the name of the role to create. This is specified as part of the URL. 
 - `default_ttl` `(string/int: 0)` - Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (`1h`) or an integer
   number of seconds. Defaults to system/engine default TTL time.
@@ -26,7 +31,7 @@ server certificate when using TLS.
   for more information on support and formatting for this parameter.
 
 
-### Example vault-benchmark config map YAML
+## Example HCL 
 ```hcl
 test "redis_dynamic_secret" "redis_dynamic_secret_1" {
   weight = 100
