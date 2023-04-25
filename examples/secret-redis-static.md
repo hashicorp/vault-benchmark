@@ -33,7 +33,7 @@ permissions to do so.
 test "redis_static_secret" "redis_static_secret_1" {
   weight = 100
   config {
-    db {
+    db_connection {
       host          = "localhost"
       name          = "redis"
       port          = "6379"

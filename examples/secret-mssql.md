@@ -27,18 +27,17 @@ This benchmark will test the dynamic generation of MSSQL credentials.
 ## Example Configuration
 
 ### Only HCL
-
 ```hcl
 test "mssql_secret" "mssql_test_1" {
     weight = 100
     config {
-        db_config {
+        db_connection {
             connection_url = "sqlserver://{{username}}:{{password}}@localhost:1433"
             username = "username"
             password = "P@$$word123"
         }
 
-        role_config {
+        role {
             creation_statements = "CREATE LOGIN [{{name}}] WITH PASSWORD = '{{password}}'; CREATE USER [{{name}}] FOR LOGIN [{{name}}]; GRANT SELECT ON SCHEMA::dbo TO [{{name}}];"
         }
     }
@@ -61,13 +60,13 @@ mssql_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.667201
 test "mssql_secret" "mssql_test_1" {
     weight = 100
     config {
-        db_config {
+        db_connection {
             connection_url = "sqlserver://{{username}}:{{password}}@localhost:1433"
             username = "username"
             password = "P@SSW0RD"
         }
 
-        role_config {
+        role {
             creation_statements = "CREATE LOGIN [{{name}}] WITH PASSWORD = '{{password}}'; CREATE USER [{{name}}] FOR LOGIN [{{name}}]; GRANT SELECT ON SCHEMA::dbo TO [{{name}}];"
         }
     }

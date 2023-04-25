@@ -24,17 +24,16 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
 - `creation_statements` _([]string: "{"elasticsearch_role_definition": {"indices": [{"names":["*"], "privileges":["read"]}]}}")_: Specifies the database statements executed to create and configure a user.
 
 ## Example Configuration
-
 ```hcl
 test "elasticsearch_secret" "elasticsearch_test_1" {
     weight = 100
     config {
-        db_config {
+        db_connection {
             url = "https://localhost:9200"
             username = "elastic"
             password = "*M7EJ8VUbEp7lTCmfxoS"
         }
-        role_config {
+        role {
             creation_statements = "{\"elasticsearch_role_definition\": {\"indices\": [{\"names\":[\"*\"], \"privileges\":[\"read\"]}]}}"
             default_ttl = "1h"
             max_ttl = "24h"
