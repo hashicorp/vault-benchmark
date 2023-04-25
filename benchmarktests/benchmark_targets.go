@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"sort"
+	"sync"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2"
@@ -89,15 +90,36 @@ func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 	return nil
 }
 
-// TODO:
-// Should probably spawn these as goroutines and use a
-// waitgroup to help speed these up as this doesn't
-// scale very well
 func (tm TargetMulti) Cleanup(client *api.Client) error {
+	type CleanupMsg struct {
+		err        error
+		targetName string
+	}
+
+	wg := new(sync.WaitGroup)
+	errch := make(chan CleanupMsg)
+	var errCount int
+
 	for _, target := range tm.targets {
-		targetLogger.Debug("cleaning up target", "target", hclog.Fmt("%v", target.Name))
-		if err := target.Builder.Cleanup(client); err != nil {
-			return err
+		target := target
+		wg.Add(1)
+		targetLogger.Debug("cleaning up", "target", target.Name)
+		go func() {
+			defer wg.Done()
+			errch <- CleanupMsg{
+				err:        target.Builder.Cleanup(client),
+				targetName: target.Name,
+			}
+		}()
+	}
+
+	for i := 0; i < len(tm.targets); i++ {
+		cleanupMsg := <-errch
+		if cleanupMsg.err != nil {
+			errCount++
+			targetLogger.Error("error cleaning up", "target", cleanupMsg.targetName, "error", cleanupMsg.err.Error())
+		} else {
+			targetLogger.Trace("done cleaning up", "target", cleanupMsg.targetName)
 		}
 	}
 	return nil
