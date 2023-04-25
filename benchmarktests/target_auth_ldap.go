@@ -117,7 +117,7 @@ func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	}
 
 	if l.config.Config.LDAPTestUserConfig.Password == "" {
-		return fmt.Errorf("no password provided for ldap test user %v", l.config.Config.LDAPTestUserConfig.Username)
+		return fmt.Errorf("no password provided for ldap test user %v but required", l.config.Config.LDAPTestUserConfig.Username)
 	}
 
 	return nil

@@ -113,11 +113,11 @@ func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	if c.config.Config.CassandraDBConfig.Username == "" {
-		return fmt.Errorf("no cassandradb username provided")
+		return fmt.Errorf("no cassandradb username provided but required")
 	}
 
 	if c.config.Config.CassandraDBConfig.Password == "" {
-		return fmt.Errorf("no cassandradb password provided")
+		return fmt.Errorf("no cassandradb password provided but required")
 	}
 
 	return nil
