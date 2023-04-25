@@ -52,8 +52,8 @@ type JWTTestConfig struct {
 
 // Intermediary struct to assist with HCL decoding
 type JWTAuthTestConfig struct {
-	JWTAuthConfig *JWTAuthConfig `hcl:"auth_config,block"`
-	JWTRoleConfig *JWTRoleConfig `hcl:"role_config,block"`
+	JWTAuthConfig *JWTAuthConfig `hcl:"auth,block"`
+	JWTRoleConfig *JWTRoleConfig `hcl:"role,block"`
 }
 
 // JWT Auth Config

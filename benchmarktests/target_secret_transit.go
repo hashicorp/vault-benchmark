@@ -50,11 +50,11 @@ type TransitTestConfig struct {
 type TransitConfig struct {
 	PayloadLen           int                   `hcl:"payload_len,optional"`
 	ContextLen           int                   `hcl:"context_len,optional"`
-	TransitConfigKeys    *TransitConfigKeys    `hcl:"keys_config,block"`
-	TransitConfigSign    *TransitConfigSign    `hcl:"sign_config,block"`
-	TransitConfigVerify  *TransitConfigVerify  `hcl:"verify_config,block"`
-	TransitConfigEncrypt *TransitConfigEncrypt `hcl:"encrypt_config,block"`
-	TransitConfigDecrypt *TransitConfigDecrypt `hcl:"decrypt_config,block"`
+	TransitConfigKeys    *TransitConfigKeys    `hcl:"keys,block"`
+	TransitConfigSign    *TransitConfigSign    `hcl:"sign,block"`
+	TransitConfigVerify  *TransitConfigVerify  `hcl:"verify,block"`
+	TransitConfigEncrypt *TransitConfigEncrypt `hcl:"encrypt,block"`
+	TransitConfigDecrypt *TransitConfigDecrypt `hcl:"decrypt,block"`
 }
 
 // /transit/keys/:name
