@@ -1,4 +1,4 @@
-# Redis Static Credential Benchmark (`redis_dynamic_secret`) 
+# Redis Dynamic Credential Benchmark (`redis_dynamic_secret`) 
 
 This benchmark will test the dynamic generation of redis credentials.
 
