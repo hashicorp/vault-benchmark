@@ -21,7 +21,7 @@ permissions to do so.
 - `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS.
 - `ca_cert` `(string: optional)` - Specifies whether to use TLS when connecting to Redis.
 
-### Dynamic Role Config (`role`)
+### Dynamic Role Configuration (`role`)
 - `name` `(string: "my-dynamic-role")` – Specifies the name of the role to create. This is specified as part of the URL. 
 - `default_ttl` `(string/int: 0)` - Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (`1h`) or an integer
   number of seconds. Defaults to system/engine default TTL time.
