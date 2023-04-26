@@ -16,7 +16,7 @@ permissions to do so.
 - `allowed_roles` `(list: ["my-*-role"])` - List of the roles allowed to use this connection. 
 - `host` `(string: <required>)` - Specifies the host to connect to.
 - `port` `(int: <required>)` - Specifies the port to connect to. 
-- `username` `(string: <required>)` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable
+- `username` `(string: <required>)` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable.
 - `password` `(string: <required>)` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
 - `tls` `(bool: false)` - Specifies whether to use TLS when connecting to Redis.
 - `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS.
