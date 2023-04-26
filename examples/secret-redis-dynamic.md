@@ -24,8 +24,7 @@ permissions to do so.
 ### Dynamic Role Configuration (`role`)
 - `name` `(string: "my-dynamic-role")` – Specifies the name of the role to create. This is specified as part of the URL. 
 - `default_ttl` `(string)` - Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (`1h`). Defaults to system/engine default TTL time.
-- `max_ttl` `(string/int: 0)` - Specifies the maximum TTL for the leases associated with this role. Accepts time suffixed strings (`1h`) or an integer
-  number of seconds. Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](/vault/docs/concepts/tokens#the-general-case).
+- `max_ttl` `(string)` - Specifies the maximum TTL for the leases associated with this role. Accepts time suffixed strings (`1h`). Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](/vault/docs/concepts/tokens#the-general-case).
 - `creation_statements` `(list: <required>)` – Specifies the database statements executed to create and configure a user. See the plugin's API page
   for more information on support and formatting for this parameter.
 
