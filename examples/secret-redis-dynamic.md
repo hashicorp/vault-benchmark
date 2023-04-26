@@ -8,7 +8,7 @@ create/update/delete users within the database so it will need to have the appro
 permissions to do so.
 
 ## Benchmark Configuration Parametersi
-### Database Configuration (`db`)
+### Database Configuration (`db_connection`)
 - `name` `(string: "benchmark-redis-db")` - Name for this database connection.
 - `plugin_name` `(string: "redis-database-plugin")` - Specifies the name of the plugin to use for this connection.
 - `plugin_version` `(string: "")` - Specifies the semantic version of the plugin to use for this connection.
