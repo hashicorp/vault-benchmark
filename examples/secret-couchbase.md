@@ -79,7 +79,7 @@ This benchmark will test the dynamic generation of Couchbase credentials.
 test "couchbase_secret" "couchbase_test_1" {
     weight = 100
     config {
-        db {
+        db_connection {
             username = "username"
             password = "password"
             hosts = "couchbase://127.0.0.1"

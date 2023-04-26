@@ -22,18 +22,17 @@ This benchmark will test the dynamic generation of MongoDB credentials.
 - `creation_statements` _(list: [])_: Specifies the database statements executed to create and configure a user.  Defaults to `"{ "db": "admin", "roles": [{ "role": "readWrite" }, {"role": "read", "db": "foo"}] }"`
 
 ## Example Configuration
-
 ```hcl
 test "mongodb_secret" "mongodb_test_1" {
     weight = 100
     config {
-        db_config {
+        db_connection {
             name = "mongo-benchmark-database"
             connection_url = "mongodb://{{username}}:{{password}}@127.0.0.1:27017/admin?tls=false"
             username = "mdbadmin"
             password = "root"
         }
-        role_config {
+        role {
             db_name = "mongo-benchmark-database"
         }
     }

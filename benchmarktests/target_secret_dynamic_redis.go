@@ -42,7 +42,7 @@ type RedisDynamicTestConfig struct {
 }
 
 type RedisDynamicSecretTestConfig struct {
-	DBConfig   *RedisDBConfig          `hcl:"db,block"`
+	DBConfig   *RedisDBConfig          `hcl:"db_connection,block"`
 	RoleConfig *RedisDynamicRoleConfig `hcl:"role,block"`
 }
 

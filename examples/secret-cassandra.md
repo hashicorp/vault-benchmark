@@ -38,7 +38,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
 test "cassandra_secret" "cassandra_secret_1" {
     weight = 100
     config {
-        db {
+        db_connection {
             hosts =  "127.0.0.1"
             username = "cassandra"
             password = "cassandra"

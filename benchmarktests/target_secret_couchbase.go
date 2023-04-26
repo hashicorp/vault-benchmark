@@ -41,7 +41,7 @@ type CouchBaseSecretConfig struct {
 }
 
 type CouchBaseTestConfig struct {
-	DBConfig   *CouchbaseConfig     `hcl:"db,block"`
+	DBConfig   *CouchbaseConfig     `hcl:"db_connection,block"`
 	RoleConfig *CouchbaseRoleConfig `hcl:"role,block"`
 }
 
