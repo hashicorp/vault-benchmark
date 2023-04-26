@@ -21,23 +21,23 @@ include a-Z, 0-9, space, hyphen, underscore and periods.
 - `local_secret_ids` `(bool: false)` - If set, the secret IDs generated
   using this role will be cluster local. This can only be set during role
   creation and once set, it can't be reset later.
-- `token_ttl` `(integer: 0 or string: "")` - The incremental lifetime for
+- `token_ttl` `(string: "")` - The incremental lifetime for
   generated tokens. This current value of this will be referenced at renewal
   time.
-- `token_max_ttl` `(integer: 0 or string: "")` - The maximum lifetime for
+- `token_max_ttl` `(string: "")` - The maximum lifetime for
   generated tokens. This current value of this will be referenced at renewal
   time.
-- `token_policies` `(array: [] or comma-delimited string: "")` - List of
+- `token_policies` `(array: [])` - List of
   token policies to encode onto generated tokens. Depending on the auth method, this
   list may be supplemented by user/group/other values.
-- `policies` `(array: [] or comma-delimited string: "")` - DEPRECATED: Please
+- `policies` `(array: [])` - DEPRECATED: Please
   use the `token_policies` parameter instead. List of token policies to encode
   onto generated tokens. Depending on the auth method, this list may be
   supplemented by user/group/other values.
-- `token_bound_cidrs` `(array: [] or comma-delimited string: "")` - List of
+- `token_bound_cidrs` `(array: [])` - List of
   CIDR blocks; if set, specifies blocks of IP addresses which can authenticate
   successfully, and ties the resulting token to these blocks as well.
-- `token_explicit_max_ttl` `(integer: 0 or string: "")` - If set, will encode
+- `token_explicit_max_ttl` `(string: "")` - If set, will encode
   an [explicit max
   TTL](/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls)
   onto the token. This is a hard cap even if `token_ttl` and `token_max_ttl`
@@ -49,7 +49,7 @@ include a-Z, 0-9, space, hyphen, underscore and periods.
   token may be used (within its lifetime); 0 means unlimited.
   If you require the token to have the ability to create child tokens,
   you will need to set this value to 0.
-- `token_period` `(integer: 0 or string: "")` - The maximum allowed [period](/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls) value when a periodic token is requested from this role.
+- `token_period` `(string: "")` - The maximum allowed [period](/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls) value when a periodic token is requested from this role.
 - `token_type` `(string: "")` - The type of token that should be generated. Can
   be `service`, `batch`, or `default` to use the mount's tuned default (which
   unless changed will be `service` tokens). For token store roles, there are two
