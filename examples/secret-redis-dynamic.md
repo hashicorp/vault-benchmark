@@ -7,7 +7,7 @@ in your database when configuring the plugin. This user will be used to
 create/update/delete users within the database so it will need to have the appropriate
 permissions to do so.
 
-## Benchmark Configuration Parametersi
+## Benchmark Configuration Parameters
 ### Database Configuration (`db_connection`)
 - `name` `(string: "benchmark-redis-db")` - Name for this database connection.
 - `plugin_name` `(string: "redis-database-plugin")` - Specifies the name of the plugin to use for this connection.
