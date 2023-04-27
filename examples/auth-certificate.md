@@ -85,7 +85,7 @@ test "cert_auth" "cert_auth_test1" {
 	weight = 25
 	config {
 		name = "test"
-        certificate = cert.pem
+    certificate = cert.pem
 	}
 }
 ```
