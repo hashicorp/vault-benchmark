@@ -41,13 +41,17 @@ type UserpassTestConfig struct {
 }
 
 type UserpassAuthConfig struct {
-	Username            string   `hcl:"username,optional"`
-	Password            string   `hcl:"password,optional"`
-	TokenTTL            string   `hcl:"token_ttl,optional"`
-	TokenMaxTTL         string   `hcl:"token_max_ttl,optional"`
-	TokenPolicies       []string `hcl:"token_policies,optional"`
-	TokenExplicitMaxTTL string   `hcl:"token_explicit_max_ttl,optional"`
-	TokenType           string   `hcl:"token_type,optional"`
+	Username             string   `hcl:"username,optional"`
+	Password             string   `hcl:"password,optional"`
+	TokenTTL             string   `hcl:"token_ttl,optional"`
+	TokenMaxTTL          string   `hcl:"token_max_ttl,optional"`
+	TokenPolicies        []string `hcl:"token_policies,optional"`
+	TokenBoundCidrs      []string `hcl:"token_bound_cidrs"`
+	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional"`
+	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy"`
+	TokenNumUses         int      `hcl:"token_num_uses"`
+	TokenPeriod          int      `hcl:"token_period"`
+	TokenType            string   `hcl:"token_type,optional"`
 }
 
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
