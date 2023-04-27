@@ -30,7 +30,7 @@ This benchmark tests the performance of logins using the jwt auth method.
   the user; this will be used as the name for the Identity entity alias created
   due to a successful login. The claim value must be a string.
 - `user_claim_json_pointer` `(string: <optional>)` - Specifies if the `user_claim` value uses
-  [JSON pointer](/vault/docs/auth/jwt#claim-specifications-and-json-pointer) syntax for
+  [JSON pointer](https://developer.hashicorp.com/vault/docs/auth/jwt#claim-specifications-and-json-pointer) syntax for
   referencing claims. By default, the `user_claim` value will not use JSON pointer.
 - `clock_skew_leeway` `(int: <optional>)` - The amount of leeway to add to all claims to
   account for clock skew, in seconds. Defaults to `60` seconds if set to `0` and can be disabled
@@ -48,7 +48,7 @@ This benchmark tests the performance of logins using the jwt auth method.
   claim matches this value.
 - `bound_claims` `(map: <optional>)` - If set, a map of claims (keys) to match against respective claim values (values).
   The expected value may be a single string or a list of strings. The interpretation of the bound
-  claim values is configured with `bound_claims_type`. Keys support [JSON pointer](/vault/docs/auth/jwt#claim-specifications-and-json-pointer)
+  claim values is configured with `bound_claims_type`. Keys support [JSON pointer](https://developer.hashicorp.com/vault/docs/auth/jwt#claim-specifications-and-json-pointer)
   syntax for referencing claims.
 - `bound_claims_type` `(string: "string")` - Configures the interpretation of the bound_claims values.
   If `"string"` (the default), the values will treated as string literals and must match exactly.
@@ -57,10 +57,10 @@ This benchmark tests the performance of logins using the jwt auth method.
 - `groups_claim` `(string: <optional>)` - The claim to use to uniquely identify
   the set of groups to which the user belongs; this will be used as the names
   for the Identity group aliases created due to a successful login. The claim
-  value must be a list of strings. Supports [JSON pointer](/vault/docs/auth/jwt#claim-specifications-and-json-pointer)
+  value must be a list of strings. Supports [JSON pointer](https://developer.hashicorp.com/vault/docs/auth/jwt#claim-specifications-and-json-pointer)
   syntax for referencing claims.
 - `claim_mappings` `(map: <optional>)` - If set, a map of claims (keys) to be copied to
-  specified metadata fields (values). Keys support [JSON pointer](/vault/docs/auth/jwt#claim-specifications-and-json-pointer)
+  specified metadata fields (values). Keys support [JSON pointer](https://developer.hashicorp.com/vault/docs/auth/jwt#claim-specifications-and-json-pointer)
   syntax for referencing claims.
 - `oidc_scopes` `(list: <optional>)` - If set, a list of OIDC scopes to be used with an OIDC role.
   The standard scope "openid" is automatically included and need not be specified.
@@ -91,7 +91,7 @@ This benchmark tests the performance of logins using the jwt auth method.
   successfully, and ties the resulting token to these blocks as well.
 - `token_explicit_max_ttl` `(string: "")` - If set, will encode
   an [explicit max
-  TTL](/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls)
+  TTL](https://developer.hashicorp.com/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls)
   onto the token. This is a hard cap even if `token_ttl` and `token_max_ttl`
   would otherwise allow a renewal.
 - `token_no_default_policy` `(bool: false)` - If set, the `default` policy will
@@ -101,7 +101,7 @@ This benchmark tests the performance of logins using the jwt auth method.
   token may be used (within its lifetime); 0 means unlimited.
   If you require the token to have the ability to create child tokens,
   you will need to set this value to 0.
-- `token_period` `(string: "")` - The maximum allowed [period](/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls) value when a periodic token is requested from this role.
+- `token_period` `(string: "")` - The maximum allowed [period](https://developer.hashicorp.com/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls) value when a periodic token is requested from this role.
 - `token_type` `(string: "")` - The type of token that should be generated. Can
   be `service`, `batch`, or `default` to use the mount's tuned default (which
   unless changed will be `service` tokens). For token store roles, there are two
