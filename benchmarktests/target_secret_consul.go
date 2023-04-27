@@ -21,6 +21,7 @@ import (
 const (
 	ConsulSecretTestType   = "consul_secret"
 	ConsulSecretTestMethod = "GET"
+	ConsulTokenEnvVar      = VaultBenchmarkEnvVarPrefix + "CONSUL_TOKEN"
 )
 
 func init() {
@@ -78,12 +79,11 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 			Version: "1.14.0",
 			ConsulConfig: &ConsulConfig{
 				Scheme: "http",
-				Token:  os.Getenv("CONSUL_TOKEN"),
+				Token:  os.Getenv(ConsulTokenEnvVar),
 			},
 			ConsulRoleConfig: &ConsulRoleConfig{
 				Name:      "benchmark-role",
 				TokenType: "client",
-				Local:     false,
 			},
 		},
 	}
@@ -179,12 +179,14 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	if v.LessThan(version.Must(version.NewVersion("1.8"))) {
 		delete(consulRoleConfigData, "node_identities")
 		delete(consulRoleConfigData, "consul_namespace")
+		setupLogger.Warn("node_identities and consul_namespace are not supported in Consul < 1.8.  These fields will be ignored.")
 	}
 
 	// For Consul < 1.5, we need to unset service_identities and consul_roles
 	if v.LessThan(version.Must(version.NewVersion("1.5"))) {
 		delete(consulRoleConfigData, "service_identities")
 		delete(consulRoleConfigData, "consul_roles")
+		setupLogger.Warn("service_identities and consul_roles are not supported in Consul < 1.5.  These fields will be ignored.")
 	}
 
 	// Create Role
