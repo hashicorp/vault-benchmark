@@ -103,7 +103,7 @@ test "approle_auth" "approle_test1" {
 
 ## Example Usage
 ```bash
-./dist/vault-benchmark run -config=config.hcl 
+./vault-benchmark run -config=config.hcl 
 2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
 2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete
