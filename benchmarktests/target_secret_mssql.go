@@ -1,7 +1,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -18,12 +17,12 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-var flagMSSQLUserConfigJSON string
-
 // Constants for test
 const (
 	MSSQLSecretTestType   = "mssql_secret"
 	MSSQLSecretTestMethod = "GET"
+	MSSQLUsernameEnvVar   = VaultBenchmarkEnvVarPrefix + "MSSQL_USERNAME"
+	MSSQLPasswordEnvVar   = VaultBenchmarkEnvVarPrefix + "MSSQL_PASSWORD"
 )
 
 func init() {
@@ -92,6 +91,8 @@ func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 				Name:         "benchmark-mssql",
 				AllowedRoles: []string{"benchmark-role"},
 				PluginName:   "mssql-database-plugin",
+				Username:     os.Getenv(MSSQLUsernameEnvVar),
+				Password:     os.Getenv(MSSQLPasswordEnvVar),
 			},
 			MSSQLRoleConfig: &MSSQLRoleConfig{
 				Name:   "benchmark-role",
@@ -105,13 +106,14 @@ func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
-	// Handle passed in JSON config
-	if flagMSSQLUserConfigJSON != "" {
-		err := m.config.Config.MSSQLDBConfig.FromJSON(flagMSSQLUserConfigJSON)
-		if err != nil {
-			return fmt.Errorf("error loading test mssql user config from JSON: %v", err)
-		}
+	if m.config.Config.MSSQLDBConfig.Username == "" {
+		return fmt.Errorf("no mssql username provided but required")
 	}
+
+	if m.config.Config.MSSQLDBConfig.Password == "" {
+		return fmt.Errorf("no mssql password provided but required")
+	}
+
 	return nil
 }
 
@@ -197,37 +199,8 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.MSSQLRoleConfig.Name,
+		logger:     m.logger,
 	}, nil
-
 }
 
-func (l *MSSQLSecret) Flags(fs *flag.FlagSet) {
-	fs.StringVar(&flagMSSQLUserConfigJSON, "mssql_test_user_json", "", "When provided, the location of user credentials to test mssql secrets engine.")
-}
-
-func (c *MSSQLDBConfig) FromJSON(path string) error {
-	if path == "" {
-		return fmt.Errorf("no mssql user config passed but is required")
-	}
-
-	// Load JSON config
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(c); err != nil {
-		return err
-	}
-
-	// Check for required fields
-	switch {
-	case c.Username == "":
-		return fmt.Errorf("no username passed but is required")
-	case c.Password == "":
-		return fmt.Errorf("no password passed but is required")
-	default:
-		return nil
-	}
-}
+func (l *MSSQLSecret) Flags(fs *flag.FlagSet) {}
