@@ -66,7 +66,7 @@ type ConsulRoleConfig struct {
 	Policy            string   `hcl:"policy,optional"`
 	Policies          []string `hcl:"policies,optional"`
 	ConsulPolicies    []string `hcl:"consul_policies,optional"`
-	Local             bool     `hcl:"local,optional"`
+	Local             *bool    `hcl:"local,optional"`
 	TTL               string   `hcl:"ttl,optional"`
 	MaxTTL            string   `hcl:"max_ttl,optional"`
 	Lease             string   `hcl:"lease,optional"`

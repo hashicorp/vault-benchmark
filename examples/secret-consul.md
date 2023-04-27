@@ -1,25 +1,21 @@
-# Consul Secret Configuration Options
+# Consul Secret Benchmark
 
 This benchmark will test the dynamic generation of Consul credentials.
 
-## Test Parameters
-
+## Test Parameters `config`
 - `version` `string: "1.14.0"`: Specifies the version of Consul. This is used to determine the correct API calls to make.
 
-### Consul Config
-
+### Consul Config `consul`
 - `address` `string: <required>`: Specifies the address of the Consul instance, provided as "host:port" like "127.0.0.1:8500"
 - `token` `string: <required>`: Specifies the token to use for the Consul instance. This can either be provided as a string or as the environment variable `$CONSUL_TOKEN`.
 - `scheme` `string: "http"`: Specifies the URL scheme to use.
 
-### Role Config
-
+### Role Config `role`
 - `name` `string: "benchmark-role"`: Specifies the name of an existing role against which to create this Consul credential. This is part of the request URL.
 - `token_type` `string: "client"`: Specifies the type of token to create when using this role. Valid values are "client" or "management". If a "management" token, the policy parameter is not required. Defaults to "client".
 - `local` `bool: false`: Indicates that the token should not be replicated globally and instead be local to the current datacenter. Only available in Consul 1.4 and greater.
 
-## Example Configuration
-
+## Example HCL
 ```hcl
 test "consul_secret" "consul_test_1" {
     weight = 100
@@ -39,7 +35,6 @@ test "consul_secret" "consul_test_1" {
 ```
 
 ## Example Usage
-
 ```bash
 $ vault-benchmark run -config=example-configs/consul/config.hcl
 2023-04-27T12:57:07.469-0500 [INFO]  vault-benchmark: setting up targets
