@@ -79,30 +79,7 @@ of the user configured in this step. The new password will **not** be viewable b
   plugin type will support this functionality. See the plugin's API page for
   more information on support and formatting for this parameter.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Example Configuration 
-### Only HCL
+### Example HCL
 ```hcl
 test "cassandra_secret" "cassandra_secret_1" {
     weight = 100
@@ -121,12 +98,13 @@ test "cassandra_secret" "cassandra_secret_1" {
 }
 ```
 
+### Example Usage
 ```bash
-$ vault-benchmark run -config=example-configs/config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 10s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate        throughput  mean         95th%        99th%        successRatio
-cassandra_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.667201ms  100.00%
+$ vault-benchmark run -config=config.hcl             
+2023-04-27T13:36:04.553-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-27T13:36:04.768-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-27T13:36:07.662-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op                  count  rate       throughput  mean         95th%         99th%      successRatio
+cassandra_secret_1  34     16.635150  11.754942   739.57933ms  852.527624ms  859.465ms  100.00%
 ```
