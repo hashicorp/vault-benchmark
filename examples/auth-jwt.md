@@ -115,14 +115,14 @@ test "jwt_auth" "jwt_auth1" {
   weight = 100
   config {
     auth {
-      jwks_url: "jwks.com"
+      jwks_url = "jwks.com"
     }
 
     role {
       name            = "my-jwt-role"
-      role_type = "jwt"
+      role_type       = "jwt"
       bound_audiences = "https://vault.plugin.auth.jwt.test"
-      user_claim = "https://vault/user"
+      user_claim      = "https://vault/user"
     }
   }
 }
