@@ -89,7 +89,6 @@ test "approle_auth" "approle_test1" {
       role_name         = "test"
       bind_secret_id    = true
       token_ttl         = "10m"
-      token_bound_cidrs = ["1.2.3.0/24", "1.2.4.1/24"]
       token_type = "batch"
     }
 
