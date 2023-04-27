@@ -25,7 +25,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
   as part of the host URI. Defaults to Cassandra's default transport port, 9042.
 - `protocol_version` `(int: 2)` – Specifies the CQL protocol version to use.
 - `username` `(string: <required>)` – Specifies the username to use for
-  superuser access.i This can also be provided via the `VAULT_BENCHMARK_CASSANDRADB_USERNAME` environment variable.
+  superuser access. This can also be provided via the `VAULT_BENCHMARK_CASSANDRADB_USERNAME` environment variable.
 - `password` `(string: <required>)` – Specifies the password corresponding to
   the given username. This can also be provided via the `VAULT_BENCHMARK_CASSANDRADB_PASSWORD` environment variable.
 - `tls` `(bool: true)` – Specifies whether to use TLS when connecting to
