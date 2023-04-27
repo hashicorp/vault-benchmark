@@ -233,13 +233,12 @@ func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
 func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
 	config := j.config.Config
-	aud := append(sqjwt.Audience{}, config.JWTRoleConfig.BoundAudiences...)
 
 	cl := sqjwt.Claims{
 		Subject:   config.JWTRoleConfig.BoundSubject,
 		Issuer:    config.JWTAuthConfig.BoundIssuer,
 		NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
-		Audience:  aud,
+		Audience:  append(sqjwt.Audience{}, config.JWTRoleConfig.BoundAudiences...),
 	}
 
 	privateCl := struct {
