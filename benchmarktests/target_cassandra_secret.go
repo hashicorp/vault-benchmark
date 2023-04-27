@@ -59,6 +59,7 @@ type CassandraDBConfig struct {
 	VerifyConnection       *bool    `hcl:"verify_connection"`
 	AllowedRoles           []string `hcl:"allowed_roles,optional"`
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
+	PasswordPolicy         string   `hcl:"password_policy,optional"`
 	Hosts                  string   `hcl:"hosts"`
 	Port                   int      `hcl:"port,optional"`
 	ProtocolVersion        int      `hcl:"protocol_version"`
@@ -66,8 +67,8 @@ type CassandraDBConfig struct {
 	Password               string   `hcl:"password,optional"`
 	TLS                    *bool    `hcl:"tls,optional"`
 	InsecureTLS            bool     `hcl:"insecure_tls,optional"`
-	TLSServerName          string   `hcl:"tls_server_name,optional"`
 	PEMBundle              string   `hcl:"pem_bundle,optional"`
+	TLSServerName          string   `hcl:"tls_server_name,optional"`
 	PEMhcl                 string   `hcl:"pem_hcl,optional"`
 	SkipVerification       bool     `hcl:"skip_verification,optional"`
 	ConnectTimeout         string   `hcl:"connect_timeout,optional"`
