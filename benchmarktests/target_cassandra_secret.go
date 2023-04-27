@@ -53,25 +53,28 @@ type CassandraSecretTestConfig struct {
 
 // Cassandra DB Config
 type CassandraDBConfig struct {
-	Name             string   `hcl:"name,optional"`
-	PluginName       string   `hcl:"plugin_name,optional"`
-	Hosts            string   `hcl:"hosts"`
-	Port             int      `hcl:"port,optional"`
-	ProtocolVersion  int      `hcl:"protocol_version"`
-	Username         string   `hcl:"username,optional"`
-	Password         string   `hcl:"password,optional"`
-	AllowedRoles     []string `hcl:"allowed_roles,optional"`
-	TLS              *bool    `hcl:"tls,optional"`
-	InsecureTLS      bool     `hcl:"insecure_tls,optional"`
-	TLSServerName    string   `hcl:"tls_server_name,optional"`
-	PEMBundle        string   `hcl:"pem_bundle,optional"`
-	PEMhcl           string   `hcl:"pem_hcl,optional"`
-	SkipVerification bool     `hcl:"skip_verification,optional"`
-	ConnectTimeout   string   `hcl:"connect_timeout,optional"`
-	LocalDatacenter  string   `hcl:"local_datacenter,optional"`
-	SocketKeepAlive  string   `hcl:"socket_keep_alive,optional"`
-	Consistency      string   `hcl:"consistency,optional"`
-	UsernameTemplate string   `hcl:"username_template,optional"`
+	Name                   string   `hcl:"name,optional"`
+	PluginName             string   `hcl:"plugin_name,optional"`
+	PluginVersion          string   `hcl:"plugin_version,optional"`
+	VerifyConnection       *bool    `hcl:"verify_connection"`
+	AllowedRoles           []string `hcl:"allowed_roles,optional"`
+	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
+	Hosts                  string   `hcl:"hosts"`
+	Port                   int      `hcl:"port,optional"`
+	ProtocolVersion        int      `hcl:"protocol_version"`
+	Username               string   `hcl:"username,optional"`
+	Password               string   `hcl:"password,optional"`
+	TLS                    *bool    `hcl:"tls,optional"`
+	InsecureTLS            bool     `hcl:"insecure_tls,optional"`
+	TLSServerName          string   `hcl:"tls_server_name,optional"`
+	PEMBundle              string   `hcl:"pem_bundle,optional"`
+	PEMhcl                 string   `hcl:"pem_hcl,optional"`
+	SkipVerification       bool     `hcl:"skip_verification,optional"`
+	ConnectTimeout         string   `hcl:"connect_timeout,optional"`
+	LocalDatacenter        string   `hcl:"local_datacenter,optional"`
+	SocketKeepAlive        string   `hcl:"socket_keep_alive,optional"`
+	Consistency            string   `hcl:"consistency,optional"`
+	UsernameTemplate       string   `hcl:"username_template,optional"`
 }
 
 // Cassandra Role Config
