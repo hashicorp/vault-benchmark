@@ -15,8 +15,8 @@ This benchmark will test the dynamic generation of MSSQL credentials.
 - `max_open_connections` `(int: 4)`: Specifies the maximum number of open connections to the database.
 - `max_idle_connections` `(int: 0)`: Specifies the maximum number of idle connections to the database.
 - `max_connection_lifetime` `(string: "0s")`: Specifies the maximum amount of time a connection may be reused.
-- `username` `(string: "")`: The root credential username used in the connection URL.
-- `password` `(string: "")`: The root credential password used in the connection URL.
+- `username` `(string: "")`: The root credential username used in the connection URL. Can also be set using the `VAULT_BENCHMARK_MSSQL_USERNAME` environment variable.
+- `password` `(string: "")`: The root credential password used in the connection URL. Can also be set using the `VAULT_BENCHMARK_MSSQL_PASSWORD` environment variable.
 
 ### Role Config `role`
 
