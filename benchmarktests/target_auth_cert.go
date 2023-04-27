@@ -50,7 +50,7 @@ type CertAuthTestConfig struct {
 
 // Cert Auth Role Config
 type CertAuthRoleConfig struct {
-	Name                       string   `hcl:"name"`
+	Name                       string   `hcl:"name,optional"`
 	Certificate                string   `hcl:"certificate,optional"`
 	AllowedNames               string   `hcl:"allowed_names,optional"`
 	AllowedCommonNames         []string `hcl:"allowed_common_names,optional"`
