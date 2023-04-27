@@ -32,7 +32,7 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 - `binddn` `(string: "")` – Distinguished name of object to bind when performing
   user search. Example: `cn=vault,ou=Users,dc=example,dc=com`
 - `bindpass` `(string: "")` – Password to use along with `binddn` when performing
-  user search.
+  user search. This can also be provided via the `VAULT_BENCHMARK_LDAP_BIND_PASS` environment variable.
 - `userdn` `(string: "")` – Base DN under which to perform user search. Example:
   `ou=Users,dc=example,dc=com`
 - `userattr` `(string: "cn")` – Attribute on user attribute object matching the
@@ -101,8 +101,10 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
   time.
 
 ### Test User Config `role`
-- `username` `(string: "")`: ldap test username
-- `password` `(string: "")`: ldap test password
+- `username` `(string: "")`: ldap test username. This can also be provided via the
+`VAULT_BENCHMARK_LDAP_TEST_USERNAME` environment variable.
+- `password` `(string: "")`: ldap test password. This can also be provided via the
+`VAULT_BENCHMARK_LDAP_TEST_PASSWORD` environment variable.
 
 ## Example HCL
 ```
