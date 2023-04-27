@@ -203,4 +203,4 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 	}, nil
 }
 
-func (l *MSSQLSecret) Flags(fs *flag.FlagSet) {}
+func (m *MSSQLSecret) Flags(fs *flag.FlagSet) {}
