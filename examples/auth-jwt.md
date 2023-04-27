@@ -115,7 +115,7 @@ test "jwt_auth" "jwt_auth1" {
   weight = 100
   config {
     auth {
-      JWKSUrl: "jwks.com"
+      jwks_url: "jwks.com"
     }
 
     role {
