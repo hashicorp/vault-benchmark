@@ -51,8 +51,8 @@ type ApproleAuthTestConfig struct {
 
 // AppRole Role Config
 type RoleConfig struct {
-	Name                 string   `hcl:"role_name"`
-	BindSecretID         bool     `hcl:"bind_secret_id,optional"`
+	Name                 string   `hcl:"role_name,optional"`
+	BindSecretID         *bool    `hcl:"bind_secret_id,optional"`
 	SecretIDBoundCIDRS   []string `hcl:"secret_id_bound_cidrs,optional"`
 	SecredIDNumUses      int      `hcl:"secret_id_num_uses,optional"`
 	SecretIDTTL          string   `hcl:"secret_id_ttl,optional"`
