@@ -60,11 +60,8 @@ type UserpassAuthConfig struct {
 func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 	u.config = &UserpassTestConfig{
 		Config: &UserpassAuthConfig{
-			Username:      "benchmark-user",
-			Password:      password.MustGenerate(64, 10, 0, false, true),
-			TokenTTL:      "0s",
-			TokenPolicies: []string{"default"},
-			TokenType:     "default",
+			Username: "benchmark-user",
+			Password: password.MustGenerate(64, 10, 0, false, true),
 		},
 	}
 
