@@ -3,7 +3,7 @@ This benchmark tests the performance of logins using the Certificate auth method
 
 ## Benchmark Configuration Parameters
 - `name` `(string: "benchmark-vault")` - The name of the certificate role.
-- `certificate` `(string)` - The PEM-format CA certificate.
+- `certificate` `(string: "")` - The PEM-format CA certificate. If not provided one will be automatically generated for this test.
 - `allowed_names` `(string: "")` - DEPRECATED: Please use the individual
   `allowed_X_sans` parameters instead. Constrain the Common and Alternative
   Names in the client certificate with a [globbed pattern](https://github.com/ryanuber/go-glob/blob/master/README.md#example). Value is
