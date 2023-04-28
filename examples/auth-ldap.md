@@ -68,10 +68,10 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
   returning _user_ objects, use: `memberOf`. The default is `cn`.
 - `username_as_alias` `(bool: false)` - If set to true, forces the auth method
   to use the username passed by the user as the alias name.
-- `token_ttl` `(integer: 0)` - The incremental lifetime for
+- `token_ttl` `(string: "")` - The incremental lifetime for
   generated tokens. This current value of this will be referenced at renewal
   time.
-- `token_max_ttl` `(integer: 0)` - The maximum lifetime for
+- `token_max_ttl` `(string: "")` - The maximum lifetime for
   generated tokens. This current value of this will be referenced at renewal
   time.
 - `token_policies` `(array: [])` - List of
@@ -80,7 +80,7 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
 - `token_bound_cidrs` `(array: [])` - List of
   CIDR blocks; if set, specifies blocks of IP addresses which can authenticate
   successfully, and ties the resulting token to these blocks as well.
-- `token_explicit_max_ttl` `(integer: 0)` - If set, will encode
+- `token_explicit_max_ttl` `(string: "")` - If set, will encode
   an [explicit max
   TTL](https://developer.hashicorp.com/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls)
   onto the token. This is a hard cap even if `token_ttl` and `token_max_ttl`
