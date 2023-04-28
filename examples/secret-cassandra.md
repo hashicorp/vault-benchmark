@@ -11,7 +11,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
 - `verify_connection` `(bool: true)` – Specifies if the connection is verified
   during initial configuration. Defaults to true.
 - `allowed_roles` `(list: ["benchmark-role"])` - List of the roles allowed to use this connection.
-  Defaults to empty (no roles), if contains a `*` any role can use this connection.
+  If contains a `*` any role can use this connection.
 - `root_rotation_statements` `(list: [])` - Specifies the database statements to be
   executed to rotate the root user's credentials. See the plugin's API page for more
   information on support and formatting for this parameter.
