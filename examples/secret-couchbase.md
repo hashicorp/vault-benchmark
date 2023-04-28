@@ -23,7 +23,7 @@ This benchmark will test the dynamic generation of Couchbase credentials.
   been base64 encoded.
 - `bucket_name` `(string: "")` - Required for Couchbase versions prior to 6.5.0. This
   is only used to verify vault's connection to the server.
-- `username_template` `(string)` - [Template](https://developer.hashicorp.com/vault/docs/concepts/username-templating) describing how dynamic usernames are generated. 
+- `username_template` `(string: "")` - [Template](https://developer.hashicorp.com/vault/docs/concepts/username-templating) describing how dynamic usernames are generated. 
 - `verify_connection` `(bool: true)` – Specifies if the connection is verified
   during initial configuration. Defaults to true.
 - `allowed_roles` `(list: ["benchmark-role"])` - List of the roles allowed to use this connection.
