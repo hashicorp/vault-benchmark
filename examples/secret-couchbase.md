@@ -43,7 +43,7 @@ This benchmark will test the dynamic generation of Couchbase credentials.
   is specified as part of the URL.
 - `db_name` `(string: "benchmark-database")` - The name of the database connection to use
   for this role.
-- `default_ttl` `(string: 0)` - Specifies the TTL for the leases
+- `default_ttl` `(string: "")` - Specifies the TTL for the leases
   associated with this role. Accepts time suffixed strings (`1h`).
   Defaults to system/engine default TTL time.
 - `max_ttl` `(string: 0)` - Specifies the maximum TTL for the leases
