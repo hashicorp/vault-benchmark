@@ -1,4 +1,4 @@
-# Userpass Auth Benchmark
+# Userpass Auth Benchmark `userpass_auth`
 This benchmark tests the performance of logins using the userpass auth method.
 
 ## Test Parameters
