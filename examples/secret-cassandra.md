@@ -62,7 +62,7 @@ of the user configured in this step. The new password will **not** be viewable b
 - `db_name` `(string: "benchmark-cassandra")` - The name of the database connection to use for this role.
 - `default_ttl` `(string: "")` - Specifies the TTL for the leases
   associated with this role. Accepts time suffixed strings (`1h`). Defaults to system/engine default TTL time.
-- `max_ttl` `(string)` - Specifies the maximum TTL for the leases
+- `max_ttl` `(string: "")` - Specifies the maximum TTL for the leases
   associated with this role. Accepts time suffixed strings (`1h`) or an integer number of seconds. Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](/vault/docs/concepts/tokens#the-general-case).
 - `creation_statements` `(list: [])` – Specifies the database
   statements executed to create and configure a user. Must be a
