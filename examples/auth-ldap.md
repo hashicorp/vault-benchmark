@@ -17,7 +17,7 @@ This benchmark will test LDAP Authentication to Vault. In order to use this test
   an error.
 - `starttls` `(bool: false)` – If true, issues a `StartTLS` command after
   establishing an unencrypted connection.
-- `tls_min_version` `(string: tls12)` – Minimum TLS version to use. Accepted
+- `tls_min_version` `(string: "tls12")` – Minimum TLS version to use. Accepted
   values are `tls10`, `tls11`, `tls12` or `tls13`.
 - `tls_max_version` `(string: tls12)` – Maximum TLS version to use. Accepted
   values are `tls10`, `tls11`, `tls12` or `tls13`.
