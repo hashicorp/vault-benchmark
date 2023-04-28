@@ -80,7 +80,7 @@ type LDAPAuthConfig struct {
 	TokenExplicitMaxTTL  int      `hcl:"token_explicit_max_ttl,optional"`
 	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional"`
 	TokenNumUses         int      `hcl:"token_num_uses,optional"`
-	TokenPeriod          int      `hcl:"token_period,optional"`
+	TokenPeriod          string   `hcl:"token_period,optional"`
 	TokenType            string   `hcl:"token_type,optional"`
 }
 
