@@ -50,7 +50,7 @@ type UserpassAuthConfig struct {
 	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional"`
 	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy"`
 	TokenNumUses         int      `hcl:"token_num_uses"`
-	TokenPeriod          int      `hcl:"token_period"`
+	TokenPeriod          string   `hcl:"token_period"`
 	TokenType            string   `hcl:"token_type,optional"`
 }
 
