@@ -1,4 +1,4 @@
-# LDAP Auth Benchmark
+# LDAP Auth Benchmark `ldap_auth`
 This benchmark will test LDAP Authentication to Vault. In order to use this test, configuration for the target LDAP server(s) must be provided as a JSON file using the `ldap_config_json` flag. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method.
 
 ## Test Parameters
