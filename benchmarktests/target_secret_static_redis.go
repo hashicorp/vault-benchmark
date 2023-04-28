@@ -51,18 +51,19 @@ type RedisDBConfig struct {
 	// Common
 	Name             string   `hcl:"name,optional"`
 	PluginName       string   `hcl:"plugin_name,optional"`
-	AllowedRoles     []string `hcl:"allowed_roles,optional"`
-	CACert           string   `hcl:"ca_cert,optional"`
 	PluginVersion    string   `hcl:"plugin_version,optional"`
 	VerifyConnection *bool    `hcl:"verify_connection,optional"`
+	AllowedRoles     []string `hcl:"allowed_roles,optional"`
+	CACert           string   `hcl:"ca_cert,optional"`
 
 	// Redis specific
-	Host        string `hcl:"host"`
-	Port        int    `hcl:"port"`
-	Username    string `hcl:"username,optional"`
-	Password    string `hcl:"password,optional"`
-	TLS         bool   `hcl:"tls,optional"`
-	InsecureTLS bool   `hcl:"insecure_tls,optional"`
+	Host           string `hcl:"host"`
+	Port           int    `hcl:"port"`
+	Username       string `hcl:"username,optional"`
+	Password       string `hcl:"password,optional"`
+	PasswordPolicy string `hcl:"password_policy,optional"`
+	TLS            bool   `hcl:"tls,optional"`
+	InsecureTLS    bool   `hcl:"insecure_tls,optional"`
 }
 
 type RedisStaticRoleConfig struct {
@@ -84,15 +85,12 @@ func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 				Name:         "benchmark-redis-db",
 				PluginName:   "redis-database-plugin",
 				AllowedRoles: []string{"my-*-role"},
-				TLS:          false,
-				InsecureTLS:  true,
 				Username:     os.Getenv(RedisStaticSecretUsernameEnvVar),
 				Password:     os.Getenv(RedisStaticSecretPasswordEnvVar),
 			},
 			RoleConfig: &RedisStaticRoleConfig{
-				DBName:         "benchmark-redis-db",
-				Name:           "my-static-role",
-				RotationPeriod: "5m",
+				DBName: "benchmark-redis-db",
+				Name:   "my-static-role",
 			},
 		},
 	}

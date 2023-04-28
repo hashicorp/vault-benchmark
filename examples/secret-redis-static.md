@@ -18,15 +18,19 @@ permissions to do so.
 - `port` `(int: <required>)` - Specifies the port to connect to. 
 - `username` `(string: <required>)` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable.
 - `password` `(string: <required>)` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable.
+- `password_policy` `(string: "")` - The name of the
+  [password policy](/vault/docs/concepts/password-policies) to use when generating passwords
+  for this database. If not specified, this will use a default policy defined as:
+  20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
 - `tls` `(bool: false)` - Specifies whether to use TLS when connecting to Redis.
-- `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS.
 - `ca_cert` `(string: optional)` - Specifies whether to use TLS when connecting to Redis.
 
 ### Static Role Configuration (`role`)
 - `name` `(string: "my-static-role")` - Specifies the name of the role to create. 
 - `db_name` `(string: "benchmark-redis-db")` - Specifies the name of the database connection to use for this role.  
 - `rotation_period` `(string: "5m")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
-- `username` `(string: <required>)` – Specifies the database username that this Vault role corresponds to.
+- `username` `(string: <required>)` – Specifies the database username that this Vault role corresponds to. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable.
+- `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
 
 ## Example HCL 
 ```hcl

@@ -65,16 +65,12 @@ func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 				Name:         "benchmark-redis-db",
 				PluginName:   "redis-database-plugin",
 				AllowedRoles: []string{"my-*-role"},
-				TLS:          false,
-				InsecureTLS:  true,
 				Username:     os.Getenv(RedisDynamicSecretDBUsernameEnvVar),
 				Password:     os.Getenv(RedisDynamicSecretDBPasswordEnvVar),
 			},
 			RoleConfig: &RedisDynamicRoleConfig{
-				Name:       "my-dynamic-role",
-				DBName:     "benchmark-redis-db",
-				DefaultTTL: "5m",
-				MaxTTL:     "5m",
+				Name:   "my-dynamic-role",
+				DBName: "benchmark-redis-db",
 			},
 		},
 	}
