@@ -47,7 +47,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
   the [gocql
   definition](https://github.com/gocql/gocql/blob/master/frame.go#L188) for
   valid options.
-- `username_template` `(string)` - [Template](/vault/docs/concepts/username-templating) describing how dynamic usernames are generated.
+- `username_template` `(string: "")` - [Template](/vault/docs/concepts/username-templating) describing how dynamic usernames are generated.
 
 ~> We highly recommended that you use a Vault-specific user rather than the admin user
 in your database when configuring the plugin. This user will be used to
