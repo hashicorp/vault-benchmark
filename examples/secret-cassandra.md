@@ -16,7 +16,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
   executed to rotate the root user's credentials. See the plugin's API page for more
   information on support and formatting for this parameter.
 - `password_policy` `(string: "")` - The name of the
-  [password policy](/vault/docs/concepts/password-policies) to use when generating passwords
+  [password policy](https://developer.hashicorp.com/vault/api-docs/secret/databases) to use when generating passwords
   for this database. If not specified, this will use a default policy defined as:
   20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
 - `hosts` `(string: <required>)` – Specifies a set of comma-delineated Cassandra
@@ -52,10 +52,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
 ~> We highly recommended that you use a Vault-specific user rather than the admin user
 in your database when configuring the plugin. This user will be used to
 create/update/delete users within the database so it will need to have the appropriate
-permissions to do so. If the plugin supports
-[rotating the root credentials](#rotate-root-credentials), we highly recommended
-you perform that action after configuring the plugin. This will change the password
-of the user configured in this step. The new password will **not** be viewable by users.
+permissions to do so.
 
 ### Role Configuration `role`
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This is specified as part of the URL.
