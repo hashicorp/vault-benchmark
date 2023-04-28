@@ -19,7 +19,7 @@ permissions to do so.
 - `username` `(string: <required>)` - The root credential username. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable.
 - `password` `(string: <required>)` - The root credential password. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable.
 - `password_policy` `(string: "")` - The name of the
-  [password policy](/vault/docs/concepts/password-policies) to use when generating passwords
+  [password policy](https://developer.hashicorp.com/vault/docs/concepts/password-policies) to use when generating passwords
   for this database. If not specified, this will use a default policy defined as:
   20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
 - `tls` `(bool: false)` - Specifies whether to use TLS when connecting to Redis.
