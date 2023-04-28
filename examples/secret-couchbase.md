@@ -38,7 +38,7 @@ This benchmark will test the dynamic generation of Couchbase credentials.
   [databases secrets engine docs.](https://developer.hashicorp.com/vault/docs/secrets/databases#disable-character-escaping)
   Defaults to `false`.
 
-### Role Config `role`
+### Role Configuration `role`
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This
   is specified as part of the URL.
 - `db_name` `(string: "benchmark-database")` - The name of the database connection to use
