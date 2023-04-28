@@ -52,11 +52,12 @@ test "mssql_secret" "mssql_test_1" {
 
 ## Example Usage
 ```bash
-$ vault-benchmark run -config=example-configs/config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 10s...
-Benchmark complete!
+$ vault-benchmark run -config=config.hcl
+2023-04-27T20:22:44.803-0400 [INFO]  vault-benchmark: setting up targets
+2023-04-27T20:22:44.858-0400 [INFO]  vault-benchmark: starting benchmarks: duration=1s
+2023-04-27T20:22:45.981-0400 [INFO]  vault-benchmark: cleaning up targets
+2023-04-27T20:22:50.774-0400 [INFO]  vault-benchmark: benchmark complete
 Target: http://127.0.0.1:8200
-op              count  rate        throughput  mean         95th%        99th%        successRatio
-mssql_test_1  249    248.880537  239.605824  41.018154ms  52.821772ms  58.667201ms  100.00%
+op              count  rate       throughput  mean          95th%         99th%         successRatio
+mssql_secret_1  94     93.214668  83.761150   114.236245ms  187.749698ms  188.590625ms  100.00%
 ```
