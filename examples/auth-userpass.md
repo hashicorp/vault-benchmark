@@ -1,10 +1,10 @@
-# Userpass Auth Benchmark
+# Userpass Auth Benchmark `userpass_auth`
 This benchmark tests the performance of logins using the userpass auth method.
 
 ## Test Parameters
-### Auth Configuration `config`
+### Userpass Configuration `config`
 - `username` `(string: "benchmark-user")` – The username for the user. Accepted characters: alphanumeric plus "_", "-", "." (underscore, hyphen and period); username cannot begin with a hyphen, nor can it begin or end with a period.
-- `password` `(string)` - The password for the user. Only required when creating the user.
+- `password` `(string)` - The password for the user. Only required when creating the user. If not provided, will use an automatically generated password.
 - `token_ttl` `(string: "")` - The incremental lifetime for
   generated tokens. This current value of this will be referenced at renewal
   time.
@@ -17,7 +17,7 @@ This benchmark tests the performance of logins using the userpass auth method.
 - `token_bound_cidrs` `(array: [])` - List of
   CIDR blocks; if set, specifies blocks of IP addresses which can authenticate
   successfully, and ties the resulting token to these blocks as well.
-- `token_explicit_max_ttl` `(integer: 0)` - If set, will encode
+- `token_explicit_max_ttl` `(string: "")` - If set, will encode
   an [explicit max
   TTL](https://developer.hashicorp.com/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls)
   onto the token. This is a hard cap even if `token_ttl` and `token_max_ttl`
