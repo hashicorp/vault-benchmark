@@ -4,7 +4,7 @@ This benchmark tests the performance of logins using the userpass auth method.
 ## Test Parameters
 ### Auth Configuration `config`
 - `username` `(string: "benchmark-user")` – The username for the user. Accepted characters: alphanumeric plus "_", "-", "." (underscore, hyphen and period); username cannot begin with a hyphen, nor can it begin or end with a period.
-- `password` `(string)` - The password for the user. Only required when creating the user.
+- `password` `(string)` - The password for the user. Only required when creating the user. If not provided, will use an automatically generated password.
 - `token_ttl` `(string: "")` - The incremental lifetime for
   generated tokens. This current value of this will be referenced at renewal
   time.
