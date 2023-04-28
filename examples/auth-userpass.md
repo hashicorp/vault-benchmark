@@ -17,7 +17,7 @@ This benchmark tests the performance of logins using the userpass auth method.
 - `token_bound_cidrs` `(array: [])` - List of
   CIDR blocks; if set, specifies blocks of IP addresses which can authenticate
   successfully, and ties the resulting token to these blocks as well.
-- `token_explicit_max_ttl` `(integer: 0)` - If set, will encode
+- `token_explicit_max_ttl` `(string: "")` - If set, will encode
   an [explicit max
   TTL](https://developer.hashicorp.com/vault/docs/concepts/tokens#token-time-to-live-periodic-tokens-and-explicit-max-ttls)
   onto the token. This is a hard cap even if `token_ttl` and `token_max_ttl`
