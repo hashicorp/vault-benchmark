@@ -2,7 +2,7 @@
 This benchmark will test the dynamic generation of Couchbase credentials.
 
 ## Test Parameters
-### DB Config `db_connection`
+### DB Configuration `db_connection`
 - `name` `(string: "benchmark-database")` – Specifies the name for this database
   connection. This is specified as part of the URL.
 - `plugin_name` `(string: "couchbase-database-plugin")` - Specifies the name of the plugin to use
