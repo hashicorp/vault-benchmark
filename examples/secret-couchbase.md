@@ -27,7 +27,7 @@ This benchmark will test the dynamic generation of Couchbase credentials.
 - `verify_connection` `(bool: true)` – Specifies if the connection is verified
   during initial configuration. Defaults to true.
 - `allowed_roles` `(list: ["benchmark-role"])` - List of the roles allowed to use this connection.
-  Defaults to empty (no roles), if contains a `*` any role can use this connection.
+  If contains a `*` any role can use this connection.
 - `password_policy` `(string: "")` - The name of the
   [password policy](https://developer.hashicorp.com/vault/docs/concepts/password-policies) to use when generating passwords
   for this database. If not specified, this will use a default policy defined as:
