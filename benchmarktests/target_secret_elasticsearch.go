@@ -65,7 +65,7 @@ type ElasticSearchConfig struct {
 	TLSServerName          string   `hcl:"tls_server_name,optional"`
 	Insecure               bool     `hcl:"insecure,optional"`
 	UsernameTemplate       string   `hcl:"username_template,optional"`
-	UseOldXPath            bool     `hcl:"use_old_xpath,optional"`
+	UseOldXPack            bool     `hcl:"use_old_xpack,optional"`
 }
 
 type ElasticSearchRoleConfig struct {
