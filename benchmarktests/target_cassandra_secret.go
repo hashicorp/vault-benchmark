@@ -80,13 +80,14 @@ type CassandraDBConfig struct {
 
 // Cassandra Role Config
 type CassandraRoleConfig struct {
-	Name                 string `hcl:"name,optional"`
-	DBName               string `hcl:"db_name,optional"`
-	DefaultTTL           string `hcl:"default_ttl,optional"`
-	MaxTTL               string `hcl:"max_ttl,optional"`
-	CreationStatements   string `hcl:"creation_statements"`
-	RevocationStatements string `hcl:"revocation_statements,optional"`
-	RollbackStatements   string `hcl:"rollback_statements,optional"`
+	Name                   string   `hcl:"name,optional"`
+	DBName                 string   `hcl:"db_name,optional"`
+	DefaultTTL             string   `hcl:"default_ttl,optional"`
+	MaxTTL                 string   `hcl:"max_ttl,optional"`
+	CreationStatements     []string `hcl:"creation_statements"`
+	RevocationStatements   []string `hcl:"revocation_statements,optional"`
+	RollbackStatements     []string `hcl:"rollback_statements,optional"`
+	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 }
 
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during

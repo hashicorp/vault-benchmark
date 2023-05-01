@@ -49,10 +49,30 @@ This benchmark will test the dynamic generation of Couchbase credentials.
 - `max_ttl` `(string: "")` - Specifies the maximum TTL for the leases
  associated with this role. Accepts time suffixed strings (`1h`).
   Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](https://developer.hashicorp.com/vault/docs/concepts/tokens#the-general-case).
-- `creation_statements` `(list: [])` – Specifies a JSON string containing
-  Couchbase RBAC roles to assign to created users. Any groups specified must
-  already exist. Must be a single JSON string. If not provided, defaults to
-  read-only admin.
+- `creation_statements` `(list: [])` – Specifies the database
+  statements executed to create and configure a user. Must be a
+  semicolon-separated string, a base64-encoded semicolon-separated string, a
+  serialized JSON string array, or a base64-encoded serialized JSON string
+  array. The `{{username}}` and `{{password}}` values will be substituted. If not
+  provided, defaults to a generic create user statements that creates a
+  non-superuser.
+- `revocation_statements` `(list: [])` – Specifies the database statements to
+  be executed to revoke a user. Must be a semicolon-separated string, a
+  base64-encoded semicolon-separated string, a serialized JSON string array, or
+  a base64-encoded serialized JSON string array. The `{{username}}` value will be
+  substituted. If not provided defaults to a generic drop user statement.
+- `rollback_statements` `(list: [])` – Specifies the database statements to be
+  executed to rollback a create operation in the event of an error. Must be a
+  semicolon-separated string, a base64-encoded semicolon-separated string, a
+  serialized JSON string array, or a base64-encoded serialized JSON string
+  array. The `{{username}}` value will be substituted. If not provided, defaults to
+  a generic drop user statement
+- `root_rotation_statements` `(list: [])` - Specifies the database statements
+  to be executed when rotating the root user's password. Must be a
+  semicolon-separated string, a base64-encoded semicolon-separated string, a
+  serialized JSON string array, or a base64-encoded serialized JSON string
+  array. The `{{username}}` value will be substituted. If not provided, defaults to
+  a reasonable default alter user statement.
 
 ### Example Configuration
 ```hcl
