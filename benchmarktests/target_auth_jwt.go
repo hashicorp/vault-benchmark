@@ -78,7 +78,7 @@ type JWTAuthConfig struct {
 type JWTRoleConfig struct {
 	Name                 string                 `hcl:"name,optional"`
 	RoleType             string                 `hcl:"role_type,optional"`
-	BoundAudiences       string                 `hcl:"bound_audiences,optional"`
+	BoundAudiences       []string               `hcl:"bound_audiences,optional"`
 	UserClaim            string                 `hcl:"user_claim,optional"`
 	UserClaimJSONPointer string                 `hcl:"user_claim_json_pointer,optional"`
 	ClockSkewLeeway      int                    `hcl:"clock_skew_leeway,optional"`
@@ -114,7 +114,7 @@ func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 			JWTRoleConfig: &JWTRoleConfig{
 				Name:           "benchmark-role",
 				RoleType:       "jwt",
-				BoundAudiences: "https://vault.plugin.auth.jwt.test",
+				BoundAudiences: []string{"https://vault.plugin.auth.jwt.test"},
 				UserClaim:      "https://vault/user",
 			},
 			JWTAuthConfig: &JWTAuthConfig{},
@@ -238,7 +238,7 @@ func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
 		Subject:   config.JWTRoleConfig.BoundSubject,
 		Issuer:    config.JWTAuthConfig.BoundIssuer,
 		NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
-		Audience:  sqjwt.Audience{config.JWTRoleConfig.BoundAudiences},
+		Audience:  append(sqjwt.Audience{}, config.JWTRoleConfig.BoundAudiences...),
 	}
 
 	privateCl := struct {
