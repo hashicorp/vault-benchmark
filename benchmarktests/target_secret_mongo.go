@@ -46,8 +46,10 @@ type MongoDBSecretTestConfig struct {
 }
 
 type MongoDBConfig struct {
-	Name              string   `hcl:"name"`
+	Name              string   `hcl:"name,optional"`
 	PluginName        string   `hcl:"plugin_name,optional"`
+	PluginVersion     string   `hcl:"plugin_version,optional"`
+	VerifyConnection  *bool    `hcl:"verify_connection"`
 	AllowedRoles      []string `hcl:"allowed_roles,optional"`
 	ConnectionURL     string   `hcl:"connection_url"`
 	WriteConcern      string   `hcl:"write_concern,optional"`
@@ -60,18 +62,18 @@ type MongoDBConfig struct {
 
 type MongoDBRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
-	DBName               string `hcl:"db_name"`
+	DBName               string `hcl:"db_name,optional"`
 	DefaultTTL           string `hcl:"default_ttl,optional"`
 	MaxTTL               string `hcl:"max_ttl,optional"`
 	CreationStatements   string `hcl:"creation_statements,optional"`
 	RevocationStatements string `hcl:"revocation_statements,optional"`
-	RollbackStatements   string `hcl:"rollback_statements,optional"`
 }
 
 func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	m.config = &MongoDBTestConfig{
 		Config: &MongoDBSecretTestConfig{
 			MongoDBConfig: &MongoDBConfig{
+				Name:         "benchmark-mongo",
 				PluginName:   "mongodb-database-plugin",
 				AllowedRoles: []string{"benchmark-role"},
 				Username:     os.Getenv(MongoDBUsernameEnvVar),
@@ -79,6 +81,7 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 			},
 			MongoDBRoleConfig: &MongoDBRoleConfig{
 				Name:               "benchmark-role",
+				DBName:             "benchmark-mongo",
 				DefaultTTL:         "1h",
 				MaxTTL:             "24h",
 				CreationStatements: `{"db": "admin", "roles": [{ "role": "readWrite" }, {"role": "read", "db": "foo"}] }`,
