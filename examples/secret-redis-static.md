@@ -30,7 +30,7 @@ permissions to do so.
 - `db_name` `(string: "benchmark-redis-db")` - Specifies the name of the database connection to use for this role.  
 - `rotation_period` `(string: "5m")` – Specifies the amount of time Vault should wait before rotating the password. The minimum is 5 seconds.
 - `username` `(string: <required>)` – Specifies the database username that this Vault role corresponds to. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_USERNAME` environment variable.
-- `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable
+- `insecure_tls` `(bool: false)` - Specifies whether to skip verification of the server certificate when using TLS. This can also be provided via the `VAULT_BENCHMARK_STATIC_REDIS_PASSWORD` environment variable.
 
 ## Example HCL 
 ```hcl
