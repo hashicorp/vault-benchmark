@@ -56,8 +56,8 @@ type ElasticSearchConfig struct {
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 	PasswordPolicy         string   `hcl:"password_policy,optional"`
 	URL                    string   `hcl:"url"`
-	Username               string   `hcl:"username"`
-	Password               string   `hcl:"password"`
+	Username               string   `hcl:"username,optional"`
+	Password               string   `hcl:"password,optional"`
 	CACert                 string   `hcl:"ca_cert,optional"`
 	CAPath                 string   `hcl:"ca_path,optional"`
 	ClientCert             string   `hcl:"client_cert,optional"`

@@ -16,8 +16,8 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
   for this database. If not specified, this will use a default policy defined as:
   20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
 - `url` `(string: <required>)` - The URL for Elasticsearch's API (`http://localhost:9200`).
-- `username` `(string: <required>)` - The username to be used in the connection URL (`vault`).
-- `password` `(string: <required>)` - The password to be used in the connection URL (`pa55w0rd`).
+- `username` `(string: <required>)` - The username to be used in the connection URL (`vault`). This can also be provided via the `VAULT_BENCHMARK_ELASTICSEARCH_USERNAME` environment variable.
+- `password` `(string: <required>)` - The password to be used in the connection URL (`pa55w0rd`). This can also be provided via the `VAULT_BENCHMARK_ELASTICSEARCH_PASSWORD` environment variable.
 - `ca_cert` `(string: "")` - The path to a PEM-encoded CA cert file to use to verify the Elasticsearch server's identity.
 - `ca_path` `(string: "")` - The path to a directory of PEM-encoded CA cert files to use to verify the Elasticsearch server's identity.
 - `client_cert` `(string: "")` - The path to the certificate for the Elasticsearch client to present for communication.
