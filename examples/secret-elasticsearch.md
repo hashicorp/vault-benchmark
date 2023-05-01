@@ -35,30 +35,6 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
 - `creation_statements` `(list)` – Specifies the database
   statements executed to create and configure a user. See the plugin's API page
   for more information on support and formatting for this parameter.
-- `revocation_statements` `(list: [])` – Specifies the database statements to
-  be executed to revoke a user. See the plugin's API page for more information
-  on support and formatting for this parameter.
-- `rollback_statements` `(list: [])` – Specifies the database statements to be
-  executed to rollback a create operation in the event of an error. Not every
-  plugin type will support this functionality. See the plugin's API page for
-  more information on support and formatting for this parameter.
-- `renew_statements` `(list: [])` – Specifies the database statements to be
-  executed to renew a user. Not every plugin type will support this
-  functionality. See the plugin's API page for more information on support and
-  formatting for this parameter.
-- `credential_type` `(string: "password")` – Specifies the type of credential that will be generated for the role. Options include: `password`, `rsa_private_key`. See the plugin's API page for credential types supported by individual databases.
-- `credential_config` `(map<string|string>: <optional>)` – Specifies the configuration for the given `credential_type`.
-  The following options are available for each `credential_type` value:
-  - `password`
-    - `password_policy` `(string: <optional>)` - The [policy](https://developer.hashicorp.com/vault/docs/concepts/password-policies)
-      used for password generation. If not provided, defaults to the password policy of the
-      database [configuration](https://developer.hashicorp.com/vault/api-docs/secret/databases#password_policy).
-  - `rsa_private_key`
-    - `key_bits` `(int: 2048)` - The bit size of the RSA key to generate. Options include:
-      `2048`, `3072`, `4096`.
-    - `format` `(string: "pkcs8")` - The output format of the generated private key
-      credential. The private key will be returned from the API in PEM encoding. Options
-      include: `pkcs8`.
 
 ## Example Configuration
 ```hcl
