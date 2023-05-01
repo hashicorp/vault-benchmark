@@ -101,9 +101,9 @@ This benchmark will test LDAP Authentication to Vault. The primary required fiel
   time.
 
 ### Test User Config `role`
-- `username` `(string: "")`: ldap test username. This can also be provided via the
+- `username` `(string: "")`: LDAP test username. This can also be provided via the
 `VAULT_BENCHMARK_LDAP_TEST_USERNAME` environment variable.
-- `password` `(string: "")`: ldap test password. This can also be provided via the
+- `password` `(string: "")`: LDAP test user password. This can also be provided via the
 `VAULT_BENCHMARK_LDAP_TEST_PASSWORD` environment variable.
 
 ## Example HCL
