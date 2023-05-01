@@ -47,7 +47,7 @@ This benchmark will test the dynamic generation of Couchbase credentials.
   associated with this role. Accepts time suffixed strings (`1h`).
   Defaults to system/engine default TTL time.
 - `max_ttl` `(string: "")` - Specifies the maximum TTL for the leases
-  associated with this role. Accepts time suffixed strings (`1h`).
+ associated with this role. Accepts time suffixed strings (`1h`).
   Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](https://developer.hashicorp.com/vault/docs/concepts/tokens#the-general-case).
 - `creation_statements` `(list: [])` – Specifies a JSON string containing
   Couchbase RBAC roles to assign to created users. Any groups specified must
