@@ -65,7 +65,7 @@ type LDAPAuthConfig struct {
 	UserDN               string   `hcl:"userdn,optional"`
 	UserAttr             string   `hcl:"userattr,optional"`
 	DiscoverDN           string   `hcl:"discoverdn,optional"`
-	DenyNullBind         bool     `hcl:"deny_null_bind,optional"`
+	DenyNullBind         *bool    `hcl:"deny_null_bind,optional"`
 	UPNDomain            string   `hcl:"upndomain,optional"`
 	UserFilter           string   `hcl:"userfilter,optional"`
 	AnonymousGroupSearch bool     `hcl:"anonymous_group_search,optional"`
