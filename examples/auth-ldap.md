@@ -118,8 +118,8 @@ test "ldap_auth" "ldap_auth_test1" {
             binddn      = "cn=admin,dc=hashicorp,dc=com"
             bindpass    = "admin"
             userattr    = "uid"
-            group_attr   = "cn"
-            group_filter = "(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
+            groupattr   = "cn"
+            groupfilter = "(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
             token_policies = ["default","test"]
         }
         test_user  {
