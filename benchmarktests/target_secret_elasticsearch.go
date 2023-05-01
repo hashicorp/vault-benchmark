@@ -48,30 +48,37 @@ type ElasticSearchSecretTestConfig struct {
 }
 
 type ElasticSearchConfig struct {
-	DBName           string   `hcl:"name,optional"`
-	PluginName       string   `hcl:"plugin_name,optional"`
-	AllowedRoles     []string `hcl:"allowed_roles,optional"`
-	URL              string   `hcl:"url"`
-	Username         string   `hcl:"username"`
-	Password         string   `hcl:"password"`
-	PasswordPolicy   string   `hcl:"password_policy,optional"`
-	CACert           string   `hcl:"ca_cert,optional"`
-	ClientCert       string   `hcl:"client_cert,optional"`
-	ClientKey        string   `hcl:"client_key,optional"`
-	TLSServerName    string   `hcl:"tls_server_name,optional"`
-	Insecure         bool     `hcl:"insecure,optional"`
-	UsernameTemplate string   `hcl:"username_template,optional"`
-	UseOldXPath      bool     `hcl:"use_old_xpath,optional"`
+	Name                   string   `hcl:"name,optional"`
+	PluginName             string   `hcl:"plugin_name,optional"`
+	PluginVersion          string   `hcl:"plugin_version,optional"`
+	VerifyConnectioon      *bool    `hcl:"verify_connection,optional"`
+	AllowedRoles           []string `hcl:"allowed_roles,optional"`
+	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
+	PasswordPolicy         string   `hcl:"password_policy,optional"`
+	URL                    string   `hcl:"url"`
+	Username               string   `hcl:"username"`
+	Password               string   `hcl:"password"`
+	CACert                 string   `hcl:"ca_cert,optional"`
+	CAPath                 string   `hcl:"ca_path,optional"`
+	ClientCert             string   `hcl:"client_cert,optional"`
+	ClientKey              string   `hcl:"client_key,optional"`
+	TLSServerName          string   `hcl:"tls_server_name,optional"`
+	Insecure               bool     `hcl:"insecure,optional"`
+	UsernameTemplate       string   `hcl:"username_template,optional"`
+	UseOldXPath            bool     `hcl:"use_old_xpath,optional"`
 }
 
 type ElasticSearchRoleConfig struct {
-	RoleName           string            `hcl:"name,optional"`
-	DBName             string            `hcl:"db_name,optional"`
-	DefaultTTL         string            `hcl:"default_ttl,optional"`
-	MaxTTL             string            `hcl:"max_ttl,optional"`
-	CreationStatements []string          `hcl:"creation_statements,optional"`
-	CredentialType     string            `hcl:"credential_type,optional"`
-	CredentialConfig   map[string]string `hcl:"credential_config,optional"`
+	RoleName             string            `hcl:"name,optional"`
+	DBName               string            `hcl:"db_name,optional"`
+	DefaultTTL           string            `hcl:"default_ttl,optional"`
+	MaxTTL               string            `hcl:"max_ttl,optional"`
+	CreationStatements   []string          `hcl:"creation_statements,optional"`
+	RevocationStatements []string          `hcl:"revocation_statements,optional"`
+	RollbackStatements   []string          `hcl:"rollback_statements,optional"`
+	RenewStatements      []string          `hcl:"renew_statements,optional"`
+	CredentialType       string            `hcl:"credential_type,optional"`
+	CredentialConfig     map[string]string `hcl:"credential_config,optional"`
 }
 
 func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
@@ -79,7 +86,7 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 		Config: &ElasticSearchSecretTestConfig{
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
-				DBName:       "benchmark-elasticsearch",
+				Name:         "benchmark-elasticsearch",
 				AllowedRoles: []string{"benchmark-role"},
 				Insecure:     true,
 				Username:     os.Getenv(ElasticSearchUsernameEnvVar),
@@ -166,8 +173,8 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 	}
 
 	// Write DB config
-	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", config.ElasticSearchConfig.DBName)
-	dbPath := filepath.Join(secretPath, "config", config.ElasticSearchConfig.DBName)
+	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", config.ElasticSearchConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", config.ElasticSearchConfig.Name)
 	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
