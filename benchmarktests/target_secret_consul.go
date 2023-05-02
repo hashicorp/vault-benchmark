@@ -78,12 +78,10 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 		Config: &ConsulSecretTestConfig{
 			Version: "1.14.0",
 			ConsulConfig: &ConsulConfig{
-				Scheme: "http",
-				Token:  os.Getenv(ConsulTokenEnvVar),
+				Token: os.Getenv(ConsulTokenEnvVar),
 			},
 			ConsulRoleConfig: &ConsulRoleConfig{
-				Name:      "benchmark-role",
-				TokenType: "client",
+				Name: "benchmark-role",
 			},
 		},
 	}

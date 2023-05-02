@@ -15,7 +15,7 @@ This benchmark will test the dynamic generation of Consul credentials.
 
 ### Role Configuration `role`
 #### Parameters for Consul versions 1.4 and above
-- `name` `(string: <required>)` – Specifies the name of an existing role against
+- `name` `(string: "benchmark-role")` – Specifies the name of an existing role against
   which to create this Consul credential. This is part of the request URL.
 - `token_type` <sup>DEPRECATED (1.11)</sup> `(string: "client")` - Specifies the type of token to create
   when using this role. Valid values are `"client"` or `"management"`. If a `"management"`
