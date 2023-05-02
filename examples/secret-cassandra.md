@@ -47,7 +47,7 @@ This benchmark will test the dynamic generation of Cassandra credentials.
   the [gocql
   definition](https://github.com/gocql/gocql/blob/master/frame.go#L188) for
   valid options.
-- `username_template` `(string: "")` - [Template](/vault/docs/concepts/username-templating) describing how dynamic usernames are generated.
+- `username_template` `(string: "")` - [Template](https://developer.hashicorp.com/vault/docs/concepts/username-templating) describing how dynamic usernames are generated.
 
 ~> We highly recommended that you use a Vault-specific user rather than the admin user
 in your database when configuring the plugin. This user will be used to
@@ -60,7 +60,7 @@ permissions to do so.
 - `default_ttl` `(string: "")` - Specifies the TTL for the leases
   associated with this role. Accepts time suffixed strings (`1h`). Defaults to system/engine default TTL time.
 - `max_ttl` `(string: "")` - Specifies the maximum TTL for the leases
-  associated with this role. Accepts time suffixed strings (`1h`). Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](/vault/docs/concepts/tokens#the-general-case).
+  associated with this role. Accepts time suffixed strings (`1h`). Defaults to `sys/mounts`'s default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer. See also [The TTL General Case](https://developer.hashicorp.com/vault/docs/concepts/tokens#the-general-case).
 - `creation_statements` `(list: [])` – Specifies the database
   statements executed to create and configure a user. Must be a
   semicolon-separated string, a base64-encoded semicolon-separated string, a
