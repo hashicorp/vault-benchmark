@@ -1,6 +1,0 @@
-{
-  "ca_key_type": "ec",
-  "ca_key_bits": 256,
-  "leaf_key_type": "ec",
-  "leaf_key_bits": 256
-}
