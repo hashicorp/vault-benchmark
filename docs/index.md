@@ -45,7 +45,6 @@ Below is a list of all currently available benchmark tests
 - [Couchbase](tests/secret-couchbase.md)
 - [ElasticSearch](tests/secret-elasticsearch.md)
 - [KV](tests/secret-kv.md.md)
-- [LDAP](tests/secret-ldap.md)
 - [MongoDB](tests/secret-mongo.md)
 - [MSSQL](tests/secret-mssql.md)
 - [PKI (Issue)](tests/secret-pki-issue.md)

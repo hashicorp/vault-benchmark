@@ -141,7 +141,7 @@ func GenerateCA() (*CaCert, error) {
 	// Create the CA cert
 	template := x509.Certificate{
 		SerialNumber:          sn,
-		Subject:               pkix.Name{CommonName: "Benchmark Vault CA"},
+		Subject:               pkix.Name{CommonName: "Vault Benchmark CA"},
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
