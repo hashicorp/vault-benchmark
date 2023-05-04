@@ -1,8 +1,11 @@
 # Userpass Auth Benchmark `userpass_auth`
+
 This benchmark tests the performance of logins using the userpass auth method.
 
 ## Test Parameters
+
 ### Userpass Configuration `config`
+
 - `username` `(string: "benchmark-user")` – The username for the user. Accepted characters: alphanumeric plus "_", "-", "." (underscore, hyphen and period); username cannot begin with a hyphen, nor can it begin or end with a period.
 - `password` `(string)` - The password for the user. Only required when creating the user. If not provided, will use an automatically generated password.
 - `token_ttl` `(string: "")` - The incremental lifetime for
@@ -38,7 +41,8 @@ This benchmark tests the performance of logins using the userpass auth method.
   time.
 
 ## Example HCL
-```
+
+```hcl
 test "userpass_auth" "userpass_test1" {
     weight = 100
     config {
@@ -49,7 +53,8 @@ test "userpass_auth" "userpass_test1" {
 ```
 
 ## Example Usage
-```
+
+```bash
 $ vault-benchmark run -config=config.hcl
 2023-04-27T08:25:52.436-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-27T08:25:52.558-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s

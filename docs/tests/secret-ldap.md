@@ -25,12 +25,7 @@ _Note: The `creation_ldif` and `deletion_ldif` fields are base64 encoded LDIFs. 
 ### Example Usage
 
 ```bash
-$ benchmark-vault \
-    -vault_addr=http://localhost:8200 \
-    -vault_token=root \
-    -pct_ldap_dynamic_role_read=100 \
-    -ldap_config_json=/path/to/ldap/config.json \
-    -ldap_dynamic_role_json=/path/to/ldap/dynamic_role.json
+$ vault-benchmark run -config=config.hcl
 op                    count  rate       throughput  mean          95th%         99th%         successRatio
 LDAP dynamic read  687    68.602787  67.609274   146.945225ms  153.417724ms  176.005047ms  100.00%
 ```

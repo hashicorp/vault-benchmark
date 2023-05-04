@@ -14,7 +14,7 @@ This benchmark will test RabbitMQ secret engine operations. In order to use this
 ## Example Usage
 
 ```bash
-$ benchmark-vault run -config=example-configs/config.hcl
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 10s...
 Benchmark complete!

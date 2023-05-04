@@ -1,8 +1,11 @@
 # LDAP Auth Benchmark `ldap_auth`
+
 This benchmark will test LDAP Authentication to Vault. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method.
 
 ## Test Parameters
+
 ### Auth Configuration `auth`
+
 - `url` `(string: <required>)` – The LDAP server to connect to. Examples:
   `ldap://ldap.myorg.com`, `ldaps://ldap.myorg.com:636`. Multiple URLs can be
   specified with commas, e.g. `ldap://ldap.myorg.com,ldap://ldap2.myorg.com`;
@@ -101,13 +104,15 @@ This benchmark will test LDAP Authentication to Vault. The primary required fiel
   time.
 
 ### Test User Config `role`
+
 - `username` `(string: "")`: LDAP test username. This can also be provided via the
 `VAULT_BENCHMARK_LDAP_TEST_USERNAME` environment variable.
 - `password` `(string: "")`: LDAP test user password. This can also be provided via the
 `VAULT_BENCHMARK_LDAP_TEST_PASSWORD` environment variable.
 
 ## Example HCL
-```
+
+```hcl
 test "ldap_auth" "ldap_auth_test1" {
     weight = 100
     config {
@@ -131,8 +136,9 @@ test "ldap_auth" "ldap_auth_test1" {
 ```
 
 ## Example Usage
-```
-$ vault-benchmark run -config=config.hcl                   18:11:35
+
+```bash
+$ vault-benchmark run -config=config.hcl
 2023-04-26T18:11:50.901-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-26T18:11:50.918-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
 2023-04-26T18:11:52.920-0500 [INFO]  vault-benchmark: benchmark complete

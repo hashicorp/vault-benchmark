@@ -3,7 +3,9 @@
 This benchmark will test Vault authentication using the Kubernetes Auth method. In order to use this test, configuration for the target Kubernetes cluster must be provided as part of the configuration. The primary required field is `kubernetes_host`. A role config also needs to be passed with the primary required fields being `name`, `bound_service_account_names`, and `bound_service_account_namespaces`. Included is an example `benchmark-vault-job.yaml` file which can be applied to use the vault-benchmark image in a Kubernetes cluster. This example assumes a Vault cluster deployed in a Kubernetes environment based on our [Vault Installation to Minikube via Helm with Integrated Storage](https://learn.hashicorp.com/tutorials/vault/kubernetes-minikube-raft?in=vault/kubernetes) learn guide. This file can be edited to suit a specific deployment methodology. Below is the ConfigMap snippet showing example configuration:
 
 ## Test Parameters
+
 ### Auth Configuration `auth`
+
 - `kubernetes_host` `(string: <required>)` - Host must be a host string, a host:port pair, or a URL to the base of the Kubernetes API server.
 - `kubernetes_ca_cert` `(string: "")` - PEM encoded CA cert for use by the TLS client used to talk with the Kubernetes API. NOTE: Every line must end with a newline: `\n`
   If not set, the local CA cert will be used if running in a Kubernetes pod.
@@ -39,6 +41,7 @@ When Vault is running in a non-Kubernetes environment, either
 `kubernetes_ca_cert` or `pem_keys` must be set by the user.
 
 ### Role Config `role`
+
 - `name` `(string: <required>)` - Name of the role.
 - `bound_service_account_names` `(array: <required>)` - List of service account
   names able to access this role. If set to "\*" all names are allowed.

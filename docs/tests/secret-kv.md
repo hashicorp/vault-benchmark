@@ -1,14 +1,18 @@
-# KVV1 and KVV2 Secret Benchmark 
+# KVV1 and KVV2 Secret Benchmark
+
 This benchmark tests the performance of KVV1 and/or KVV2.  It writes a set number of keys (KV1 or KV2) to each mount, then reads them back.
 
 ## Test Parameters
+
 ### Configuration `config`
+
 - `numkvs` `(int: 1000)` - if any kvv1 or kvv2 requests are specified,
 then this many keys will be written during the setup phase.  The read operations
 will read from these keys, and the write operations overwrite them.
 - `kvsize` `(int: 1)`:  the size of the key and value to write.
 
 ## Example Configuration
+
 ```hcl
 test "kvv2_read" "kvv2_read_test" {
     weight = 50
@@ -27,6 +31,7 @@ test "kvv2_write" "kvv2_write_test" {
 ```
 
 ## Example Usage
+
 ```bash
 $ vault-benchmark run -config=config.hcl
 2023-05-01T15:46:10.195-0500 [INFO]  vault-benchmark: setting up targets
@@ -35,5 +40,5 @@ $ vault-benchmark run -config=config.hcl
 Target: http://127.0.0.1:8200
 op               count  rate         throughput   mean        95th%       99th%       successRatio
 kvv2_read_test   7372   3685.483957  3684.373734  1.350193ms  1.932011ms  2.427874ms  100.00%
-kvv2_write_test  7476   3738.104588  3736.361605  1.3383ms    1.94206ms   2.438648ms  100.00% 
+kvv2_write_test  7476   3738.104588  3736.361605  1.3383ms    1.94206ms   2.438648ms  100.00%
 ```

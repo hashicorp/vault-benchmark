@@ -3,7 +3,9 @@
 This benchmark will test the dynamic generation of PostgreSQL credentials.
 
 ## Test Parameters
+
 ### DB Config `db_connection`
+
 - `name` `(string: "benchmark-postgres")` – Specifies the name for this database
   connection. This is specified as part of the URL.
 - `plugin_name` `(string: "postgresql-database-plugin")` - Specifies the name of the plugin to use for this connection.
@@ -37,6 +39,7 @@ This benchmark will test the dynamic generation of PostgreSQL credentials.
   for more information. Defaults to `false`.
 
 ### Role Config `role`
+
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This
   is specified as part of the URL.
 - `db_name` `(string: "benchmark-postgres")` - The name of the database connection to use for this role.
@@ -77,8 +80,8 @@ This benchmark will test the dynamic generation of PostgreSQL credentials.
   array. The `{{name}}` and `{{password}}` values will be substituted. The
   generated password will be a random alphanumeric 20 character string.
 
+## Example Configuration
 
-## Example Configuration 
 ```hcl
 test "postgresql_secret" "postgres_test_1" {
     weight = 100
@@ -95,6 +98,8 @@ test "postgresql_secret" "postgres_test_1" {
     }
 }
 ```
+
+## Example Usage
 
 ```bash
 $ vault-benchmark run -config=config.hcl
