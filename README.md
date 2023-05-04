@@ -28,5 +28,46 @@ op              count  rate         throughput   mean        95th%       99th%  
 approle_test1  8794   4396.873590  4394.241423  2.273698ms  3.164222ms  4.351606ms  100.00%
 ```
 
+## Docker
+
+**Tip**: Create a Vault Benchmark image with the `make image` command.
+
+First, create a network that Vault and Vault Benchmark will share:
+
+```bash
+docker network create vault
+```
+
+Next, deploy Vault to Docker and ensure it's running:
+
+```bash
+docker run \
+  --name=vault \
+  --hostname=vault \
+  --network=vault \
+  -p 8200:8200 \
+  -e VAULT_DEV_ROOT_TOKEN_ID="root" \
+  -e VAULT_ADDR="http://localhost:8200" \
+  -e VAULT_DEV_LISTEN_ADDRESS="0.0.0.0:8200" \
+  --privileged \
+  --detach vault:latest
+
+docker logs -f vault
+```
+
+Once Vault is running, create a Vault Benchmark container and watch the logs for the results:
+
+```bash
+docker run \
+  --name=vault-benchmark \
+  --hostname=vault-benchmark \
+  --network=vault \
+  -v /vault-benchmark/configs/:/opt/vault-benchmark/configs \
+  --detach hashicorp/vault-benchmark:0.1.0 \
+  vault-benchmark run -config=/opt/vault-benchmark/configs 
+
+docker logs -f vault-benchmark
+```
+
 # Documentation
 Documentation for `vault-benchmark` including usage and test configuration can be found in our [docs](docs/index.md)
