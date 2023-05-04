@@ -1,7 +1,7 @@
 # Basic Benchmark config options
 vault_addr = "http://127.0.0.1:8200"
 vault_token = "root"
-duration = "10s"
+duration = "5s"
 report_mode = "terse"
 random_mounts = true
 
@@ -9,14 +9,18 @@ random_mounts = true
 test "consul_secret" "consul_test_1" {
     weight = 100
     config {
-        consul_config {
+        version = "1.7.0"
+        consul {
             address = "127.0.0.1:8500"
-            version = "1.8.0"
         }
-        role_config {
+        role {
             node_identities = [
                 "client-1:dc1",
                 "client-2:dc1"
+            ]
+            service_identities = [
+                "server-1:dc1",
+                "server-2:dc1"
             ]
         }
     }

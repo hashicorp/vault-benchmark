@@ -21,6 +21,7 @@ import (
 const (
 	ConsulSecretTestType   = "consul_secret"
 	ConsulSecretTestMethod = "GET"
+	ConsulTokenEnvVar      = VaultBenchmarkEnvVarPrefix + "CONSUL_TOKEN"
 )
 
 func init() {
@@ -41,6 +42,7 @@ type ConsulTestConfig struct {
 }
 
 type ConsulSecretTestConfig struct {
+	Version          string            `hcl:"version,optional"`
 	ConsulConfig     *ConsulConfig     `hcl:"consul,block"`
 	ConsulRoleConfig *ConsulRoleConfig `hcl:"role,block"`
 }
@@ -52,7 +54,6 @@ type ConsulConfig struct {
 	CaCert     string `hcl:"ca_cert,optional"`
 	ClientCert string `hcl:"client_cert,optional"`
 	ClientKey  string `hcl:"client_key,optional"`
-	Version    string `hcl:"version"`
 }
 
 type ConsulRoleConfig struct {
@@ -75,15 +76,12 @@ type ConsulRoleConfig struct {
 func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 	c.config = &ConsulTestConfig{
 		Config: &ConsulSecretTestConfig{
+			Version: "1.14.0",
 			ConsulConfig: &ConsulConfig{
-				Scheme:  "http",
-				Version: "1.14.0",
-				Token:   os.Getenv("CONSUL_TOKEN"),
+				Token: os.Getenv(ConsulTokenEnvVar),
 			},
 			ConsulRoleConfig: &ConsulRoleConfig{
-				Name:      "benchmark-role",
-				TokenType: "client",
-				Local:     false,
+				Name: "benchmark-role",
 			},
 		},
 	}
@@ -163,7 +161,7 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 
 	// Get consul version
 	setupLogger.Trace("parsing consul version from config")
-	v, err := version.NewVersion(config.ConsulConfig.Version)
+	v, err := version.NewVersion(config.Version)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul version: %v", err)
 	}
@@ -175,13 +173,18 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	switch {
-	case v.GreaterThanOrEqual(version.Must(version.NewVersion("1.8"))):
-		consulRoleConfigData["node_identities"] = config.ConsulRoleConfig.NodeIdentities
-		consulRoleConfigData["consul_namespace"] = config.ConsulRoleConfig.ConsulNamespace
-	case v.GreaterThanOrEqual(version.Must(version.NewVersion("1.5"))):
-		consulRoleConfigData["service_identities"] = config.ConsulRoleConfig.ServiceIdentities
-		consulRoleConfigData["consul_roles"] = config.ConsulRoleConfig.ConsulRoles
+	// For Consul < 1.8, we need to unset node_identities and consul_namespace
+	if v.LessThan(version.Must(version.NewVersion("1.8"))) {
+		delete(consulRoleConfigData, "node_identities")
+		delete(consulRoleConfigData, "consul_namespace")
+		setupLogger.Warn("node_identities and consul_namespace are not supported in Consul < 1.8.  These fields will be ignored.")
+	}
+
+	// For Consul < 1.5, we need to unset service_identities and consul_roles
+	if v.LessThan(version.Must(version.NewVersion("1.5"))) {
+		delete(consulRoleConfigData, "service_identities")
+		delete(consulRoleConfigData, "consul_roles")
+		setupLogger.Warn("service_identities and consul_roles are not supported in Consul < 1.5.  These fields will be ignored.")
 	}
 
 	// Create Role
