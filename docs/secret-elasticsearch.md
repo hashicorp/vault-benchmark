@@ -1,8 +1,11 @@
 # Elasticsearch Secret Configuration Options
+
 This benchmark will test the dynamic generation of Elasticsearch credentials.
 
 ## Test Parameters
+
 ### Elasticsearch Database Config `db_connection`
+
 - `name` `(string: "benchmark-elasticsearch")` – Specifies the name for this database connection. This is specified as part of the URL.
 - `plugin_name` `(string: "elasticsearch-database-plugin")` - Specifies the name of the plugin to use for this connection.
 - `plugin_version` `(string: "")` - Specifies the semantic version of the plugin to use for this connection.
@@ -28,6 +31,7 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
 - `use_old_xpack` `(bool: false)` - Can be set to `true` to use the `/_xpack/security` base API path when managing Elasticsearch. May be required for Elasticsearch server versions prior to 6.
 
 ### Role Config `role`
+
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This is specified as part of the URL.
 - `db_name` `(string: "benchmark-elasticsearch")` - The name of the database connection to use for this role.
 - `default_ttl` `(string: "")` - Specifies the TTL for the leases associated with this role. Accepts time suffixed strings (`1h`) or an integer number of seconds. Defaults to system/engine default TTL time.
@@ -37,6 +41,7 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
   for more information on support and formatting for this parameter.
 
 ## Example Configuration
+
 ```hcl
 test "elasticsearch_secret" "elasticsearch_test_1" {
     weight = 100

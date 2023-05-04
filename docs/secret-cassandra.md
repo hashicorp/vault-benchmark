@@ -1,8 +1,11 @@
 # Cassandra Secrets Engine Benchmark `cassandra_secret`
+
 This benchmark will test the dynamic generation of Cassandra credentials.
 
 ## Test Parameters
+
 ### DB Connection Configuration `db_connection`
+
 - `name` `(string: "benchmark-cassandra")` – Specifies the name for this database connection. This is specified as part of the URL.
 - `plugin_name` `(string: "cassandra-database-plugin")` - Specifies the name of the plugin to use
   for this connection.
@@ -55,6 +58,7 @@ create/update/delete users within the database so it will need to have the appro
 permissions to do so.
 
 ### Role Configuration `role`
+
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This is specified as part of the URL.
 - `db_name` `(string: "benchmark-cassandra")` - The name of the database connection to use for this role.
 - `default_ttl` `(string: "")` - Specifies the TTL for the leases
@@ -77,6 +81,7 @@ permissions to do so.
   more information on support and formatting for this parameter.
 
 ### Example HCL
+
 ```hcl
 test "cassandra_secret" "cassandra_secret_1" {
     weight = 100
@@ -96,8 +101,9 @@ test "cassandra_secret" "cassandra_secret_1" {
 ```
 
 ### Example Usage
+
 ```bash
-$ vault-benchmark run -config=config.hcl             
+$ vault-benchmark run -config=config.hcl
 2023-04-27T13:36:04.553-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-27T13:36:04.768-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
 2023-04-27T13:36:07.662-0500 [INFO]  vault-benchmark: benchmark complete

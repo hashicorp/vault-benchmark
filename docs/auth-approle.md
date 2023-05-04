@@ -1,9 +1,12 @@
-# Approle Authentication Benchmark (`approle_auth`) 
+# Approle Authentication Benchmark (`approle_auth`)
+
 This benchmark tests the performance of logins using the AppRole auth method.
 
 ## Benchmark Configuration Parameters
+
 ### Role Configuration (`role`)
-- `role_name` `(string: "benchmark-role")` - Name of the AppRole. Must be less than 4096 bytes, accepted characters 
+
+- `role_name` `(string: "benchmark-role")` - Name of the AppRole. Must be less than 4096 bytes, accepted characters
 include a-Z, 0-9, space, hyphen, underscore and periods.
 - `bind_secret_id` `(bool: true)` - Require `secret_id` to be presented when
   logging in using this AppRole.
@@ -58,6 +61,7 @@ include a-Z, 0-9, space, hyphen, underscore and periods.
   time.
 
 ### Secret ID Configuration (`secret_id`)
+
 - `metadata` `(string: "")` - Metadata to be tied to the SecretID. This should be
   a JSON-formatted string containing the metadata in key-value pairs. This
   metadata will be set on tokens issued with this SecretID, and is logged in
@@ -78,10 +82,9 @@ include a-Z, 0-9, space, hyphen, underscore and periods.
   Overrides `secret_id_ttl` role option when supplied.
   May not be longer than role's `secret_id_ttl`.
 
+## Example HCL
 
-
-## Example HCL 
-```
+```hcl
 test "approle_auth" "approle_test1" {
   weight = 100
   config {
@@ -101,8 +104,9 @@ test "approle_auth" "approle_test1" {
 ```
 
 ## Example Usage
+
 ```bash
-./vault-benchmark run -config=config.hcl 
+$ vault-benchmark run -config=config.hcl
 2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
 2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete

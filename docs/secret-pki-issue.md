@@ -3,7 +3,9 @@
 This benchmark tests the performance of PKI issue operations.
 
 ## Test Parameters
+
 ### Root CA Config `root`
+
 - `type` `(string: "internal")` - Specifies the type of the root to
   create. If `exported`, the private key will be returned in the response; if
   `internal` the private key will not be returned and _cannot be retrieved
@@ -138,7 +140,7 @@ This benchmark tests the performance of PKI issue operations.
   `YYYY-MM-ddTHH:MM:SSZ`. Supports the Y10K end date for IEEE 802.1AR-2018
   standard devices, `9999-12-31T23:59:59Z`.
 
-* ~> Note: Keys of type `rsa` currently only support PKCS#1 v1.5 signatures.
+- ~> Note: Keys of type `rsa` currently only support PKCS#1 v1.5 signatures.
 
 #### Managed Keys Parameters
 
@@ -150,6 +152,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
 - `managed_key_id` `(string: "")` - The managed key's UUID.
 
 ### Intermediate CSR Config `intermediate_csr`
+
 - `type` `(string: "internal")` - Specifies the type of the intermediate to
   create. If `exported`, the private key will be returned in the response; if
   `internal` the private key will not be returned and _cannot be retrieved
@@ -278,6 +281,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
 - `managed_key_id` `(string: "")` - The managed key's UUID.
 
 ### Intermediate CA Config `intermediate_ca`
+
 - `csr` `(string: <auto_generated>)` - Specifies the PEM-encoded CSR to be signed.
 
 - `common_name` `(string: "")` - Specifies the requested CN for the
@@ -407,6 +411,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   ECDSA/Ed25519 issuers.
 
 ### Role Config `role`
+
 - `name` `(string: "benchmark-issue")` - Specifies the name of the role to create. This
   is part of the request URL.
 
@@ -593,7 +598,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
 
 - `key_usage` `(list: ["DigitalSignature", "KeyAgreement", "KeyEncipherment"])` -
   Specifies the allowed key usage constraint on issued certificates. Valid
-  values can be found at https://golang.org/pkg/crypto/x509/#KeyUsage - simply
+  values can be found at <https://golang.org/pkg/crypto/x509/#KeyUsage> - simply
   drop the `KeyUsage` part of the value. Values are not case-sensitive. To
   specify no key usage constraints, set this to an empty list. See
   [RFC 5280 Section 4.2.1.3](https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3)
@@ -601,7 +606,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
 
 - `ext_key_usage` `(list: [])` -
   Specifies the allowed extended key usage constraint on issued certificates. Valid
-  values can be found at https://golang.org/pkg/crypto/x509/#ExtKeyUsage - simply
+  values can be found at <https://golang.org/pkg/crypto/x509/#ExtKeyUsage> - simply
   drop the `ExtKeyUsage` part of the value. Values are not case-sensitive. To
   specify no key usage constraints, set this to an empty list. See
   [RFC 5280 Section 4.2.1.12](https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.12)
@@ -685,8 +690,8 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
 - `cn_validations` `(list: ["email", "hostname"])` - Validations to run on the
   Common Name field of the certificate. Valid values include:
 
-   - `email`, to ensure the Common Name is an email address (contains an `@` sign),
-   - `hostname`, to ensure the Common Name is a hostname (otherwise).
+  - `email`, to ensure the Common Name is an email address (contains an `@` sign),
+  - `hostname`, to ensure the Common Name is a hostname (otherwise).
 
   Multiple values can be separated with a comma or specified as a list and use
   OR semantics (either email or hostname in the CN are allowed). When the
@@ -701,6 +706,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   request parameter.
 
 ### Issue Config `issue`
+
 - `name` `(string: <required>)` - Specifies the name of the role to create the
   certificate against. This is part of the request URL.
 
@@ -791,7 +797,7 @@ test "pki_issue" "pki_issue_test1" {
 ## Example Usage
 
 ```bash
-$ vault-benchmark run -config=pki_issue.hcl
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 5s...
 Benchmark complete!

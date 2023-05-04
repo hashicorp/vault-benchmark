@@ -3,7 +3,9 @@
 This benchmark tests the performance of Signed SSH Certificate issue operations.
 
 ## Test Parameters
+
 ### Role Config `role`
+
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This
   is part of the request URL.
 
@@ -57,7 +59,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
 - `allowed_users_template` `(bool: false)` - If set, `allowed_users` can be specified
   using identity template policies. Non-templated users are also permitted.
 
-- `allowed_domains` `(string: "")` – A comma-separated list of domains for which 
+- `allowed_domains` `(string: "")` – A comma-separated list of domains for which
   a client can request a host certificate. If this option is explicitly set to
   `"*"`, then credentials can be created for any domain. See also
   `allow_bare_domains` and `allow_subdomains`.
@@ -133,7 +135,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
   short names (`rsa`, `ecdsa`, `dsa`, or `ed25519`) as keys. For example, a valid
   policy to allow common RSA and ECDSA key lengths might be:
 
-  ```
+  ```go
   {
     "rsa": [2048, 3072, 4096],
     "ec": 256,
@@ -168,6 +170,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
   backdate the `ValidAfter` property. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 
 ### CA Config `ca`
+
 - `private_key` `(string: "")` – Specifies the private key part the SSH CA key
   pair; required if `generate_signing_key` is false.
 
@@ -199,6 +202,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
   NIST P-256 key).
 
 ### Issued Cert Config `issued_cert`
+
 - `name` `(string: "benchmark-key")` – Specifies the name of the role to create the
   certificate against. This is part of the request URL.
 
@@ -232,6 +236,7 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
   that the certificate should be signed for. Defaults to none.
 
 ## Example Configuration
+
 ```hcl
 test "ssh_issue" "ssh_issue_test1" {
         weight = 100
@@ -250,7 +255,7 @@ test "ssh_issue" "ssh_issue_test1" {
 ## Example Usage
 
 ```bash
-$ vault-benchmark run -config=ssh.hcl
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 5s...
 Benchmark complete!

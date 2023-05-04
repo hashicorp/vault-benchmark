@@ -1,8 +1,11 @@
-# Redis Static Credential Benchmark (`jwt_auth`) 
+# Redis Static Credential Benchmark (`jwt_auth`)
+
 This benchmark tests the performance of logins using the jwt auth method.
 
 ## Benchmark Configuration Parameters
+
 ### JWT Authentication Configuration (`auth`)`
+
 - `oidc_discovery_url` `(string: <optional>)` - The OIDC Discovery URL, without any .well-known component (base path). Cannot be used with "jwks_url" or "jwt_validation_pubkeys".
 - `oidc_discovery_ca_pem` `(string: <optional>)` - The contents of a CA certificate or chain of certificates, in PEM format, to use to validate connections to the OIDC Discovery URL. If not set, system certificates are used.
 - `oidc_client_id` `(string: <optional>)` - The OAuth Client ID from the provider for OIDC roles.
@@ -19,8 +22,8 @@ This benchmark tests the performance of logins using the jwt auth method.
 - `provider_config` `(string: <optional>)` - Configuration options for provider-specific handling. Providers with specific handling include: Azure, Google, SecureAuth, IBM ISAM. The options are described in each provider's section in [OIDC Provider Setup](https://developer.hashicorp.com/vault/docs/auth/jwt/oidc-providers).
 - `namespace_in_state` `(bool: true)` - Pass namespace in the OIDC state parameter instead of as a separate query parameter. With this setting, the allowed redirect URL(s) in Vault and on the provider side should not contain a namespace query parameter. This means only one redirect URL entry needs to be maintained on the provider side for all vault namespaces that will be authenticating against it. Defaults to true for new configs.
 
-
 ### JWT Role Configuration (`role`)`
+
 - `name` `(string: <required>)` - Name of the role.
 - `role_type` `(string: <optional>)` - Type of role, either "oidc" (default) or "jwt".
 - `bound_audiences` `(string: <optional>)` - a string `aud` claim to match against.
@@ -109,7 +112,8 @@ This benchmark tests the performance of logins using the jwt auth method.
   the type to return unless the client requests a different type at generation
   time.
 
-## Example HCL 
+## Example HCL
+
 ```hcl
 test "jwt_auth" "jwt_auth1" {
   weight = 100
@@ -129,8 +133,9 @@ test "jwt_auth" "jwt_auth1" {
 ```
 
 ## Example Usage
+
 ```bash
-$ vault-benchmark run -config=example-configs/config.hcl
+$ vault-benchmark run -config=config.hcl
 2023-04-26T17:52:03.294-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-26T17:52:03.320-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
 2023-04-26T17:52:05.322-0500 [INFO]  vault-benchmark: benchmark complete
@@ -138,4 +143,3 @@ Target: http://localhost:8200
 op         count  rate         throughput   mean        95th%       99th%       successRatio
 jwt_auth1  8837   4418.525130  4416.285509  2.262041ms  3.135816ms  4.338269ms  100.00%
 ```
-
