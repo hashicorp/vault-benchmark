@@ -21,8 +21,8 @@ This benchmark will test the dynamic generation of MongoDB credentials.
   maintained for the lifecycle of the plugin process. Must be a serialized JSON
   object, or a base64-encoded serialized JSON object. The JSON payload values
   map to the values in the [Safe][mgo-safe] struct from the mgo driver.
-- `username` `(string: "")` - The root credential username used in the connection URL. This can also be provided via the `VAULT_BENCHMARK_MONGODB_USERNAME` environment variable.
-- `password` `(string: "")` - The root credential password used in the connection URL. This can also be provided via the `VAULT_BENCHMARK_MONGODB_PASSWORD` environment variable.
+- `username` `(string: <required>)` - The root credential username used in the connection URL. This can also be provided via the `VAULT_BENCHMARK_MONGODB_USERNAME` environment variable.
+- `password` `(string: <required>)` - The root credential password used in the connection URL. This can also be provided via the `VAULT_BENCHMARK_MONGODB_PASSWORD` environment variable.
 - `tls_certificate_key` `(string: "")` - x509 certificate for connecting to the database.
   This must be a PEM encoded version of the private key and the certificate combined.
 - `tls_ca` `(string: "")` - x509 CA file for validating the certificate presented by the
