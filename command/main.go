@@ -101,6 +101,13 @@ func RunCustom(args []string, runOpts *RunOptions) int {
 				},
 			}, nil
 		},
+		"version": func() (cli.Command, error) {
+			return &VersionCommand{
+				BaseCommand: &BaseCommand{
+					UI: ui,
+				},
+			}, nil
+		},
 	}
 
 	hiddenCommands := []string{"version"}
