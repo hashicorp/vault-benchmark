@@ -53,6 +53,8 @@ type PostgreSQLSecretTestConfig struct {
 // PostgreSQL DB Config
 type PostgreSQLDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
+	PluginName             string   `hcl:"plugin_name,optional"`
+	PluginVersion          string   `hcl:"plugin_version,optional"`
 	VerifyConnection       *bool    `hcl:"verify_connection,optional"`
 	AllowedRoles           []string `hcl:"allowed_roles,optional"`
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
@@ -65,7 +67,6 @@ type PostgreSQLDBConfig struct {
 	Password               string   `hcl:"password,optional"`
 	UsernameTemplate       string   `hcl:"username_template,optional"`
 	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
-	PluginName             string   `hcl:"plugin_name,optional"`
 }
 
 // PostgreSQL Role Config
