@@ -1,142 +1,32 @@
 # Vault Benchmark
 
-`vault-benchmark` is a tool designed to test the performance of Vault auth methods and secret engines.
+`vault-benchmark` is a tool designed to test the performance of Vault auth methods and secret engines. Running the binary with a benchmark configuration file, will configure any necessary resources on the Vault instance itself required to perform the tests defined. Any auth methods or secrets engine tests defined that require an external dependency such as a database will require that infrastructure be set up correctly prior to benchmarking. `vault-benchmark` makes use of the [Vegeta](https://github.com/tsenart/vegeta) HTTP load testing utility.
 
-Vault configuration settings
+**Warning**
+`vault-benchmark` will put a great amount of stress against the cluster itself and the infrastructure that the cluster is running on during testing, and as such is intended to only be run against a test Vault cluster that is isolated from any production systems or any other systems that can cause any negative impact.
 
-- `vault_addr`: vault address, overrides VAULT_ADDR
-- `cluster_json`: path to cluster.json file
-- `vault_token`: vault token, overrides VAULT_TOKEN
-- `audit_path`: when creating vault cluster, path to file for audit log
-- `ca_pem_file`: when using external vault with HTTPS, path to its CA file in PEM format
+# Installation
+## Official Release Binaries
+You can download a release binary from our [release page](https://releases.hashicorp.com/vault-benchmark)
 
-The main generic options are:
-
-- `workers`: number of workers aka virtual users
-- `duration`: benchmark duration
-- `rps`: requests per second
-- `report_mode`  reporting mode: terse, verbose, json
-- `pprof_interval` collection interval for vault debug pprof profiling
-- `input_results` instead of running tests, read a JSON file from a previous test run
-- `annotate` comma-separated name=value pairs include in bench_running prometheus metric, try name 'testname' fodashboard example
-- `debug` before running tests, execute each benchmark target and output request/response info
-
-vault-benchmark will create `workers` virtual users which will continuously
-generate requests to the Vault API.  The requests to generate are controlled
-by test options, which must sum to 100.
-
-Additionally, there are test specific options that can be found under that tests designated section.
-
-# Vault cluster
-
-benchmark_vault requires either the `vault_addr` and `vault_token` arguments or
-the environment variables `VAULT_ADDR` and `VAULT_TOKEN` to be set.
-
-The Vault cluster doesn't require any mounts: these will be setup at random
-mount points as part of the test prep.  This means the vault token must have
-sufficient privileges to do that.
-
-# Examples
-
-```
-$ vault server -dev-listen-address=0.0.0.0:8200 -dev -dev-root-token-id=devroot >/dev/null 2>&1 &
-[1] 67334
-$ ./vault-benchmark -vault_addr=http://localhost:8200 -vault_token=devroot -pct_kvv1_read=90 -pct_kvv1_write=10
-op          mean       95th%       99th        successRatio
-kvv1 read   817.22µs   1.674553ms  2.437689ms  100.00%
-kvv1 write  905.852µs  1.825512ms  2.59166ms   100.00%
-```
-
-# Test Cases
-
-## Auth Methods
-
-- [Approle Configurations](/examples/auth-approle.md)
-- [Certificate Configurations](/examples/auth-certificate.md)
-- [LDAP Configurations](/examples/auth-ldap.md)
-- [Userpass Configurations](/examples/auth-userpass.md)
-
-## Secret Engines
-
-- [CassandraDB Configurations](/examples/secret-cassandra.md)
-- [Consul Configurations](/examples/secret-consul.md)
-- [Couchbase Configurations](/examples/secret-couchbase.md)
-- [Elasticsearch Configurations](/examples/elasticsearch.md)
-- [KV Configurations](/examples/secret-kv.md)
-- [LDAP Configurations](/examples/secret-ldap.md)
-- [MongoDB Configurations](/examples/secret-mongo.md)
-- [PKI Configurations](/examples/secret-pki.md)
-- [PostgreSQL Configurations](/examples/secret-postgresql.md)
-- [RabbitMQ Configurations](/examples/secret-rabbit.md)
-- [Redis Configurations](/examples/secret-redis.md)
-- [SSH Key Signing](/examples/secret-ssh-sign.md)
-- [Signed SSH Certificates Configurations](/examples/secret-ssh-sign-ca.md)
-- [Transit Configurations](/examples/secret-transit.md)
-
-## System Status
-
-- [System Status Configurations](/examples/system-status.md)
-
-# Outputs
-
-## Reports
-
-Once the test completes a report is generated on stdout.  The report may
-have the following formats:
-
-- `terse`: one line of metrics per test type
-- `verbose`: one multi-line block of metrics per test type
-- `json`: a blob of JSON containing the full metrics
-
-The main use case for `json` is to preserve the metrics, such that later
-benchmark_vault can be invoked with the `input_results` option in order to get
-either terse or verbose reports.
-
-## Troubleshooting
-If you see unexpected results, for example `successRatio: 0.00%`, when you are expecting `100%`,
-use the debug flag `-debug=true` to get more information around any potential issues.
-
-## Profiling
-
-`pprof_interval` runs the `vault debug` command to gather pprof data; this
-is written to a folder named `vault-debug-X` where X is a timestamp.
-
-# Docker
-
-**Tip**: Create a Vault Benchmark image with the `make image` command.
-
-First, create a network that Vault and Vault Benchmark will share:
-
+## Compiling From Source
+You can compile the latest version including any fixes or features from source by running `make bin`. This will put the `vault-benchmark` binary in the `dist` folder in directories that map to your `GOOS` and `GOARCH`:
 ```bash
-docker network create vault
+$ make bin
+GOARCH=arm64 GOOS=darwin go build -o dist/darwin/arm64/vault-benchmark
 ```
 
-Next, deploy Vault to Docker and ensure it's running:
-
-```bash
-docker run \
-  --name=vault \
-  --hostname=vault \
-  --network=vault \
-  -p 8200:8200 \
-  -e VAULT_DEV_ROOT_TOKEN_ID="root" \
-  -e VAULT_ADDR="http://localhost:8200" \
-  -e VAULT_DEV_LISTEN_ADDRESS="0.0.0.0:8200" \
-  --privileged \
-  --detach vault:latest
-
-docker logs -f vault
+# Usage
+`vault-benchmark` can be run directly as a binary, docker container or kubernetes job. Below is an example of running the binary.
+```
+$ vault-benchmark run -config=config.hcl 
+2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op              count  rate         throughput   mean        95th%       99th%       successRatio
+approle_test1  8794   4396.873590  4394.241423  2.273698ms  3.164222ms  4.351606ms  100.00%
 ```
 
-Once Vault is running, create a Vault Benchmark container and watch the logs for the results:
-
-```bash
-docker run \
-  --name=vault-benchmark \
-  --hostname=vault-benchmark \
-  --network=vault \
-  --detach hashicorp/vault-benchmark:0.0.0-dev \
-  vault-benchmark -vault_addr=http://vault:8200 -vault_token=root -pct_kvv1_read=90 -pct_kvv1_write=10
-
-docker logs -f vault-benchmark
-```
+# Documentation
+Documentation for `vault-benchmark` including usage and test configuration can be found in our [docs](docs/index.md)
