@@ -14,7 +14,7 @@ This benchmark will test the dynamic generation of MongoDB credentials.
   Defaults to empty (no roles), if contains a `*` any role can use this connection.
 - `connection_url` `(string: <required>)` – Specifies the MongoDB standard
   connection string (URI). This field can be templated and supports passing the
-  username and password parameters in the following format {{field_name}}. A
+  username and password parameters in the following format `{{field_name}}`. A
   templated connection URL is required when using root credential rotation.
 - `write_concern` `(string: "")` - Specifies the MongoDB [write
   concern][mongodb-write-concern]. This is set for the entirety of the session,

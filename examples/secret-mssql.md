@@ -13,7 +13,7 @@ This benchmark will test the dynamic generation of MSSQL credentials.
 - `allowed_roles` `(list: ["benchmark_role"])` - List of the roles allowed to use this connection.
 - `root_rotation_statements` `(list: [])` - Specifies the database statements to be executed to rotate the root user's credentials.
 - `password_policy` `(string: "")` - The name of the password policy to use when generating passwords for this database. If not specified, this will use a default policy defined as: 20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
-- `connection_url` `(string: <required>)` - Specifies the MSSQL DSN. This field can be templated and supports passing the username and password parameters in the following format {{field_name}}. A templated connection URL is required when using root credential rotation.
+- `connection_url` `(string: <required>)` - Specifies the MSSQL DSN. This field can be templated and supports passing the username and password parameters in the following format `{{field_name}}`. A templated connection URL is required when using root credential rotation.
 - `disable_escaping` `(boolean: false)` - Turns off the escaping of special characters inside of the username and password fields. See the [databases secrets engine docs](https://developer.hashicorp.com/vault/docs/secrets/databases#disable-character-escaping) for more information. Defaults to `false`.
 - `contained_db` `(bool: false)` - If set, specifies that the connection being configured is to a [Contained Database](https://docs.microsoft.com/en-us/sql/relational-databases/databases/contained-databases?view=sql-server-ver15), like AzureSQL.
 - `max_open_connections` `(int: 4)` - Specifies the maximum number of open connections to the database.
