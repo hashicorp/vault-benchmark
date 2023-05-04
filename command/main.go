@@ -41,6 +41,12 @@ func Run(args []string) int {
 // RunCustom allows passing in a base command template to pass to other
 // commands. Currently, this is only used for setting a custom token helper.
 func RunCustom(args []string, runOpts *RunOptions) int {
+	for _, arg := range args {
+		if len(args) == 1 && (arg == "-v" || arg == "-version" || arg == "--version") {
+			args = []string{"version"}
+			break
+		}
+	}
 	if runOpts == nil {
 		runOpts = &RunOptions{}
 	}
@@ -96,6 +102,13 @@ func RunCustom(args []string, runOpts *RunOptions) int {
 		},
 		"review": func() (cli.Command, error) {
 			return &ReviewCommand{
+				BaseCommand: &BaseCommand{
+					UI: ui,
+				},
+			}, nil
+		},
+		"version": func() (cli.Command, error) {
+			return &VersionCommand{
 				BaseCommand: &BaseCommand{
 					UI: ui,
 				},
