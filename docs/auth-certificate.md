@@ -1,7 +1,9 @@
-# Certification Authentication Benchmark (`cert_auth`) 
+# Certification Authentication Benchmark (`cert_auth`)
+
 This benchmark tests the performance of logins using the Certificate auth method.
 
 ## Benchmark Configuration Parameters
+
 - `name` `(string: "benchmark-vault")` - The name of the certificate role.
 - `certificate` `(string: "")` - The PEM-format CA certificate. If not provided one will be automatically generated for this test.
 - `allowed_names` `(string: "")` - DEPRECATED: Please use the individual
@@ -79,20 +81,22 @@ This benchmark tests the performance of logins using the Certificate auth method
   the type to return unless the client requests a different type at generation
   time.
 
-## Example HCL 
-```
+## Example HCL
+
+```hcl
 test "cert_auth" "cert_auth_test1" {
-	weight = 25
-	config {
-		name = "test"
-    certificate = cert.pem
-	}
+  weight = 25
+  config {
+    name = "test"
+  certificate = cert.pem
+  }
 }
 ```
 
 ## Example Usage
+
 ```bash
-$ vault-benchmark run -config=config.hcl 
+$ vault-benchmark run -config=config.hcl
 2023-04-26T14:50:27.124-0500 [INFO]  vault-benchmark: setting up targets
 2023-04-26T14:50:27.135-0500 [INFO]  vault-benchmark: starting benchmarks: duration=3s
 2023-04-26T14:50:30.136-0500 [INFO]  vault-benchmark: benchmark complete

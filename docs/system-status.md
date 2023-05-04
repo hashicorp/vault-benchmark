@@ -16,10 +16,10 @@ test "metrics" "metrics_test_1" {
 }
 ```
 
-### Example Usage
+## Example Usage
 
 ```bash
-$ vault-benchmark run -config=example-configs/status/config.hcl
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 10s...
 Benchmark complete!

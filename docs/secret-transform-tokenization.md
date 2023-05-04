@@ -1,9 +1,11 @@
 # Transform Tokenization Configuration Options
 
-This benchmark will test Vault's Transform secrets engine by performing Tokenization encoding on provided input. 
+This benchmark will test Vault's Transform secrets engine by performing Tokenization encoding on provided input.
 
 ## Test Parameters
+
 ### Role Config `role`
+
 - `name` `(string: "benchmark-role")` –
   Specifies the name of the role to create. This is part of the request URL.
 
@@ -11,6 +13,7 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
   Specifies the transformations that can be used with this role.
 
 ### Tokenization Config `tokenization`
+
 - `name` `(string: "benchmarktransformation")` –
   Specifies the name of the transformation to create or update. This is part of
   the request URL.
@@ -35,10 +38,11 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
 
 - `deletion_allowed` `(bool: false)` -
   If true, this transform can be deleted. Otherwise deletion is blocked while this
-  value remains false. Note that deleting the transform deletes the underlying key 
+  value remains false. Note that deleting the transform deletes the underlying key
   making decoding of tokenized values impossible without restoring from a backup.
 
 ### Store Config `store`
+
 - `name` `(string: <required>)` –
   Specifies the name of the store to create or update. This is part of
   the request URL.
@@ -63,7 +67,7 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
 - `password`: `(string: <required>)` -
   The password value to use when connecting to the database.
 
-- `supported_transformations: `(list: ["tokenization"])` The types of transformations this store can host. Currently only`tokenization`
+- `supported_transformations:`(list: ["tokenization"])`The types of transformations this store can host. Currently only`tokenization`
   is supported.
 
 - `schema`: `(string: "public")` -
@@ -82,6 +86,7 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
 - `pct_couchbase_read`: percent of requests that are Couchbase dynamic credential generations
 
 ### Store Schema Config `store_schema`
+
 - `name` `(string: <required>)` –
   Specifies the name of the store to create or update. This is part of
   the request URL.
@@ -96,6 +101,7 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
   The transformation type. Currently only `tokenization` is supported.
 
 ### Encode Input `input`
+
 - `role_name` `(string: "benchmark-role)` –
   Specifies the role name to use for this operation. This is specified as part
   of the URL.
@@ -156,22 +162,23 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
   ```
 
 ### Example Configuration
+
 ```hcl
 test "transform_tokenization" "tokenization_test1" {
-	weight = 100
-	config {
-		input {
-			ttl = "5s"
+ weight = 100
+ config {
+  input {
+   ttl = "5s"
             value = "123456789"
-		}
-	}
+  }
+ }
 }
 ```
 
-### Example Usage
+## Example Usage
 
 ```bash
-$ vault-benchmark run -config=transform.hcl       
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 5s...
 Benchmark complete!

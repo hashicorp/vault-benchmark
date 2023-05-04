@@ -1,8 +1,11 @@
 # MongoDB Secrets Engine Benchmark
+
 This benchmark will test the dynamic generation of MongoDB credentials.
 
 ## Test Parameters
+
 ### MongoDB Database Configuration `db_connection`
+
 - `name` `(string: "benchmark-mongo")` – Specifies the name for this database
   connection. This is specified as part of the URL.
 - `plugin_name` `(string: mongodb-database-plugin)` - Specifies the name of the plugin to use
@@ -30,9 +33,8 @@ This benchmark will test the dynamic generation of MongoDB credentials.
 - `username_template` `(string)` - [Template](https://developer.hashicorp.com/vault/docs/concepts/username-templating) describing how
   dynamic usernames are generated.
 
-
-
 ### Role Config
+
 - `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This
   is specified as part of the URL.
 - `db_name` `(string: "benchmark-mongo")` - The name of the database connection to use
@@ -58,6 +60,7 @@ This benchmark will test the dynamic generation of MongoDB credentials.
   `db` value is provided, it defaults to the `admin` database.
 
 ## Example Configuration
+
 ```hcl
 test "mongodb_secret" "mongodb_test_1" {
     weight = 100
@@ -78,7 +81,7 @@ test "mongodb_secret" "mongodb_test_1" {
 ### Example Usage
 
 ```bash
-$ vault-benchmark run -config=example-configs/mongodb/config.hcl
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 10s...
 Benchmark complete!

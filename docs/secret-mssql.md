@@ -33,6 +33,7 @@ This benchmark will test the dynamic generation of MSSQL credentials.
 - `revocation_statements` `(list: [])` – Specifies the database statements to be executed to revoke a user. Must be a semicolon-separated string, a base64-encoded semicolon-separated string, a serialized JSON string array, or a base64-encoded serialized JSON string array. The `{{name}}` value will be substituted. If not provided defaults to a generic drop user statement.
 
 ## Example Configuration
+
 ```hcl
 test "mssql_secret" "mssql_test_1" {
     weight = 100
@@ -51,6 +52,7 @@ test "mssql_secret" "mssql_test_1" {
 ```
 
 ## Example Usage
+
 ```bash
 $ vault-benchmark run -config=config.hcl
 2023-04-27T20:22:44.803-0400 [INFO]  vault-benchmark: setting up targets

@@ -47,7 +47,7 @@ test "transit_decrypt" "transit_decrypt_test_1" {
 ## Example Usage
 
 ```bash
-$ vault-benchmark run -config=example-configs/transit/config.hcl
+$ vault-benchmark run -config=config.hcl
 Setting up targets...
 Starting benchmarks. Will run for 10s...
 Benchmark complete!
