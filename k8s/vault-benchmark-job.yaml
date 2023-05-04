@@ -10,17 +10,29 @@ kind: ConfigMap
 metadata:
   name: vault-benchmark-configmap
 data:
-  k8s_config.json: |
-    {
-      "kubernetes_host":"https://kubernetes.default.svc"
-    }
-  k8s_role_config.json: |
-    {
-      "name":"vault-benchmark-role",
-      "bound_service_account_names":["vault-benchmark"],
-      "bound_service_account_namespaces":["*"],
-      "token_max_ttl":"24h",
-      "token_ttl":"1h"
+  k8s.hcl: |
+    # Basic Benchmark config options
+    vault_addr = "http://vault:8200"
+    vault_token = "root"
+    duration = "10s"
+    report_mode = "terse"
+    random_mounts = true
+    cleanup = true
+
+    test "kube_auth" "kube_auth_test1" {
+      weight = 100
+      config {
+        auth {
+          kubernetes_host = "https://kubernetes.default.svc"
+        }
+        role {
+          name = "vault-benchmark-role"
+          bound_service_account_names = ["vault-benchmark"]
+          bound_service_account_namespaces = ["*"]
+          token_max_ttl = "24h"
+          token_ttl = "1h"
+        }
+      }
     }
 
 ---
@@ -42,12 +54,9 @@ spec:
         imagePullPolicy: IfNotPresent
         command: ["vault-benchmark"]
         args: [
-          "-vault_addr=http://vault:8200",
-          "-vault_token=root",
-          "-pct_k8s_login=100",
-          "-k8s_config_json=/config/k8s_config.json",
-          "-k8s_role_config_json=/config/k8s_role_config.json"
-          ]
+          "run",
+          "-config=/config/k8s.hcl",
+        ]
         volumeMounts:
         - name: benchmark-config
           mountPath: "/config"

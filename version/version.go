@@ -25,7 +25,7 @@ var (
 // GetHumanVersion composes the parts of the version in a way that's suitable
 // for displaying to humans.
 func GetHumanVersion() string {
-	version := Version
+	version := fmt.Sprintf("vault-benchmark v%s", Version)
 	release := VersionPrerelease
 	metadata := VersionMetadata
 

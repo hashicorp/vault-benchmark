@@ -62,5 +62,5 @@ RUN addgroup $PRODUCT_NAME && \
 
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
 
-USER 100
-CMD /bin/$BIN_NAME
+USER vault
+CMD ["/bin/vault-benchmark"]
