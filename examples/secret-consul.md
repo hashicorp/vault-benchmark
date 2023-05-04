@@ -19,11 +19,9 @@ This benchmark will test the dynamic generation of Consul credentials.
   which to create this Consul credential. This is part of the request URL.
 - `token_type` <sup>DEPRECATED (1.11)</sup> `(string: "client")` - Specifies the type of token to create
   when using this role. Valid values are `"client"` or `"management"`. If a `"management"`
-  token, the `policy` parameter is not required. Defaults to `"client`". [Deprecated from Consul as of 1.4 and
-  removed as of Consul 1.11.](/consul/api-docs/acl/legacy)
+  token, the `policy` parameter is not required. Defaults to `"client`".
 - `policy` <sup>DEPRECATED (1.11)</sup> `(string: "")` – Specifies the base64-encoded ACL policy.
-  This is required unless the `token_type` is `"management"`. [Deprecated from Consul as of 1.4 and
-  removed as of Consul 1.11.](/consul/api-docs/acl/legacy)
+  This is required unless the `token_type` is `"management"`.
 - `policies` <sup>DEPRECATED (1.11)</sup> `(list: <policy or policies>)` - Same as `consul_policies`.
   Deprecated in favor of using `consul_policies`.
 - `consul_policies` `(list: <policy or policies>)` – The list of Consul policies to assign
@@ -32,9 +30,9 @@ This benchmark will test the dynamic generation of Consul credentials.
   globally and instead be local to the current datacenter. Only available in Consul
   1.4 and greater.
 - `ttl` `(duration: "")` – Specifies the TTL for this role. If not
-  provided, the default Vault TTL is used. Uses [duration format strings](/vault/docs/concepts/duration-format).
+  provided, the default Vault TTL is used. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 - `max_ttl` `(duration: "")` – Specifies the max TTL for this role. If not
-  provided, the default Vault Max TTL is used. Uses [duration format strings](/vault/docs/concepts/duration-format).
+  provided, the default Vault Max TTL is used. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 #### Parameters for Consul version 1.5 and above
 - `service_identities` `(list: <service identity or identities>)` - The list of service identities to assign to the generated
   token. This may be a comma-separated list to attach multiple service identities to a token.
