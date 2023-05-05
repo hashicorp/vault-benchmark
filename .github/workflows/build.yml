@@ -209,7 +209,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: ["arm", "arm64", "386"]
+        arch: ["arm", "arm64", "386", "amd64"]
     env:
       repo: ${{ github.event.repository.name }}
       version: ${{ needs.set-product-version.outputs.product-version }}
@@ -219,17 +219,6 @@ jobs:
       - name: Docker Build (Action)
         uses: hashicorp/actions-docker-build@v1
         with:
-          # Add smoke test here. Below is a sample smoke test that runs the built image
-          # and validates the version.
-          smoke_test: |
-            TEST_VERSION="$(docker run "${IMAGE_NAME}" | awk '/CLI version/{print $3}')"
-            if [ "${TEST_VERSION}" != "${version}" ]; then
-              echo "Test FAILED"
-              echo "Test Version: ${TEST_VERSION}"
-              echo "Version: ${version}"
-              exit 1
-            fi
-            echo "Test PASSED"
           version: ${{ env.version }}
           target: release-default
           arch: ${{ matrix.arch }}

@@ -5,9 +5,9 @@ PRODUCT_NAME ?= $(REPO_NAME)
 BIN_NAME     ?= $(PRODUCT_NAME)
 VERSION      ?= $(shell echo $(CURDIR)/version/VERSION | xargs cat)
 
-# Get local ARCH; on Intel Mac, 'uname -m' returns x86_64 which we turn into arm64.
+# Get local ARCH; on Intel Mac, 'uname -m' returns x86_64 which we turn into amd64.
 # Not using 'go env GOOS/GOARCH' here so 'make docker' will work without local Go install.
-ARCH     = $(shell A=$$(uname -m); [ $$A = x86_64 ] && A=arm64; echo $$A)
+ARCH     = $(shell A=$$(uname -m); [ $$A = x86_64 ] && A=amd64; echo $$A)
 OS       = $(shell uname | tr [[:upper:]] [[:lower:]])
 PLATFORM = $(OS)/$(ARCH)
 DIST     = dist/$(PLATFORM)
@@ -38,8 +38,8 @@ build:
 
 .PHONY: image
 image:
-	CGO_ENABLED=0 GOARCH=arm64 GOOS=linux go build -a -ldflags $(LDFLAGS) -o dist/linux/arm64/$(BIN_NAME) .
-	docker build --platform linux/arm64 --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
+	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=linux go build -a -ldflags $(LDFLAGS) -o dist/linux/$(ARCH)/$(BIN_NAME) .
+	docker build --platform linux/$(ARCH) --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
 
 .PHONY: clean
 clean:
