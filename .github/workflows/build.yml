@@ -209,7 +209,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: ["arm", "arm64", "amd64", "386"]
+        arch: ["arm", "arm64", "386"]
+        # arch: ["arm", "arm64", "amd64", "386"]
     env:
       repo: ${{ github.event.repository.name }}
       version: ${{ needs.set-product-version.outputs.product-version }}

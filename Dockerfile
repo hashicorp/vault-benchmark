@@ -58,9 +58,16 @@ LABEL revision=$PRODUCT_REVISION
 
 # Create a non-root user to run the software.
 RUN addgroup $PRODUCT_NAME && \
-    adduser -S -G $PRODUCT_NAME $PRODUCT_NAME
+    adduser -S -G $PRODUCT_NAME 100
 
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
 
-USER $PRODUCT_NAME
+USER 100
 CMD ["/bin/vault-benchmark"]
+
+# ===================================
+#
+#   Set default target to 'dev'.
+#
+# ===================================
+FROM dev
