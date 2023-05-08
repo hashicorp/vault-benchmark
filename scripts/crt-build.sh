@@ -75,7 +75,7 @@ function build() {
 
   # Build vault-benchmark
   echo "$msg"
-  go build -o "$BIN_PATH" -tags "$GO_TAGS" -ldflags "$ldflags" -trimpath -buildvcs=false
+  CGO_ENABLED=0 go build -o "$BIN_PATH" -tags "$GO_TAGS" -ldflags "$ldflags" -trimpath -buildvcs=false
 }
 
 # Run the CRT Builder
