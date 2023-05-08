@@ -18,14 +18,47 @@ GOARCH=arm64 GOOS=darwin go build -o dist/darwin/arm64/vault-benchmark
 
 # Usage
 `vault-benchmark` can be run directly as a binary, docker container or kubernetes job. Below is an example of running the binary.
+
+First a configuration file needs to be created defining the basic vault-benchmark settings as well as defining which benchmark tests to be run. For Example:
+```hcl
+# Basic Benchmark config options
+vault_addr = "http://127.0.0.1:8200"
+vault_token = "root"
+vault_namespace="root"
+duration = "30s"
+cleanup = true
+
+test "approle_auth" "approle_logins" {
+  weight = 50
+  config {
+    role {
+      role_name = "benchmark-role"
+      token_ttl="2m"
+    }
+  }
+}
+
+test "kvv2_write" "static_secret_writes" {
+  weight = 50
+  config {
+    numkvs = 100
+    kvsize = 100
+  }
+}
 ```
-$ vault-benchmark run -config=config.hcl 
-2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op              count  rate         throughput   mean        95th%       99th%       successRatio
-approle_test1  8794   4396.873590  4394.241423  2.273698ms  3.164222ms  4.351606ms  100.00%
+This test configuration will run two different benchmark tests, an `approle_auth` test, and a `kvv2_write` test, with the percentage of requests being split evenly between the two.
+ 
+Then we run the binary and provide the configuration file path:
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-05-06T11:11:44.926-0400 [INFO]  vault-benchmark: setting up targets
+2023-05-06T11:11:46.991-0400 [INFO]  vault-benchmark: starting benchmarks: duration=30s
+2023-05-06T11:12:16.994-0400 [INFO]  vault-benchmark: cleaning up targets
+2023-05-06T11:13:03.629-0400 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op                    count   rate         throughput   mean       95th%       99th%       successRatio
+approle_logins        155349  5178.303523  5177.967129  1.27286ms  2.142861ms  2.894675ms  100.00%
+static_secret_writes  155334  5177.819051  5177.626953  640.232µs  1.055702ms  1.554777ms  100.00%
 ```
 
 ## Docker
