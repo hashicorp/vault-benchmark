@@ -30,7 +30,7 @@ dist:
 
 .PHONY: bin
 bin: dist
-	GOARCH=$(ARCH) GOOS=$(OS) go build -o $(BIN)
+	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(OS) go build -o $(BIN)
 
 .PHONY: build
 build:
