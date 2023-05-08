@@ -13,7 +13,7 @@ on: [workflow_dispatch, push]
 
 env:
   PKG_NAME: "vault-benchmark"
-  METADATA: """
+  METADATA: ""
 
 jobs:
   get-go-version:
