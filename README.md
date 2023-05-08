@@ -62,9 +62,9 @@ docker run \
   --name=vault-benchmark \
   --hostname=vault-benchmark \
   --network=vault \
-  -v /vault-benchmark/configs/:/opt/vault-benchmark/configs \
-  --detach hashicorp/vault-benchmark:0.1.0 \
-  vault-benchmark run -config=/opt/vault-benchmark/configs 
+  -v ./vault-benchmark/configs/:/opt/vault-benchmark/configs \
+  --detach hashicorp/vault-benchmark:latest \
+  vault-benchmark run -config=/opt/vault-benchmark/configs/config.hcl
 
 docker logs -f vault-benchmark
 ```
