@@ -2,6 +2,39 @@
 
 This benchmark tests the performance of PKI issue operations.
 
+## Example Configuration
+
+```hcl
+test "pki_issue" "pki_issue_test1" {
+  weight = 100
+  config {
+      setup_delay="2s"
+      root_ca {
+        common_name = "benchmark.test"
+      }
+      intermediate_csr {
+        common_name = "benchmark.test Intermediate Authority"
+      }
+      role {
+        ttl = "10m"
+        key_type = "ed25519"
+      }
+  }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 5s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op               count  rate       throughput  mean          95th%         99th%         successRatio
+pki_issue_test1  257    51.218560  46.586545   201.743774ms  455.520239ms  560.106407ms  100.00%
+```
+
 ## Test Parameters
 
 ### Root CA Config `root`
@@ -772,36 +805,3 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   the role.
 
 Additional configuration examples can be found in the [pki configuration directory](/example-configs/pki/).
-
-## Example Configuration
-
-```hcl
-test "pki_issue" "pki_issue_test1" {
-  weight = 100
-  config {
-      setup_delay="2s"
-      root_ca {
-        common_name = "benchmark.test"
-      }
-      intermediate_csr {
-        common_name = "benchmark.test Intermediate Authority"
-      }
-      role {
-        ttl = "10m"
-        key_type = "ed25519"
-      }
-  }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op               count  rate       throughput  mean          95th%         99th%         successRatio
-pki_issue_test1  257    51.218560  46.586545   201.743774ms  455.520239ms  560.106407ms  100.00%
-```

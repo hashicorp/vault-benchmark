@@ -2,6 +2,38 @@
 
 This benchmark tests the performance of logins using the jwt auth method.
 
+## Example HCL
+
+```hcl
+test "jwt_auth" "jwt_auth1" {
+  weight = 100
+  config {
+    auth {
+      jwks_url = "jwks.com"
+    }
+
+    role {
+      name            = "my-jwt-role"
+      role_type       = "jwt"
+      bound_audiences = ["https://vault.plugin.auth.jwt.test"]
+      user_claim      = "https://vault/user"
+    }
+  }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-26T17:52:03.294-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-26T17:52:03.320-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-26T17:52:05.322-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op         count  rate         throughput   mean        95th%       99th%       successRatio
+jwt_auth1  8837   4418.525130  4416.285509  2.262041ms  3.135816ms  4.338269ms  100.00%
+```
+
 ## Benchmark Configuration Parameters
 
 ### JWT Authentication Configuration (`auth`)`
@@ -111,35 +143,3 @@ This benchmark tests the performance of logins using the jwt auth method.
   additional possibilities: `default-service` and `default-batch` which specify
   the type to return unless the client requests a different type at generation
   time.
-
-## Example HCL
-
-```hcl
-test "jwt_auth" "jwt_auth1" {
-  weight = 100
-  config {
-    auth {
-      jwks_url = "jwks.com"
-    }
-
-    role {
-      name            = "my-jwt-role"
-      role_type       = "jwt"
-      bound_audiences = ["https://vault.plugin.auth.jwt.test"]
-      user_claim      = "https://vault/user"
-    }
-  }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T17:52:03.294-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T17:52:03.320-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T17:52:05.322-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op         count  rate         throughput   mean        95th%       99th%       successRatio
-jwt_auth1  8837   4418.525130  4416.285509  2.262041ms  3.135816ms  4.338269ms  100.00%
-```

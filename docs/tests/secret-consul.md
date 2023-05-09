@@ -2,6 +2,38 @@
 
 This benchmark will test the dynamic generation of Consul credentials.
 
+## Example HCL
+
+```hcl
+test "consul_secret" "consul_test_1" {
+    weight = 100
+    config {
+        version = "1.8.0"
+        consul_config {
+            address = "127.0.0.1:8500"
+        }
+        role_config {
+            node_identities = [
+                "client-1:dc1",
+                "client-2:dc1"
+            ]
+        }
+    }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-27T12:57:07.469-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-27T12:57:07.476-0500 [INFO]  vault-benchmark: starting benchmarks: duration=5s
+2023-04-27T12:57:12.479-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op             count  rate         throughput   mean        95th%       99th%        successRatio
+consul_test_1  12463  2492.488399  2491.245115  4.007578ms  6.123533ms  17.388957ms  100.00%
+```
+
 ## Test Parameters `config`
 
 - `version` `(string: "1.14.0")` - Specifies the version of Consul. This is used to determine the correct API calls to make.
@@ -62,35 +94,3 @@ This benchmark will test the dynamic generation of Consul credentials.
   The partition must exist, and the Consul policies or roles assigned to the
   Vault role must also exist inside the given partition. If not provided, the partition `default`
   is used.
-
-## Example HCL
-
-```hcl
-test "consul_secret" "consul_test_1" {
-    weight = 100
-    config {
-        version = "1.8.0"
-        consul_config {
-            address = "127.0.0.1:8500"
-        }
-        role_config {
-            node_identities = [
-                "client-1:dc1",
-                "client-2:dc1"
-            ]
-        }
-    }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-27T12:57:07.469-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-27T12:57:07.476-0500 [INFO]  vault-benchmark: starting benchmarks: duration=5s
-2023-04-27T12:57:12.479-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op             count  rate         throughput   mean        95th%       99th%        successRatio
-consul_test_1  12463  2492.488399  2491.245115  4.007578ms  6.123533ms  17.388957ms  100.00%
-```

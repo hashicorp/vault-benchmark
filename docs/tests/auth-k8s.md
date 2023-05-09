@@ -2,6 +2,57 @@
 
 This benchmark will test Vault authentication using the Kubernetes Auth method. In order to use this test, configuration for the target Kubernetes cluster must be provided as part of the configuration. The primary required field is `kubernetes_host`. A role config also needs to be passed with the primary required fields being `name`, `bound_service_account_names`, and `bound_service_account_namespaces`. Included is an example `benchmark-vault-job.yaml` file which can be applied to use the vault-benchmark image in a Kubernetes cluster. This example assumes a Vault cluster deployed in a Kubernetes environment based on our [Vault Installation to Minikube via Helm with Integrated Storage](https://learn.hashicorp.com/tutorials/vault/kubernetes-minikube-raft?in=vault/kubernetes) learn guide. This file can be edited to suit a specific deployment methodology. Below is the ConfigMap snippet showing example configuration:
 
+### Example vault-benchmark config map YAML
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-benchmark-configmap
+data:
+  k8s.hcl: |
+    # Basic Benchmark config options
+    vault_addr = "http://vault:8200"
+    vault_token = "root"
+    duration = "10s"
+    report_mode = "terse"
+    random_mounts = true
+    cleanup = true
+
+    test "kube_auth" "kube_auth_test1" {
+      weight = 100
+      config {
+        auth {
+          kubernetes_host = "https://kubernetes.default.svc"
+        }
+        role {
+          name = "vault-benchmark-role"
+          bound_service_account_names = ["vault-benchmark"]
+          bound_service_account_namespaces = ["*"]
+          token_max_ttl = "24h"
+          token_ttl = "1h"
+        }
+      }
+    }
+
+```
+
+## Example Usage
+
+```bash
+$ kubectl apply -f vault-benchmark-job.yaml
+$ kubectl logs -f vault-benchmark-qzpw8
+2023-04-23T14:52:08.691Z [INFO]  vault-benchmark: setting up targets
+2023-04-23T14:52:08.723Z [INFO]  vault-benchmark: starting benchmarks: duration=10s
+2023-04-23T14:52:18.776Z [INFO]  vault-benchmark: cleaning up targets
+2023-04-23T14:52:41.282Z [INFO]  vault-benchmark: benchmark complete
+Target: http://vault:8200
+op               count  rate       throughput  mean          95th%         99th%         successRatio
+kube_auth_test1  742    74.199826  73.562084   135.621598ms  247.768836ms  368.735152ms  100.00%
+```
+
+Please refer to the [Vault Kubernetes Auth Method](https://www.vaultproject.io/api-docs/auth/kubernetes) documentation for all available configuration options.
+
 ## Test Parameters
 
 ### Auth Configuration `auth`
@@ -69,54 +120,3 @@ When Vault is running in a non-Kubernetes environment, either
 - `policies` `(array: [] or comma-delimited string: "")` - List of token
   policies to encode onto generated tokens. Depending on the auth method, this
   list may be supplemented by user/group/other values.
-
-### Example vault-benchmark config map YAML
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: vault-benchmark-configmap
-data:
-  k8s.hcl: |
-    # Basic Benchmark config options
-    vault_addr = "http://vault:8200"
-    vault_token = "root"
-    duration = "10s"
-    report_mode = "terse"
-    random_mounts = true
-    cleanup = true
-
-    test "kube_auth" "kube_auth_test1" {
-      weight = 100
-      config {
-        auth {
-          kubernetes_host = "https://kubernetes.default.svc"
-        }
-        role {
-          name = "vault-benchmark-role"
-          bound_service_account_names = ["vault-benchmark"]
-          bound_service_account_namespaces = ["*"]
-          token_max_ttl = "24h"
-          token_ttl = "1h"
-        }
-      }
-    }
-
-```
-
-## Example Usage
-
-```bash
-$ kubectl apply -f vault-benchmark-job.yaml
-$ kubectl logs -f vault-benchmark-qzpw8
-2023-04-23T14:52:08.691Z [INFO]  vault-benchmark: setting up targets
-2023-04-23T14:52:08.723Z [INFO]  vault-benchmark: starting benchmarks: duration=10s
-2023-04-23T14:52:18.776Z [INFO]  vault-benchmark: cleaning up targets
-2023-04-23T14:52:41.282Z [INFO]  vault-benchmark: benchmark complete
-Target: http://vault:8200
-op               count  rate       throughput  mean          95th%         99th%         successRatio
-kube_auth_test1  742    74.199826  73.562084   135.621598ms  247.768836ms  368.735152ms  100.00%
-```
-
-Please refer to the [Vault Kubernetes Auth Method](https://www.vaultproject.io/api-docs/auth/kubernetes) documentation for all available configuration options.

@@ -2,6 +2,38 @@
 
 This benchmark will test the dynamic generation of Elasticsearch credentials.
 
+## Example Configuration
+
+```hcl
+test "elasticsearch_secret" "elasticsearch_test_1" {
+    weight = 100
+    config {
+        db_connection {
+            url = "https://localhost:9200"
+            username = "elastic"
+            password = "pass"
+        }
+        role {
+            creation_statements = ["{\"elasticsearch_role_definition\": {\"indices\": [{\"names\":[\"*\"], \"privileges\":[\"read\"]}]}}"]
+            default_ttl = "1h"
+            max_ttl = "24h"
+        }
+    }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-05-01T12:57:50.575-0500 [INFO]  vault-benchmark: setting up targets
+2023-05-01T12:57:50.713-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-05-01T12:57:52.902-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op                   count  rate       throughput  mean          95th%        99th%         successRatio
+elasticsearch_test1  107    52.860797  48.892726   197.742375ms  291.00526ms  382.716563ms  100.00%
+```
+
 ## Test Parameters
 
 ### Elasticsearch Database Config `db_connection`
@@ -39,35 +71,3 @@ This benchmark will test the dynamic generation of Elasticsearch credentials.
 - `creation_statements` `(list)` – Specifies the database
   statements executed to create and configure a user. See the plugin's API page
   for more information on support and formatting for this parameter.
-
-## Example Configuration
-
-```hcl
-test "elasticsearch_secret" "elasticsearch_test_1" {
-    weight = 100
-    config {
-        db_connection {
-            url = "https://localhost:9200"
-            username = "elastic"
-            password = "pass"
-        }
-        role {
-            creation_statements = ["{\"elasticsearch_role_definition\": {\"indices\": [{\"names\":[\"*\"], \"privileges\":[\"read\"]}]}}"]
-            default_ttl = "1h"
-            max_ttl = "24h"
-        }
-    }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-05-01T12:57:50.575-0500 [INFO]  vault-benchmark: setting up targets
-2023-05-01T12:57:50.713-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-05-01T12:57:52.902-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op                   count  rate       throughput  mean          95th%        99th%         successRatio
-elasticsearch_test1  107    52.860797  48.892726   197.742375ms  291.00526ms  382.716563ms  100.00%
-```

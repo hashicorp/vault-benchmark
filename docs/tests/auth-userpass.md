@@ -2,6 +2,30 @@
 
 This benchmark tests the performance of logins using the userpass auth method.
 
+## Example HCL
+
+```hcl
+test "userpass_auth" "userpass_test1" {
+    weight = 100
+    config {
+        username = "test-user"
+        password = "password"
+    }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-27T08:25:52.436-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-27T08:25:52.558-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-27T08:25:54.638-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op              count  rate        throughput  mean         95th%        99th%         successRatio
+userpass_test1  257    128.275142  123.740847  79.775804ms  99.824563ms  106.657676ms  100.00%
+```
+
 ## Test Parameters
 
 ### Userpass Configuration `config`
@@ -39,27 +63,3 @@ This benchmark tests the performance of logins using the userpass auth method.
   additional possibilities: `default-service` and `default-batch` which specify
   the type to return unless the client requests a different type at generation
   time.
-
-## Example HCL
-
-```hcl
-test "userpass_auth" "userpass_test1" {
-    weight = 100
-    config {
-        username = "test-user"
-        password = "password"
-    }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-27T08:25:52.436-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-27T08:25:52.558-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-27T08:25:54.638-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op              count  rate        throughput  mean         95th%        99th%         successRatio
-userpass_test1  257    128.275142  123.740847  79.775804ms  99.824563ms  106.657676ms  100.00%
-```

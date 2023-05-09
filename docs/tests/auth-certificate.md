@@ -2,6 +2,30 @@
 
 This benchmark tests the performance of logins using the Certificate auth method.
 
+## Example HCL
+
+```hcl
+test "cert_auth" "cert_auth_test1" {
+  weight = 25
+  config {
+    name = "test"
+  certificate = cert.pem
+  }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-26T14:50:27.124-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-26T14:50:27.135-0500 [INFO]  vault-benchmark: starting benchmarks: duration=3s
+2023-04-26T14:50:30.136-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op               count  rate         throughput  mean        95th%      99th%       successRatio
+cert_auth_test1  22203  7401.042556  0.000000    1.348606ms  1.84933ms  2.458901ms  0.00%
+```
+
 ## Benchmark Configuration Parameters
 
 - `name` `(string: "benchmark-vault")` - The name of the certificate role.
@@ -80,27 +104,3 @@ This benchmark tests the performance of logins using the Certificate auth method
   additional possibilities: `default-service` and `default-batch` which specify
   the type to return unless the client requests a different type at generation
   time.
-
-## Example HCL
-
-```hcl
-test "cert_auth" "cert_auth_test1" {
-  weight = 25
-  config {
-    name = "test"
-  certificate = cert.pem
-  }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T14:50:27.124-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T14:50:27.135-0500 [INFO]  vault-benchmark: starting benchmarks: duration=3s
-2023-04-26T14:50:30.136-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op               count  rate         throughput  mean        95th%      99th%       successRatio
-cert_auth_test1  22203  7401.042556  0.000000    1.348606ms  1.84933ms  2.458901ms  0.00%
-```

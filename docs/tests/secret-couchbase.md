@@ -2,6 +2,39 @@
 
 This benchmark will test the dynamic generation of Couchbase credentials.
 
+### Example Configuration
+
+```hcl
+test "couchbase_secret" "couchbase_test_1" {
+    weight = 100
+    config {
+        db_connection {
+            username = "username"
+            password = "password"
+            hosts = "couchbase://127.0.0.1"
+            bucket_name = "benchmark-vault"
+        }
+
+        role {
+                default_ttl = "5m"
+                max_ttl = "1h"
+        }
+    }
+}
+```
+
+### Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 1s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op                count  rate        throughput  mean         95th%         99th%         successRatio
+couchbase_test_1  109    108.336919  100.456417  97.007399ms  151.364911ms  172.702436ms  100.00%
+```
+
 ## Test Parameters
 
 ### DB Configuration `db_connection`
@@ -77,36 +110,3 @@ This benchmark will test the dynamic generation of Couchbase credentials.
   serialized JSON string array, or a base64-encoded serialized JSON string
   array. The `{{username}}` value will be substituted. If not provided, defaults to
   a reasonable default alter user statement.
-
-### Example Configuration
-
-```hcl
-test "couchbase_secret" "couchbase_test_1" {
-    weight = 100
-    config {
-        db_connection {
-            username = "username"
-            password = "password"
-            hosts = "couchbase://127.0.0.1"
-            bucket_name = "benchmark-vault"
-        }
-
-        role {
-                default_ttl = "5m"
-                max_ttl = "1h"
-        }
-    }
-}
-```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 1s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op                count  rate        throughput  mean         95th%         99th%         successRatio
-couchbase_test_1  109    108.336919  100.456417  97.007399ms  151.364911ms  172.702436ms  100.00%
-```

@@ -2,6 +2,41 @@
 
 This benchmark tests the performance of PKI signing operations.
 
+## Example Configuration
+
+```hcl
+test "pki_sign" "pki_sign_test1" {
+    weight = 100
+    config {
+        setup_delay="2s"
+        root_ca {
+            common_name = "benchmark.test"
+        }
+        intermediate_csr {
+            common_name = "benchmark.test Intermediate Authority"
+        }
+        role {
+            ttl = "10m"
+        }
+        sign {
+            csr = "./MYCSR.csr"
+        }
+    }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 5s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op              count  rate         throughput   mean       95th%       99th%       successRatio
+pki_sign_test1  10759  2151.124964  2149.133615  4.64791ms  6.081656ms  8.258573ms  100.00%
+```
+
 ## Test Parameters
 
 ### Root CA Config `root`
@@ -784,38 +819,3 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   the role.
 
 Additional configuration examples can be found in the [pki configuration directory](/example-configs/pki/).
-
-## Example Configuration
-
-```hcl
-test "pki_sign" "pki_sign_test1" {
-    weight = 100
-    config {
-        setup_delay="2s"
-        root_ca {
-            common_name = "benchmark.test"
-        }
-        intermediate_csr {
-            common_name = "benchmark.test Intermediate Authority"
-        }
-        role {
-            ttl = "10m"
-        }
-        sign {
-            csr = "./MYCSR.csr"
-        }
-    }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate         throughput   mean       95th%       99th%       successRatio
-pki_sign_test1  10759  2151.124964  2149.133615  4.64791ms  6.081656ms  8.258573ms  100.00%
-```

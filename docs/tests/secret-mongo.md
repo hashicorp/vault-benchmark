@@ -2,6 +2,37 @@
 
 This benchmark will test the dynamic generation of MongoDB credentials.
 
+## Example Configuration
+
+```hcl
+test "mongodb_secret" "mongodb_test_1" {
+    weight = 100
+    config {
+        db_connection {
+            name = "mongo-benchmark-database"
+            connection_url = "mongodb://{{username}}:{{password}}@127.0.0.1:27017/admin?tls=false"
+            username = "mdbadmin"
+            password = "root"
+        }
+        role {
+            db_name = "mongo-benchmark-database"
+        }
+    }
+}
+```
+
+### Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 10s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op              count  rate       throughput  mean          95th%         99th%         successRatio
+mongodb_test_1  473    47.284284  46.300585   213.963008ms  222.443684ms  228.1842ms  100.00%
+```
+
 ## Test Parameters
 
 ### MongoDB Database Configuration `db_connection`
@@ -58,34 +89,3 @@ This benchmark will test the dynamic generation of MongoDB credentials.
   be executed to revoke a user. Must be a serialized JSON object, or a base64-encoded
   serialized JSON object. The object can optionally contain a `db` string. If no
   `db` value is provided, it defaults to the `admin` database.
-
-## Example Configuration
-
-```hcl
-test "mongodb_secret" "mongodb_test_1" {
-    weight = 100
-    config {
-        db_connection {
-            name = "mongo-benchmark-database"
-            connection_url = "mongodb://{{username}}:{{password}}@127.0.0.1:27017/admin?tls=false"
-            username = "mdbadmin"
-            password = "root"
-        }
-        role {
-            db_name = "mongo-benchmark-database"
-        }
-    }
-}
-```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 10s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate       throughput  mean          95th%         99th%         successRatio
-mongodb_test_1  473    47.284284  46.300585   213.963008ms  222.443684ms  228.1842ms  100.00%
-```

@@ -2,6 +2,39 @@
 
 This benchmark tests the performance of logins using the AppRole auth method.
 
+## Example HCL
+
+```hcl
+test "approle_auth" "approle_test1" {
+  weight = 100
+  config {
+    role {
+      role_name         = "test"
+      bind_secret_id    = true
+      token_ttl         = "10m"
+      token_type = "batch"
+    }
+
+    secret_id {
+      token_bound_cidrs = ["1.2.3.4/32"]
+      ttl               = "10m"
+    }
+  }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op              count  rate         throughput   mean        95th%       99th%       successRatio
+approle_test1  8794   4396.873590  4394.241423  2.273698ms  3.164222ms  4.351606ms  100.00%
+```
+
 ## Benchmark Configuration Parameters
 
 ### Role Configuration (`role`)
@@ -81,36 +114,3 @@ include a-Z, 0-9, space, hyphen, underscore and periods.
   after which this SecretID expires. A value of zero will allow the SecretID to not expire.
   Overrides `secret_id_ttl` role option when supplied.
   May not be longer than role's `secret_id_ttl`.
-
-## Example HCL
-
-```hcl
-test "approle_auth" "approle_test1" {
-  weight = 100
-  config {
-    role {
-      role_name         = "test"
-      bind_secret_id    = true
-      token_ttl         = "10m"
-      token_type = "batch"
-    }
-
-    secret_id {
-      token_bound_cidrs = ["1.2.3.4/32"]
-      ttl               = "10m"
-    }
-  }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op              count  rate         throughput   mean        95th%       99th%       successRatio
-approle_test1  8794   4396.873590  4394.241423  2.273698ms  3.164222ms  4.351606ms  100.00%
-```

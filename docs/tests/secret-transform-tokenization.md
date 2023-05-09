@@ -2,6 +2,32 @@
 
 This benchmark will test Vault's Transform secrets engine by performing Tokenization encoding on provided input.
 
+### Example Configuration
+
+```hcl
+test "transform_tokenization" "tokenization_test1" {
+ weight = 100
+ config {
+  input {
+   ttl = "5s"
+            value = "123456789"
+  }
+ }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 5s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op                  count  rate         throughput   mean        95th%        99th%        successRatio
+tokenization_test1  7390   1477.682521  1474.223784  6.774487ms  12.870357ms  15.383365ms  100.00%
+```
+
 ## Test Parameters
 
 ### Role Config `role`
@@ -160,29 +186,3 @@ This benchmark will test Vault's Transform secrets engine by performing Tokeniza
     }
   ]
   ```
-
-### Example Configuration
-
-```hcl
-test "transform_tokenization" "tokenization_test1" {
- weight = 100
- config {
-  input {
-   ttl = "5s"
-            value = "123456789"
-  }
- }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op                  count  rate         throughput   mean        95th%        99th%        successRatio
-tokenization_test1  7390   1477.682521  1474.223784  6.774487ms  12.870357ms  15.383365ms  100.00%
-```

@@ -2,6 +2,35 @@
 
 This benchmark tests the performance of Signed SSH Certificate issue operations.
 
+## Example Configuration
+
+```hcl
+test "ssh_issue" "ssh_issue_test1" {
+        weight = 100
+        config {
+                role {
+                        allow_user_certificates = true
+                }
+                issued_cert {
+                        key_type = "rsa"
+                        key_bits = 4096
+                }
+        }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+Setting up targets...
+Starting benchmarks. Will run for 5s...
+Benchmark complete!
+Target: http://127.0.0.1:8200
+op               count  rate      throughput  mean          95th%         99th%         successRatio
+ssh_issue_test1  27     5.362763  3.370474    2.282482814s  4.071793559s  4.143636093s  100.00%
+```
+
 ## Test Parameters
 
 ### Role Config `role`
@@ -234,32 +263,3 @@ This benchmark tests the performance of Signed SSH Certificate issue operations.
 
 - `extensions` `(map<string|string>: "")` – Specifies a map of the extensions
   that the certificate should be signed for. Defaults to none.
-
-## Example Configuration
-
-```hcl
-test "ssh_issue" "ssh_issue_test1" {
-        weight = 100
-        config {
-                role {
-                        allow_user_certificates = true
-                }
-                issued_cert {
-                        key_type = "rsa"
-                        key_bits = 4096
-                }
-        }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op               count  rate      throughput  mean          95th%         99th%         successRatio
-ssh_issue_test1  27     5.362763  3.370474    2.282482814s  4.071793559s  4.143636093s  100.00%
-```

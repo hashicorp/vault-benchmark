@@ -2,6 +2,37 @@
 
 This benchmark will test the dynamic generation of PostgreSQL credentials.
 
+## Example Configuration
+
+```hcl
+test "postgresql_secret" "postgres_test_1" {
+    weight = 100
+    config {
+        db_connection {
+            connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
+            username = "username"
+            password = "password"
+        }
+
+        role {
+            creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
+        }
+    }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-05-01T21:10:03.140-0500 [INFO]  vault-benchmark: setting up targets
+2023-05-01T21:10:03.222-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-05-01T21:10:05.282-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op               count  rate        throughput  mean         95th%        99th%        successRatio
+postgres_test_1  455    226.219503  220.930941  44.864053ms  63.980785ms  77.447877ms  100.00%
+```
+
 ## Test Parameters
 
 ### DB Config `db_connection`
@@ -79,34 +110,3 @@ This benchmark will test the dynamic generation of PostgreSQL credentials.
   serialized JSON string array, or a base64-encoded serialized JSON string
   array. The `{{name}}` and `{{password}}` values will be substituted. The
   generated password will be a random alphanumeric 20 character string.
-
-## Example Configuration
-
-```hcl
-test "postgresql_secret" "postgres_test_1" {
-    weight = 100
-    config {
-        db_connection {
-            connection_url = "postgresql://{{username}}:{{password}}@localhost:5432/postgres"
-            username = "username"
-            password = "password"
-        }
-
-        role {
-            creation_statements = "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
-        }
-    }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-05-01T21:10:03.140-0500 [INFO]  vault-benchmark: setting up targets
-2023-05-01T21:10:03.222-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-05-01T21:10:05.282-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op               count  rate        throughput  mean         95th%        99th%        successRatio
-postgres_test_1  455    226.219503  220.930941  44.864053ms  63.980785ms  77.447877ms  100.00%
-```

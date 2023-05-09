@@ -2,6 +2,38 @@
 
 This benchmark will test the dynamic generation of Cassandra credentials.
 
+### Example HCL
+
+```hcl
+test "cassandra_secret" "cassandra_secret_1" {
+    weight = 100
+    config {
+        db_connection {
+            hosts =  "127.0.0.1"
+            username = "cassandra"
+            password = "cassandra"
+            protocol_version = "3"
+        }
+
+        role {
+            creation_statements = "CREATE USER '{{username}}' WITH PASSWORD '{{password}}' NOSUPERUSER; GRANT SELECT ON ALL KEYSPACES TO {{username}};"
+        }
+    }
+}
+```
+
+### Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-27T13:36:04.553-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-27T13:36:04.768-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-27T13:36:07.662-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op                  count  rate       throughput  mean         95th%         99th%      successRatio
+cassandra_secret_1  34     16.635150  11.754942   739.57933ms  852.527624ms  859.465ms  100.00%
+```
+
 ## Test Parameters
 
 ### DB Connection Configuration `db_connection`
@@ -79,35 +111,3 @@ permissions to do so.
   executed to rollback a create operation in the event of an error. Not every
   plugin type will support this functionality. See the plugin's API page for
   more information on support and formatting for this parameter.
-
-### Example HCL
-
-```hcl
-test "cassandra_secret" "cassandra_secret_1" {
-    weight = 100
-    config {
-        db_connection {
-            hosts =  "127.0.0.1"
-            username = "cassandra"
-            password = "cassandra"
-            protocol_version = "3"
-        }
-
-        role {
-            creation_statements = "CREATE USER '{{username}}' WITH PASSWORD '{{password}}' NOSUPERUSER; GRANT SELECT ON ALL KEYSPACES TO {{username}};"
-        }
-    }
-}
-```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-27T13:36:04.553-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-27T13:36:04.768-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-27T13:36:07.662-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op                  count  rate       throughput  mean         95th%         99th%      successRatio
-cassandra_secret_1  34     16.635150  11.754942   739.57933ms  852.527624ms  859.465ms  100.00%
-```

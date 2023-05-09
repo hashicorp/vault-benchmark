@@ -2,6 +2,50 @@
 
 This benchmark will test LDAP Authentication to Vault. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method.
 
+### Test User Config `role`
+
+- `username` `(string: "")`: LDAP test username. This can also be provided via the
+`VAULT_BENCHMARK_LDAP_TEST_USERNAME` environment variable.
+- `password` `(string: "")`: LDAP test user password. This can also be provided via the
+`VAULT_BENCHMARK_LDAP_TEST_PASSWORD` environment variable.
+
+## Example HCL
+
+```hcl
+test "ldap_auth" "ldap_auth_test1" {
+    weight = 100
+    config {
+        auth {
+            url         = "ldap://localhost"
+            userdn      = "ou=users,dc=hashicorp,dc=com"
+            groupdn     = "ou=groups,dc=hashicorp,dc=com"
+            binddn      = "cn=admin,dc=hashicorp,dc=com"
+            bindpass    = "admin"
+            userattr    = "uid"
+            groupattr   = "cn"
+            groupfilter = "(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
+            token_policies = ["default","test"]
+        }
+        test_user  {
+            username = "alice"
+            password = "password"
+        }
+    }
+}
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+2023-04-26T18:11:50.901-0500 [INFO]  vault-benchmark: setting up targets
+2023-04-26T18:11:50.918-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
+2023-04-26T18:11:52.920-0500 [INFO]  vault-benchmark: benchmark complete
+Target: http://localhost:8200
+op               count  rate         throughput  mean        95th%       99th%       successRatio
+ldap_auth_test1  13345  6671.750122  0.000000    1.495695ms  2.128745ms  3.542841ms  100.00%
+```
+
 ## Test Parameters
 
 ### Auth Configuration `auth`
@@ -102,47 +146,3 @@ This benchmark will test LDAP Authentication to Vault. The primary required fiel
   additional possibilities: `default-service` and `default-batch` which specify
   the type to return unless the client requests a different type at generation
   time.
-
-### Test User Config `role`
-
-- `username` `(string: "")`: LDAP test username. This can also be provided via the
-`VAULT_BENCHMARK_LDAP_TEST_USERNAME` environment variable.
-- `password` `(string: "")`: LDAP test user password. This can also be provided via the
-`VAULT_BENCHMARK_LDAP_TEST_PASSWORD` environment variable.
-
-## Example HCL
-
-```hcl
-test "ldap_auth" "ldap_auth_test1" {
-    weight = 100
-    config {
-        auth {
-            url         = "ldap://localhost"
-            userdn      = "ou=users,dc=hashicorp,dc=com"
-            groupdn     = "ou=groups,dc=hashicorp,dc=com"
-            binddn      = "cn=admin,dc=hashicorp,dc=com"
-            bindpass    = "admin"
-            userattr    = "uid"
-            groupattr   = "cn"
-            groupfilter = "(|(memberUid={{.Username}})(member={{.UserDN}})(uniqueMember={{.UserDN}}))"
-            token_policies = ["default","test"]
-        }
-        test_user  {
-            username = "alice"
-            password = "password"
-        }
-    }
-}
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T18:11:50.901-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T18:11:50.918-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T18:11:52.920-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op               count  rate         throughput  mean        95th%       99th%       successRatio
-ldap_auth_test1  13345  6671.750122  0.000000    1.495695ms  2.128745ms  3.542841ms  100.00%
-```
