@@ -49,11 +49,11 @@ type UserpassAuthConfig struct {
 	TokenTTL             string   `hcl:"token_ttl,optional"`
 	TokenMaxTTL          string   `hcl:"token_max_ttl,optional"`
 	TokenPolicies        []string `hcl:"token_policies,optional"`
-	TokenBoundCidrs      []string `hcl:"token_bound_cidrs"`
+	TokenBoundCidrs      []string `hcl:"token_bound_cidrs,optional"`
 	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional"`
-	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy"`
-	TokenNumUses         int      `hcl:"token_num_uses"`
-	TokenPeriod          string   `hcl:"token_period"`
+	TokenNoDefaultPolicy bool     `hcl:"token_no_default_policy,optional"`
+	TokenNumUses         int      `hcl:"token_num_uses,optional"`
+	TokenPeriod          string   `hcl:"token_period,optional"`
 	TokenType            string   `hcl:"token_type,optional"`
 }
 
