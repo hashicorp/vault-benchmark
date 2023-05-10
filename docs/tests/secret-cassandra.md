@@ -94,7 +94,7 @@ test "cassandra_secret" "cassandra_secret_1" {
         }
 
         role {
-            creation_statements = "CREATE USER '{{username}}' WITH PASSWORD '{{password}}' NOSUPERUSER; GRANT SELECT ON ALL KEYSPACES TO {{username}};"
+            creation_statements = ["CREATE USER '{{username}}' WITH PASSWORD '{{password}}' NOSUPERUSER; GRANT SELECT ON ALL KEYSPACES TO {{username}};"]
         }
     }
 }
