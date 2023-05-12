@@ -6,6 +6,8 @@ report_mode = "terse"
 random_mounts = true
 
 # Test selection and options
+
+// Approle
 test "approle_auth"  "approle_test_1" {
     weight = 25
     config {
@@ -32,8 +34,7 @@ test "approle_auth"  "approle_test_1" {
 
 // // ldap
 
-// // userpass
-
+// Userpass
 test "userpass_auth" "userpass_test1" {
     weight = 25
     config {
@@ -42,6 +43,7 @@ test "userpass_auth" "userpass_test1" {
     }
 }
 
+// Cassandra
 test "cassandra_secret" "cassandra_secret1" {
     weight = 25
     config {
@@ -58,6 +60,7 @@ test "cassandra_secret" "cassandra_secret1" {
     }
 }
 
+// Couchbase
 test "couchbase_secret" "couchbase_test_1" {
     weight = 10
     config {
@@ -77,6 +80,7 @@ test "couchbase_secret" "couchbase_test_1" {
 
 // elastic search
 
+// KV Read and Write
 test "kvv2_read" "kvv2_read_test" {
     weight = 5
     config {
@@ -116,6 +120,7 @@ test "kvv2_write" "kvv2_write_test" {
 
 // transit
 
+// Status
 test "ha_status" "ha_status_test_1" {
     weight = 1
 }
