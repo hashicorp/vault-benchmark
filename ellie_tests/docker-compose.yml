@@ -1,0 +1,65 @@
+version: "3.8"
+services:
+  vault:
+    container_name: vault
+    image: vault:latest
+    networks: 
+      - vault
+    volumes:
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/ellie_tests/configs/vault.hcl:/etc/vault/vault.hcl
+    environment:
+      VAULT_ADDR: "http://localhost:8200"
+      VAULT_CLUSTER_ADDR: "http://localhost:8201"
+      VAULT_API_ADDR: "http://localhost:8200"
+    ports:
+      - "8200:8200"
+    entrypoint: vault server -config=/etc/vault/vault.hcl
+  vault-unseal:
+    container_name: vault-unseal
+    depends_on: 
+      - vault
+    build:
+      context: dockerfiles
+      dockerfile: Dockerfile
+    volumes:
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/ellie_tests/scripts/start_vault.sh:/etc/start_vault.sh
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/ellie_tests/scripts/output.txt:/etc/output.txt 
+    networks: 
+      - vault
+    environment:
+      VAULT_ADDR: "http://localhost:8200"
+    command: sh -c "./etc/start_vault.sh"
+  cassandra:
+    container_name: cassandra
+    image: cassandra:latest
+    networks:
+      - vault
+    volumes:
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark-scripts/cassandra/cassandra.yaml:/etc/cassandra/cassandra.yaml
+    ports:
+      - "9042:9042"
+  couchbase:
+    container_name: couchbase
+    image: couchbase
+    networks:
+      - vault
+    ports: 
+      - "8091:8091"
+    healthcheck:
+        test: ["CMD", "curl", "http://localhost:8091"]
+        interval: 5s
+        timeout: 2s
+        retries: 5
+  couchbase-init:
+    container_name: couchbase-init
+    depends_on:
+      couchbase:
+        condition: service_healthy
+    image: couchbase
+    networks:
+      - vault
+    entrypoint: couchbase-cli cluster-init -c host.docker.internal --cluster-username Administrator --cluster-password hudson
+
+networks:
+  vault:
+    name: vault
