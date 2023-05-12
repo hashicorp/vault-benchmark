@@ -59,13 +59,13 @@ test "cassandra_secret" "cassandra_secret1" {
 }
 
 test "couchbase_secret" "couchbase_test_1" {
-    weight = 25
+    weight = 10
     config {
         db_connection {
             username = "Administrator"
-            password = "hudson"
+            password = "password"
             hosts = "couchbase"
-            bucket_name = "dogs"
+            bucket_name = "buckets"
         }
 
         role {
@@ -73,4 +73,57 @@ test "couchbase_secret" "couchbase_test_1" {
                 max_ttl = "1h"
         }
     }
+}
+
+// elastic search
+
+test "kvv2_read" "kvv2_read_test" {
+    weight = 5
+    config {
+        numkvs = 100
+    }
+}
+
+test "kvv2_write" "kvv2_write_test" {
+    weight = 7
+    config {
+        numkvs = 10
+        kvsize = 1000
+    }
+}
+
+// mongo
+
+// mssql
+
+// pki issue
+
+// pki sign
+
+// postgres
+
+// rabbit
+
+// redis dynamic
+
+// redis static
+
+// ssh issue
+
+// ssh sign
+
+// transform tokenization
+
+// transit
+
+test "ha_status" "ha_status_test_1" {
+    weight = 1
+}
+
+test "seal_status" "seal_status_test_1" {
+    weight = 1
+}
+
+test "metrics" "metrics_test_1" {
+    weight = 1
 }

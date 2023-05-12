@@ -58,7 +58,9 @@ services:
     image: couchbase
     networks:
       - vault
-    entrypoint: couchbase-cli cluster-init -c host.docker.internal --cluster-username Administrator --cluster-password hudson
+    entrypoint: >
+      bash -c "couchbase-cli cluster-init -c host.docker.internal --cluster-username Administrator --cluster-password password &&
+      couchbase-cli bucket-create -c host.docker.internal --bucket-type couchbase --bucket-ramsize 1024 --bucket buckets -u Administrator -p password"
 
 networks:
   vault:
