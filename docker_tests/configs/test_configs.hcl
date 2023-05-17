@@ -1,6 +1,6 @@
 # Basic Benchmark config options
 vault_addr = "http://127.0.0.1:8200"
-vault_token = "hvs.OOl1edFwjZ2apzEdquTNHQlh"
+vault_token = "hvs.8LUSROuDzR6kN9xVnJx5TKgT"
 duration = "2s"
 report_mode = "terse"
 random_mounts = true

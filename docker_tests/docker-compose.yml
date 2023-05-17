@@ -6,7 +6,7 @@ services:
     networks: 
       - vault
     volumes:
-      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/ellie_tests/configs/vault.hcl:/etc/vault/vault.hcl
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/docker_tests/configs/vault.hcl:/etc/vault/vault.hcl
     environment:
       VAULT_ADDR: "http://localhost:8200"
       VAULT_CLUSTER_ADDR: "http://localhost:8201"
@@ -22,8 +22,8 @@ services:
       context: dockerfiles
       dockerfile: Dockerfile
     volumes:
-      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/ellie_tests/scripts/start_vault.sh:/etc/start_vault.sh
-      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/ellie_tests/scripts/output.txt:/etc/output.txt 
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/docker_tests/scripts/start_vault.sh:/etc/start_vault.sh
+      - /Users/elliesterner/Developer/hashicorp/vault-benchmark/docker_tests/scripts/output.txt:/etc/output.txt 
     networks: 
       - vault
     environment:
