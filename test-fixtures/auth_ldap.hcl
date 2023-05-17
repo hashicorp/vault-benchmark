@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: MPL-2.0
 
 config {
-    ldap_auth_config {
+    auth {
         url         = "ldap://localhost"
+        bindpass    = "admin"
     }
-    ldap_test_user_config  {
+    test_user  {
         username = "alice"
         password = "password"
     }
