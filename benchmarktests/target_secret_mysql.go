@@ -1,0 +1,201 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package benchmarktests
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/vault/api"
+	vegeta "github.com/tsenart/vegeta/v12/lib"
+)
+
+// Constants for test
+const (
+	MySQLSecretTestType   = "mysql_secret"
+	MySQLSecretTestMethod = "GET"
+	MySQLUsernameEnvVar   = VaultBenchmarkEnvVarPrefix + "MYSQL_USERNAME"
+	MySQLPasswordEnvVar   = VaultBenchmarkEnvVarPrefix + "MYSQL_PASSWORD"
+)
+
+func init() {
+	// "Register" this test to the main test registry
+	TestList[MySQLSecretTestType] = func() BenchmarkBuilder { return &MySQLSecret{} }
+}
+
+// Postgres Secret Test Struct
+type MySQLSecret struct {
+	pathPrefix string
+	roleName   string
+	header     http.Header
+	config     *MySQLSecretTestConfig
+	logger     hclog.Logger
+}
+
+// Intermediary struct to assist with HCL decoding
+type MySQLSecretTestConfig struct {
+	MySQLDBConfig   *MySQLDBConfig   `hcl:"db_connection,block"`
+	MySQLRoleConfig *MySQLRoleConfig `hcl:"role,block"`
+}
+
+// MySQL DB Config
+type MySQLDBConfig struct {
+	Name                   string   `hcl:"name,optional"`
+	PluginName             string   `hcl:"plugin_name,optional"`
+	PluginVersion          string   `hcl:"plugin_version,optional"`
+	VerifyConnection       *bool    `hcl:"verify_connection,optional"`
+	AllowedRoles           []string `hcl:"allowed_roles,optional"`
+	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
+	PasswordPolicy         string   `hcl:"password_policy,optional"`
+	ConnectionURL          string   `hcl:"connection_url"`
+	Username               string   `hcl:"username,optional"`
+	Password               string   `hcl:"password,optional"`
+	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
+	MaxOpenConnections     int      `hcl:"max_open_connections,optional"`
+	MaxIdleConnections     int      `hcl:"max_idle_connections,optional"`
+	MaxConnectionLifetime  string   `hcl:"max_connection_lifetime,optional"`
+	UsernameTemplate       string   `hcl:"username_template,optional"`
+	TLSCertificateKey      string   `hcl:"tls_certificate_key,optional"`
+	TLSCACertificate       string   `hcl:"tls_ca_certificate,optional"`
+	TLSServerName          string   `hcl:"tls_server_name,optional"`
+	TLSSkipVerify          bool     `hcl:"tls_skip_verify,optional"`
+}
+
+// MySQL Role Config
+type MySQLRoleConfig struct {
+	Name                 string `hcl:"name,optional"`
+	DBName               string `hcl:"db_name,optional"`
+	DefaultTTL           string `hcl:"default_ttl,optional"`
+	MaxTTL               string `hcl:"max_ttl,optional"`
+	CreationStatements   string `hcl:"creation_statements"`
+	RevocationStatements string `hcl:"revocation_statements,optional"`
+}
+
+// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
+// test configuration in Vault. Any default configuration definitions for required
+// parameters will be set here.
+func (m *MySQLSecret) ParseConfig(body hcl.Body) error {
+	// provide defaults
+	testConfig := &struct {
+		Config *MySQLSecretTestConfig `hcl:"config,block"`
+	}{
+		Config: &MySQLSecretTestConfig{
+			MySQLDBConfig: &MySQLDBConfig{
+				Name:         "benchmark-mysql",
+				AllowedRoles: []string{"benchmark-role"},
+				PluginName:   "mysql-database-plugin",
+				Username:     os.Getenv(MySQLUsernameEnvVar),
+				Password:     os.Getenv(MySQLPasswordEnvVar),
+			},
+			MySQLRoleConfig: &MySQLRoleConfig{
+				Name:   "benchmark-role",
+				DBName: "benchmark-mysql",
+			},
+		},
+	}
+
+	diags := gohcl.DecodeBody(body, nil, testConfig)
+	if diags.HasErrors() {
+		return fmt.Errorf("error decoding to struct: %v", diags)
+	}
+
+	m.config = testConfig.Config
+	return nil
+}
+
+func (m *MySQLSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: MySQLSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *MySQLSecret) Cleanup(client *api.Client) error {
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (m *MySQLSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     MySQLSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
+}
+
+func (m *MySQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+	var err error
+	secretPath := mountName
+	m.logger = targetLogger.Named(MySQLSecretTestType)
+
+	if randomMountName {
+		secretPath, err = uuid.GenerateUUID()
+		if err != nil {
+			log.Fatalf("can't create UUID")
+		}
+	}
+
+	// Create Database Secret Mount
+	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
+	err = client.Sys().Mount(secretPath, &api.MountInput{
+		Type: "database",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error mounting db secrets engine: %v", err)
+	}
+
+	setupLogger := m.logger.Named(secretPath)
+
+	// Decode DB Config struct into mapstructure to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("db"))
+	dbData, err := structToMap(m.config.MySQLDBConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
+	}
+
+	// Set up db
+	setupLogger.Trace(writingLogMessage("mysql db config"), "name", m.config.MySQLDBConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", m.config.MySQLDBConfig.Name)
+	_, err = client.Logical().Write(dbPath, dbData)
+	if err != nil {
+		return nil, fmt.Errorf("error writing mysql db config: %v", err)
+	}
+
+	// Decode Role Config struct into mapstructure to pass with request
+	setupLogger.Trace(parsingConfigLogMessage("role"))
+	roleData, err := structToMap(m.config.MySQLRoleConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	}
+
+	// Create Role
+	setupLogger.Trace(writingLogMessage("mysql role"), "name", m.config.MySQLRoleConfig.Name)
+	rolePath := filepath.Join(secretPath, "roles", m.config.MySQLRoleConfig.Name)
+	_, err = client.Logical().Write(rolePath, roleData)
+	if err != nil {
+		return nil, fmt.Errorf("error writing mysql role %q: %v", m.config.MySQLRoleConfig.Name, err)
+	}
+
+	return &MySQLSecret{
+		pathPrefix: "/v1/" + secretPath,
+		header:     generateHeader(client),
+		roleName:   m.config.MySQLRoleConfig.Name,
+		logger:     m.logger,
+	}, nil
+}
+
+func (m *MySQLSecret) Flags(fs *flag.FlagSet) {}
