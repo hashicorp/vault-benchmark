@@ -28,20 +28,15 @@ const (
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList[LDAPSecretTestType] = func() BenchmarkBuilder { return &LDAPTest{} }
+	TestList[LDAPSecretTestType] = func() BenchmarkBuilder { return &LDAPSecretTest{} }
 }
 
-type LDAPTest struct {
+type LDAPSecretTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *LDAPTempNameTestConfig
+	config     *LDAPSecretTestConfig
 	logger     hclog.Logger
-}
-
-// Main Config Struct
-type LDAPTempNameTestConfig struct {
-	Config *LDAPSecretTestConfig `hcl:"config,block"`
 }
 
 // Intermediary struct to assist with HCL decoding
@@ -78,8 +73,10 @@ type LDAPRoleConfig struct {
 	MaxTTL           int    `hcl:"max_ttl,optional"`
 }
 
-func (r *LDAPTest) ParseConfig(body hcl.Body) error {
-	r.config = &LDAPTempNameTestConfig{
+func (r *LDAPSecretTest) ParseConfig(body hcl.Body) error {
+	testConfig := &struct {
+		Config *LDAPSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &LDAPSecretTestConfig{
 			LDAPConfig: &LDAPConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
@@ -90,15 +87,16 @@ func (r *LDAPTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, r.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 
+	r.config = testConfig.Config
 	return nil
 }
 
-func (r *LDAPTest) Target(client *api.Client) vegeta.Target {
+func (r *LDAPSecretTest) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: LDAPSecretTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
@@ -106,7 +104,7 @@ func (r *LDAPTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (r *LDAPTest) Cleanup(client *api.Client) error {
+func (r *LDAPSecretTest) Cleanup(client *api.Client) error {
 	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
@@ -115,17 +113,16 @@ func (r *LDAPTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (r *LDAPTest) GetTargetInfo() TargetInfo {
+func (r *LDAPSecretTest) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     LDAPSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
 }
 
-func (r *LDAPTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (r *LDAPSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config.Config
 	r.logger = targetLogger.Named(LDAPSecretTestType)
 
 	if randomMountName {
@@ -147,7 +144,7 @@ func (r *LDAPTest) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Decode LDAP Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret"))
-	connectionConfigData, err := structToMap(config.LDAPConfig)
+	connectionConfigData, err := structToMap(r.config.LDAPConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing ldap secret config from struct: %v", err)
 	}
@@ -161,24 +158,24 @@ func (r *LDAPTest) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret role"))
-	roleConfigData, err := structToMap(config.LDAPRoleConfig)
+	roleConfigData, err := structToMap(r.config.LDAPRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", config.LDAPRoleConfig.RoleName)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.LDAPRoleConfig.RoleName, roleConfigData)
+	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPRoleConfig.RoleName)
+	_, err = client.Logical().Write(secretPath+"/role/"+r.config.LDAPRoleConfig.RoleName, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret role: %v", err)
 	}
 
-	return &LDAPTest{
+	return &LDAPSecretTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.LDAPRoleConfig.RoleName,
+		roleName:   r.config.LDAPRoleConfig.RoleName,
 		logger:     r.logger,
 	}, nil
 }
 
-func (m *LDAPTest) Flags(fs *flag.FlagSet) {}
+func (m *LDAPSecretTest) Flags(fs *flag.FlagSet) {}
