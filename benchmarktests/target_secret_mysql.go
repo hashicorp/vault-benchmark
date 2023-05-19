@@ -42,7 +42,7 @@ type MySQLSecret struct {
 	logger     hclog.Logger
 }
 
-// Intermediary struct to assist with HCL decoding
+// Main Config Struct
 type MySQLSecretTestConfig struct {
 	MySQLDBConfig   *MySQLDBConfig   `hcl:"db_connection,block"`
 	MySQLRoleConfig *MySQLRoleConfig `hcl:"role,block"`
