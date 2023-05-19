@@ -31,7 +31,7 @@ func TestApprole_Auth_Docker(t *testing.T) {
 	}
 	cluster := docker.NewTestDockerCluster(t, opts)
 
-	defer cluster.Cleanup()
+	// defer cluster.Cleanup()
 
 	client := cluster.Nodes()[0].APIClient()
 
@@ -63,7 +63,7 @@ func TestApprole_Auth_Docker2(t *testing.T) {
 	}
 	cluster := docker.NewTestDockerCluster(t, opts)
 
-	defer cluster.Cleanup()
+	// defer cluster.Cleanup()
 
 	client := cluster.Nodes()[0].APIClient()
 
