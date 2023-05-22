@@ -40,14 +40,10 @@ type PKISignTest struct {
 	cn         string
 	intpath    string
 	rootpath   string
-	config     *pkiSignTestConfig
+	config     *pkiSecretIssueTestConfig
 	body       []byte
 	header     http.Header
 	logger     hclog.Logger
-}
-
-type pkiSignTestConfig struct {
-	Config *pkiSecretIssueTestConfig `hcl:"config,block"`
 }
 
 type pkiSecretIssueTestConfig struct {
@@ -235,7 +231,9 @@ type pkiSignRoleConfig struct {
 }
 
 func (p *PKISignTest) ParseConfig(body hcl.Body) error {
-	p.config = &pkiSignTestConfig{
+	testConfig := &struct {
+		Config *pkiSecretIssueTestConfig `hcl:"pki_sign,block"`
+	}{
 		Config: &pkiSecretIssueTestConfig{
 			SetupDelay: "1s",
 			RootCAConfig: &pkiSignRootConfig{
@@ -259,10 +257,11 @@ func (p *PKISignTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, p.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	p.config = testConfig.Config
 	return nil
 }
 
@@ -302,7 +301,7 @@ func (p *PKISignTest) Cleanup(client *api.Client) error {
 func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := p.config.Config
+	config := p.config
 	p.logger = targetLogger.Named(PKISignTestType)
 
 	if randomMountName {
@@ -392,7 +391,7 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 }
 
 func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
-	config := p.config.Config
+	config := p.config
 	rootPath := pfx + "-root"
 
 	// Create PKI Root mount
@@ -445,7 +444,7 @@ func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
 }
 
 func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
-	config := p.config.Config
+	config := p.config
 	rootPath := fmt.Sprintf("%v-root", pfx)
 	intPath := fmt.Sprintf("%v-int", pfx)
 

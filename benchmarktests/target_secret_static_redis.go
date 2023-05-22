@@ -36,12 +36,8 @@ type RedisStaticSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *RedisStaticTestConfig
+	config     *RedisStaticSecretTestConfig
 	logger     hclog.Logger
-}
-
-type RedisStaticTestConfig struct {
-	Config *RedisStaticSecretTestConfig `hcl:"config,block"`
 }
 
 type RedisStaticSecretTestConfig struct {
@@ -82,7 +78,9 @@ type RedisStaticRoleConfig struct {
 // parameters will be set here.
 func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	r.config = &RedisStaticTestConfig{
+	testConfig := &struct {
+		Config *RedisStaticSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &RedisStaticSecretTestConfig{
 			DBConfig: &RedisDBConfig{
 				Name:         "benchmark-redis-db",
@@ -98,17 +96,17 @@ func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, r.config)
-
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	r.config = testConfig.Config
 
-	if r.config.Config.DBConfig.Username == "" {
+	if r.config.DBConfig.Username == "" {
 		return fmt.Errorf("no redis username provided but required")
 	}
 
-	if r.config.Config.DBConfig.Password == "" {
+	if r.config.DBConfig.Password == "" {
 		return fmt.Errorf("no redis password provided but required")
 	}
 
@@ -144,7 +142,7 @@ func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {}
 func (r *RedisStaticSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config.Config
+	config := r.config
 	r.logger = targetLogger.Named(RedisStaticSecretTestType)
 
 	if randomMountName {

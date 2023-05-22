@@ -44,16 +44,11 @@ type JWTAuth struct {
 	role       string
 	header     http.Header
 	token      string
-	config     *JWTTestConfig
+	config     *JWTAuthTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type JWTTestConfig struct {
-	Config *JWTAuthTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type JWTAuthTestConfig struct {
 	JWTAuthConfig *JWTAuthConfig `hcl:"auth,block"`
 	JWTRoleConfig *JWTRoleConfig `hcl:"role,block"`
@@ -112,7 +107,9 @@ type JWTRoleConfig struct {
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
 func (j *JWTAuth) ParseConfig(body hcl.Body) error {
-	j.config = &JWTTestConfig{
+	testConfig := &struct {
+		Config *JWTAuthTestConfig `hcl:"config,block"`
+	}{
 		Config: &JWTAuthTestConfig{
 			JWTRoleConfig: &JWTRoleConfig{
 				Name:           "benchmark-role",
@@ -124,10 +121,11 @@ func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, j.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	j.config = testConfig.Config
 	return nil
 }
 
@@ -159,7 +157,7 @@ func (j *JWTAuth) GetTargetInfo() TargetInfo {
 func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := j.config.Config
+	config := j.config
 	j.logger = targetLogger.Named(JWTAuthTestType)
 
 	if randomMountName {
@@ -235,7 +233,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
 func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
-	config := j.config.Config
+	config := j.config
 
 	cl := sqjwt.Claims{
 		Subject:   config.JWTRoleConfig.BoundSubject,

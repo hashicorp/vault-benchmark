@@ -35,12 +35,8 @@ type UserpassAuth struct {
 	user       string
 	password   string
 	header     http.Header
-	config     *UserpassTestConfig
+	config     *UserpassAuthConfig
 	logger     hclog.Logger
-}
-
-type UserpassTestConfig struct {
-	Config *UserpassAuthConfig `hcl:"config,block"`
 }
 
 type UserpassAuthConfig struct {
@@ -61,17 +57,20 @@ type UserpassAuthConfig struct {
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
 func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
-	u.config = &UserpassTestConfig{
+	testConfig := &struct {
+		Config *UserpassAuthConfig `hcl:"config,block"`
+	}{
 		Config: &UserpassAuthConfig{
 			Username: "benchmark-user",
 			Password: password.MustGenerate(64, 10, 0, false, true),
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, u.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	u.config = testConfig.Config
 	return nil
 }
 
@@ -103,7 +102,7 @@ func (u *UserpassAuth) GetTargetInfo() TargetInfo {
 func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := u.config.Config
+	config := u.config
 	u.logger = targetLogger.Named(UserpassTestType)
 
 	if randomMountName {

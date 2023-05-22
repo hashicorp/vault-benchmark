@@ -37,12 +37,8 @@ type ElasticSearchTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ElasticSearchTestConfig
+	config     *ElasticSearchSecretTestConfig
 	logger     hclog.Logger
-}
-
-type ElasticSearchTestConfig struct {
-	Config *ElasticSearchSecretTestConfig `hcl:"config,block"`
 }
 
 type ElasticSearchSecretTestConfig struct {
@@ -80,7 +76,9 @@ type ElasticSearchRoleConfig struct {
 }
 
 func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
-	e.config = &ElasticSearchTestConfig{
+	testConfig := &struct {
+		Config *ElasticSearchSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &ElasticSearchSecretTestConfig{
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
@@ -100,16 +98,17 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, e.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	e.config = testConfig.Config
 
-	if e.config.Config.ElasticSearchConfig.Username == "" {
+	if e.config.ElasticSearchConfig.Username == "" {
 		return fmt.Errorf("no elasticsearch username provided but required")
 	}
 
-	if e.config.Config.ElasticSearchConfig.Password == "" {
+	if e.config.ElasticSearchConfig.Password == "" {
 		return fmt.Errorf("no elasticsearch password provided but required")
 	}
 
@@ -143,7 +142,7 @@ func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
 func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := e.config.Config
+	config := e.config
 	e.logger = targetLogger.Named(ElasticSearchSecretTestType)
 
 	if randomMountName {

@@ -36,12 +36,8 @@ type ConsulTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ConsulTestConfig
+	config     *ConsulSecretTestConfig
 	logger     hclog.Logger
-}
-
-type ConsulTestConfig struct {
-	Config *ConsulSecretTestConfig `hcl:"config,block"`
 }
 
 type ConsulSecretTestConfig struct {
@@ -77,7 +73,9 @@ type ConsulRoleConfig struct {
 }
 
 func (c *ConsulTest) ParseConfig(body hcl.Body) error {
-	c.config = &ConsulTestConfig{
+	testConfig := &struct {
+		Config *ConsulSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &ConsulSecretTestConfig{
 			Version: "1.14.0",
 			ConsulConfig: &ConsulConfig{
@@ -89,13 +87,14 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, c.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	c.config = testConfig.Config
 
 	// Ensure that the token has been set by either the environment variable or the config
-	if c.config.Config.ConsulConfig.Token == "" {
+	if c.config.ConsulConfig.Token == "" {
 		return fmt.Errorf("consul token must be set")
 	}
 	return nil
@@ -128,7 +127,7 @@ func (c *ConsulTest) GetTargetInfo() TargetInfo {
 func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := c.config.Config
+	config := c.config
 	c.logger = targetLogger.Named(ConsulSecretTestType)
 
 	if randomMountName {

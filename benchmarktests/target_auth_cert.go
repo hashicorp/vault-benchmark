@@ -36,7 +36,7 @@ func init() {
 type CertAuth struct {
 	pathPrefix string
 	header     http.Header
-	config     *CertAuthTestConfig
+	config     *CertAuthRoleConfig
 	logger     hclog.Logger
 }
 
@@ -47,11 +47,6 @@ type CaCert struct {
 }
 
 // Main config struct
-type CertAuthTestConfig struct {
-	Config *CertAuthRoleConfig `hcl:"config,block"`
-}
-
-// Cert Auth Role Config
 type CertAuthRoleConfig struct {
 	Name                       string   `hcl:"name,optional"`
 	Certificate                string   `hcl:"certificate,optional"`
@@ -77,16 +72,19 @@ type CertAuthRoleConfig struct {
 }
 
 func (c *CertAuth) ParseConfig(body hcl.Body) error {
-	c.config = &CertAuthTestConfig{
+	testConfig := &struct {
+		Config *CertAuthRoleConfig `hcl:"config,block"`
+	}{
 		Config: &CertAuthRoleConfig{
 			Name: "benchmark-vault",
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, c.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	c.config = testConfig.Config
 	return nil
 }
 
@@ -108,7 +106,7 @@ func (c *CertAuth) GetTargetInfo() TargetInfo {
 func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := c.config.Config
+	config := c.config
 	c.logger = targetLogger.Named(CertAuthTestType)
 
 	if randomMountName {

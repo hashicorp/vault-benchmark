@@ -39,16 +39,11 @@ type CassandraSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *CassandraTestConfig
+	config     *CassandraSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type CassandraTestConfig struct {
-	Config *CassandraSecretTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type CassandraSecretTestConfig struct {
 	CassandraDBConfig   *CassandraDBConfig   `hcl:"db_connection,block"`
 	CassandraRoleConfig *CassandraRoleConfig `hcl:"role,block"`
@@ -98,7 +93,9 @@ type CassandraRoleConfig struct {
 // parameters will be set here.
 func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	c.config = &CassandraTestConfig{
+	testConfig := &struct {
+		Config *CassandraSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &CassandraSecretTestConfig{
 			CassandraDBConfig: &CassandraDBConfig{
 				Name:         "benchmark-cassandra",
@@ -115,16 +112,17 @@ func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, c.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	c.config = testConfig.Config
 
-	if c.config.Config.CassandraDBConfig.Username == "" {
+	if c.config.CassandraDBConfig.Username == "" {
 		return fmt.Errorf("no cassandradb username provided but required")
 	}
 
-	if c.config.Config.CassandraDBConfig.Password == "" {
+	if c.config.CassandraDBConfig.Password == "" {
 		return fmt.Errorf("no cassandradb password provided but required")
 	}
 
@@ -158,7 +156,7 @@ func (c *CassandraSecret) GetTargetInfo() TargetInfo {
 func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := c.config.Config
+	config := c.config
 	c.logger = targetLogger.Named(CassandraSecretTestType)
 
 	if randomMountName {

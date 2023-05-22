@@ -37,16 +37,11 @@ type ApproleAuth struct {
 	roleID     string
 	header     http.Header
 	secretID   string
-	config     *ApproleTestConfig
+	config     *ApproleAuthTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type ApproleTestConfig struct {
-	Config *ApproleAuthTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type ApproleAuthTestConfig struct {
 	RoleConfig     *RoleConfig     `hcl:"role,block"`
 	SecretIDConfig *SecretIDConfig `hcl:"secret_id,block"`
@@ -85,7 +80,9 @@ type SecretIDConfig struct {
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
 func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
-	a.config = &ApproleTestConfig{
+	testConfig := &struct {
+		Config *ApproleAuthTestConfig `hcl:"config,block"`
+	}{
 		Config: &ApproleAuthTestConfig{
 			RoleConfig: &RoleConfig{
 				Name: "benchmark-role",
@@ -94,10 +91,11 @@ func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, a.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	a.config = testConfig.Config
 	return nil
 }
 
@@ -129,7 +127,7 @@ func (a *ApproleAuth) GetTargetInfo() TargetInfo {
 func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := a.config.Config
+	config := a.config
 	a.logger = targetLogger.Named(ApproleAuthTestType)
 
 	if randomMountName {

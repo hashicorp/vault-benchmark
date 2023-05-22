@@ -47,10 +47,6 @@ type TransitTest struct {
 }
 
 type TransitTestConfig struct {
-	Config *TransitConfig `hcl:"config,block"`
-}
-
-type TransitConfig struct {
 	PayloadLen           int                   `hcl:"payload_len,optional"`
 	ContextLen           int                   `hcl:"context_len,optional"`
 	TransitConfigKeys    *TransitConfigKeys    `hcl:"keys,block"`
@@ -133,8 +129,10 @@ type TransitConfigDecrypt struct {
 }
 
 func (t *TransitTest) ParseConfig(body hcl.Body) error {
-	t.config = &TransitTestConfig{
-		Config: &TransitConfig{
+	testConfig := &struct {
+		Config *TransitTestConfig `hcl:"config,block"`
+	}{
+		Config: &TransitTestConfig{
 			TransitConfigKeys: &TransitConfigKeys{
 				Name:                 "test",
 				ConvergentEncryption: false,
@@ -164,10 +162,11 @@ func (t *TransitTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, t.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	t.config = testConfig.Config
 
 	return nil
 }
@@ -200,7 +199,7 @@ func (t *TransitTest) GetTargetInfo() TargetInfo {
 func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := t.config.Config
+	config := t.config
 	switch t.action {
 	case "sign":
 		t.logger = targetLogger.Named(TransitSignSecretTestType)

@@ -40,34 +40,33 @@ func init() {
 type KVV1Test struct {
 	pathPrefix string
 	header     http.Header
-	config     *KVV1TestConfig
+	config     *KVV1SecretTestConfig
 	action     string
 	numKVs     int
 	kvSize     int
 	logger     hclog.Logger
 }
 
-type KVV1TestConfig struct {
-	Config *KVV1Config `hcl:"config,block"`
-}
-
-type KVV1Config struct {
+type KVV1SecretTestConfig struct {
 	KVSize int `hcl:"kvsize,optional"`
 	NumKVs int `hcl:"numkvs,optional"`
 }
 
 func (k *KVV1Test) ParseConfig(body hcl.Body) error {
-	k.config = &KVV1TestConfig{
-		Config: &KVV1Config{
+	testConfig := &struct {
+		Config *KVV1SecretTestConfig `hcl:"config,block"`
+	}{
+		Config: &KVV1SecretTestConfig{
 			KVSize: 1,
 			NumKVs: 1000,
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, k.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	k.config = testConfig.Config
 	return nil
 }
 
@@ -126,7 +125,7 @@ func (k *KVV1Test) Cleanup(client *api.Client) error {
 func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := k.config.Config
+	config := k.config
 	k.logger = targetLogger.Named("kvv1")
 
 	if randomMountName {
@@ -177,8 +176,8 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 		pathPrefix: "/v1/" + mountPath,
 		action:     k.action,
 		header:     headers,
-		numKVs:     k.config.Config.NumKVs,
-		kvSize:     k.config.Config.KVSize,
+		numKVs:     config.NumKVs,
+		kvSize:     config.KVSize,
 		logger:     k.logger,
 	}, nil
 }

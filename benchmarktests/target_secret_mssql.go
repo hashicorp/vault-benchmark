@@ -38,16 +38,11 @@ type MSSQLSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *MSSQLTestConfig
+	config     *MSSQLSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type MSSQLTestConfig struct {
-	Config *MSSQLSecretTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type MSSQLSecretTestConfig struct {
 	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db_connection,block"`
 	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role,block"`
@@ -88,7 +83,9 @@ type MSSQLRoleConfig struct {
 // parameters will be set here.
 func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	m.config = &MSSQLTestConfig{
+	testConfig := &struct {
+		Config *MSSQLSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &MSSQLSecretTestConfig{
 			MSSQLDBConfig: &MSSQLDBConfig{
 				Name:         "benchmark-mssql",
@@ -104,16 +101,17 @@ func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, m.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	m.config = testConfig.Config
 
-	if m.config.Config.MSSQLDBConfig.Username == "" {
+	if m.config.MSSQLDBConfig.Username == "" {
 		return fmt.Errorf("no mssql username provided but required")
 	}
 
-	if m.config.Config.MSSQLDBConfig.Password == "" {
+	if m.config.MSSQLDBConfig.Password == "" {
 		return fmt.Errorf("no mssql password provided but required")
 	}
 
@@ -147,7 +145,7 @@ func (m *MSSQLSecret) GetTargetInfo() TargetInfo {
 func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := m.config.Config
+	config := m.config
 	m.logger = targetLogger.Named(MSSQLSecretTestType)
 
 	if randomMountName {

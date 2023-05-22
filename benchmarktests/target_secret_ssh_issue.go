@@ -34,12 +34,8 @@ type SSHIssueTest struct {
 	pathPrefix string
 	body       []byte
 	header     http.Header
-	config     *SSHTestConfig
+	config     *SSHIssueTestConfig
 	logger     hclog.Logger
-}
-
-type SSHTestConfig struct {
-	Config *SSHIssueTestConfig `hcl:"config,block"`
 }
 
 type SSHIssueTestConfig struct {
@@ -108,7 +104,9 @@ type SSHRoleConfig struct {
 }
 
 func (s *SSHIssueTest) ParseConfig(body hcl.Body) error {
-	s.config = &SSHTestConfig{
+	testConfig := &struct {
+		Config *SSHIssueTestConfig `hcl:"config,block"`
+	}{
 		Config: &SSHIssueTestConfig{
 			CAConfig: &SSHCAConfig{
 				KeyType: "rsa",
@@ -127,10 +125,11 @@ func (s *SSHIssueTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, s.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	s.config = testConfig.Config
 	return nil
 }
 
@@ -162,7 +161,7 @@ func (s *SSHIssueTest) GetTargetInfo() TargetInfo {
 func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := s.config.Config
+	config := s.config
 	s.logger = targetLogger.Named(SSHIssueTestType)
 
 	if randomMountName {

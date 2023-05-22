@@ -35,12 +35,8 @@ type MongoDBTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *MongoDBTestConfig
+	config     *MongoDBSecretTestConfig
 	logger     hclog.Logger
-}
-
-type MongoDBTestConfig struct {
-	Config *MongoDBSecretTestConfig `hcl:"config,block"`
 }
 
 type MongoDBSecretTestConfig struct {
@@ -73,7 +69,9 @@ type MongoDBRoleConfig struct {
 }
 
 func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
-	m.config = &MongoDBTestConfig{
+	testConfig := &struct {
+		Config *MongoDBSecretTestConfig `hcl:"mongodb_secret,block"`
+	}{
 		Config: &MongoDBSecretTestConfig{
 			MongoDBConfig: &MongoDBConfig{
 				Name:         "benchmark-mongo",
@@ -92,17 +90,18 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, m.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	m.config = testConfig.Config
 
 	// Ensure that the username and password are set
-	if m.config.Config.MongoDBConfig.Username == "" {
+	if m.config.MongoDBConfig.Username == "" {
 		return fmt.Errorf("no mongodb username provided but required")
 	}
 
-	if m.config.Config.MongoDBConfig.Password == "" {
+	if m.config.MongoDBConfig.Password == "" {
 		return fmt.Errorf("no mongodb password provided but required")
 	}
 
@@ -136,7 +135,7 @@ func (m *MongoDBTest) GetTargetInfo() TargetInfo {
 func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := m.config.Config
+	config := m.config
 	m.logger = targetLogger.Named(MongoDBSecretTestType)
 
 	if randomMountName {

@@ -40,12 +40,8 @@ type SSHKeySignTest struct {
 	pathPrefix string
 	body       []byte
 	header     http.Header
-	config     *SSHKeySignConfig
+	config     *SSHKeySignTestConfig
 	logger     hclog.Logger
-}
-
-type SSHKeySignConfig struct {
-	Config *SSHKeySignTestConfig `hcl:"config,block"`
 }
 
 type SSHKeySignTestConfig struct {
@@ -112,7 +108,9 @@ type SSHKeySignRoleConfig struct {
 }
 
 func (s *SSHKeySignTest) ParseConfig(body hcl.Body) error {
-	s.config = &SSHKeySignConfig{
+	testConfig := &struct {
+		Config *SSHKeySignTestConfig `hcl:"config,block"`
+	}{
 		Config: &SSHKeySignTestConfig{
 			CAConfig: &SSHKeySignCAConfig{
 				KeyType: "rsa",
@@ -129,10 +127,11 @@ func (s *SSHKeySignTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, s.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	s.config = testConfig.Config
 	return nil
 }
 
@@ -164,7 +163,7 @@ func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {
 func (s *SSHKeySignTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := s.config.Config
+	config := s.config
 	s.logger = targetLogger.Named(SSHKeySignTestType)
 
 	if randomMountName {

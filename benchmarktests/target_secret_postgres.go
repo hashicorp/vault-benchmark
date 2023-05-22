@@ -38,16 +38,11 @@ type PostgreSQLSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *PostgreSQLTestConfig
+	config     *PostgreSQLSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type PostgreSQLTestConfig struct {
-	Config *PostgreSQLSecretTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type PostgreSQLSecretTestConfig struct {
 	PostgreSQLDBConfig   *PostgreSQLDBConfig   `hcl:"db_connection,block"`
 	PostgreSQLRoleConfig *PostgreSQLRoleConfig `hcl:"role,block"`
@@ -90,7 +85,9 @@ type PostgreSQLRoleConfig struct {
 // parameters will be set here.
 func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	s.config = &PostgreSQLTestConfig{
+	testConfig := &struct {
+		Config *PostgreSQLSecretTestConfig `hcl:"postgresql_secret,block"`
+	}{
 		Config: &PostgreSQLSecretTestConfig{
 			PostgreSQLDBConfig: &PostgreSQLDBConfig{
 				Name:         "benchmark-postgres",
@@ -106,16 +103,17 @@ func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, s.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	s.config = testConfig.Config
 
-	if s.config.Config.PostgreSQLDBConfig.Username == "" {
+	if s.config.PostgreSQLDBConfig.Username == "" {
 		return fmt.Errorf("no postgres username provided but required")
 	}
 
-	if s.config.Config.PostgreSQLDBConfig.Password == "" {
+	if s.config.PostgreSQLDBConfig.Password == "" {
 		return fmt.Errorf("no postgres password provided but required")
 	}
 
@@ -149,7 +147,7 @@ func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
 func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := s.config.Config
+	config := s.config
 	s.logger = targetLogger.Named(PostgreSQLSecretTestType)
 
 	if randomMountName {

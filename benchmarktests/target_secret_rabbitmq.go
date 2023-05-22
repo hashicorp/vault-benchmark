@@ -36,16 +36,11 @@ type RabbitMQTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RabbitMQTestConfig
+	config     *RabbitMQSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type RabbitMQTestConfig struct {
-	Config *RabbitMQSecretTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type RabbitMQSecretTestConfig struct {
 	RabbitMQConnectionConfig *RabbitMQConnectionConfig `hcl:"connection,block"`
 	RabbitMQRoleConfig       *RabbitMQRoleConfig       `hcl:"role,block"`
@@ -68,7 +63,9 @@ type RabbitMQRoleConfig struct {
 }
 
 func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
-	r.config = &RabbitMQTestConfig{
+	testConfig := &struct {
+		Config *RabbitMQSecretTestConfig `hcl:"rabbitmq_secret,block"`
+	}{
 		Config: &RabbitMQSecretTestConfig{
 			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{
 				Username: os.Getenv(RabbitMQUsernameEnvVar),
@@ -81,16 +78,17 @@ func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, r.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	r.config = testConfig.Config
 
-	if r.config.Config.RabbitMQConnectionConfig.Username == "" {
+	if r.config.RabbitMQConnectionConfig.Username == "" {
 		return fmt.Errorf("no rabbitmq username provided but required")
 	}
 
-	if r.config.Config.RabbitMQConnectionConfig.Password == "" {
+	if r.config.RabbitMQConnectionConfig.Password == "" {
 		return fmt.Errorf("no rabbitmq password provided but required")
 	}
 
@@ -124,7 +122,7 @@ func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
 func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config.Config
+	config := r.config
 	r.logger = targetLogger.Named(RabbitMQSecretTestType)
 
 	if randomMountName {

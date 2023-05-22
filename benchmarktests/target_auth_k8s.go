@@ -38,12 +38,8 @@ type KubeAuth struct {
 	jwt        string
 	header     http.Header
 	timeout    time.Duration
-	config     *KubeTestConfig
+	config     *KubeAuthTestConfig
 	logger     hclog.Logger
-}
-
-type KubeTestConfig struct {
-	Config *KubeAuthTestConfig `hcl:"config,block"`
 }
 
 type KubeAuthTestConfig struct {
@@ -81,18 +77,20 @@ type KubeTestRoleConfig struct {
 }
 
 func (k *KubeAuth) ParseConfig(body hcl.Body) error {
-	k.config = &KubeTestConfig{
+	testConfig := &struct {
+		Config *KubeAuthTestConfig `hcl:"config,block"`
+	}{
 		Config: &KubeAuthTestConfig{
 			KubeAuthConfig:     &KubeAuthConfig{},
 			KubeTestRoleConfig: &KubeTestRoleConfig{},
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, k.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
-
+	k.config = testConfig.Config
 	return nil
 }
 
@@ -132,7 +130,7 @@ func readTokenFromFile(filepath string) (string, error) {
 func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := k.config.Config
+	config := k.config
 	k.logger = targetLogger.Named(KubeAuthTestType)
 
 	if randomMountName {
@@ -187,7 +185,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	return &KubeAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		roleName:   k.config.Config.KubeTestRoleConfig.Name,
+		roleName:   config.KubeTestRoleConfig.Name,
 		jwt:        jwt,
 		timeout:    k.timeout,
 		logger:     k.logger,

@@ -36,12 +36,8 @@ type RedisDynamicSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *RedisDynamicTestConfig
+	config     *RedisDynamicSecretTestConfig
 	logger     hclog.Logger
-}
-
-type RedisDynamicTestConfig struct {
-	Config *RedisDynamicSecretTestConfig `hcl:"config,block"`
 }
 
 type RedisDynamicSecretTestConfig struct {
@@ -62,7 +58,9 @@ type RedisDynamicRoleConfig struct {
 // parameters will be set here.
 func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	r.config = &RedisDynamicTestConfig{
+	testConfig := &struct {
+		Config *RedisDynamicSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &RedisDynamicSecretTestConfig{
 			DBConfig: &RedisDBConfig{
 				Name:         "benchmark-redis-db",
@@ -78,17 +76,17 @@ func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, r.config)
-
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	r.config = testConfig.Config
 
-	if r.config.Config.DBConfig.Username == "" {
+	if r.config.DBConfig.Username == "" {
 		return fmt.Errorf("no redis username provided but required")
 	}
 
-	if r.config.Config.DBConfig.Password == "" {
+	if r.config.DBConfig.Password == "" {
 		return fmt.Errorf("no redis password provided but required")
 	}
 
@@ -122,7 +120,7 @@ func (r *RedisDynamicSecret) GetTargetInfo() TargetInfo {
 func (r *RedisDynamicSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config.Config
+	config := r.config
 	r.logger = targetLogger.Named(RedisDynamicSecretTestType)
 
 	if randomMountName {

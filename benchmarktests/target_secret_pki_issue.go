@@ -35,14 +35,10 @@ type PKIIssueTest struct {
 	cn         string
 	intpath    string
 	rootpath   string
-	config     *PKIIssueTestConfig
+	config     *PKISecretIssueTestConfig
 	body       []byte
 	header     http.Header
 	logger     hclog.Logger
-}
-
-type PKIIssueTestConfig struct {
-	Config *PKISecretIssueTestConfig `hcl:"config,block"`
 }
 
 type PKISecretIssueTestConfig struct {
@@ -229,7 +225,9 @@ type PKIIssueRoleConfig struct {
 }
 
 func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
-	p.config = &PKIIssueTestConfig{
+	testConfig := &struct {
+		Config *PKISecretIssueTestConfig `hcl:"config,block"`
+	}{
 		Config: &PKISecretIssueTestConfig{
 			SetupDelay: "1s",
 			RootCAConfig: &PKIIssueRootConfig{
@@ -255,10 +253,11 @@ func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, p.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	p.config = testConfig.Config
 	return nil
 }
 
@@ -298,7 +297,7 @@ func (p *PKIIssueTest) Cleanup(client *api.Client) error {
 func (p *PKIIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := p.config.Config
+	config := p.config
 	p.logger = targetLogger.Named(PKIIssueTestType)
 
 	if randomMountName {
@@ -345,7 +344,7 @@ func (p *PKIIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 }
 
 func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
-	config := p.config.Config
+	config := p.config
 	rootPath := pfx + "-root"
 
 	// Create PKI Root mount
@@ -398,7 +397,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 }
 
 func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
-	config := p.config.Config
+	config := p.config
 	rootPath := fmt.Sprintf("%v-root", pfx)
 	intPath := fmt.Sprintf("%v-int", pfx)
 

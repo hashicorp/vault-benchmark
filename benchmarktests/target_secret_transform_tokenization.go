@@ -39,12 +39,8 @@ type TransformTokenizationTest struct {
 	header     http.Header
 	body       []byte
 	roleName   string
-	config     *TransformTestConfig
+	config     *TransformTokenizationTestConfig
 	logger     hclog.Logger
-}
-
-type TransformTestConfig struct {
-	Config *TransformTokenizationTestConfig `hcl:"config,block"`
 }
 
 type TransformTokenizationTestConfig struct {
@@ -102,7 +98,9 @@ type TransformInputConfig struct {
 }
 
 func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
-	t.config = &TransformTestConfig{
+	testConfig := &struct {
+		Config *TransformTokenizationTestConfig `hcl:"config,block"`
+	}{
 		Config: &TransformTokenizationTestConfig{
 			RoleConfig: &TransformRoleConfig{
 				Name:            "benchmark-role",
@@ -123,10 +121,11 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, t.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	t.config = testConfig.Config
 
 	return nil
 }
@@ -159,7 +158,7 @@ func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
 func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := t.config.Config
+	config := t.config
 	t.logger = targetLogger.Named(TransformTokenizationTestType)
 
 	if randomMountName {
