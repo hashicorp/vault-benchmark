@@ -1,45 +1,28 @@
-package testfixtures
+package dockertest
 
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/vault-benchmark/docker/benchmarkdocker"
-
-	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
+	"github.com/hashicorp/vault-benchmark/helper/dockertest"
 )
 
-func TestEtcd3Backend(t *testing.T) {
-	rootToken, err := uuid.GenerateUUID()
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
+func TestApprole_Auth_Docker(t *testing.T) {
+	// Create Network
+	networkName := "vault-benchmark"
 
-	runner, err := dockhelper.NewServiceRunner(dockhelper.RunOptions{
-		ContainerName: "vault",
-		NetworkName:   "vault-ellie",
-		ImageRepo:     "docker.mirror.hashicorp.services/hashicorp/vault",
-		ImageTag:      "latest",
-		Cmd: []string{
-			"server", "-log-level=trace", "-dev", fmt.Sprintf("-dev-root-token-id=%s", rootToken),
-			"-dev-listen-address=0.0.0.0:8200",
-		},
-		Ports: []string{"8200/tcp"},
-	})
+	networkCleanup := dockertest.CreateNetwork(t, networkName)
+	defer networkCleanup()
 
-	fmt.Println("error starting new runner", err)
+	// Create Vault Container
+	vaultCleanup, containerName := dockertest.CreateVaultContainer(t, networkName)
+	defer vaultCleanup()
 
-	result, err := runner.Start(context.Background(), false, false)
-
-	fmt.Println("result address", result.Addrs)
-
-	fmt.Println("result of vault container", result)
-
-	// benchmark containers
-	_, _ = benchmarkdocker.PrepareTestContainer(t, result.Addrs[0], rootToken)
+	// Run Vault-Benchmark Container
+	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
+	benchmarkCleanup := dockertest.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root")
+	defer benchmarkCleanup()
 }
