@@ -4,55 +4,42 @@ package testfixtures
 // SPDX-License-Identifier: MPL-2.0
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"testing"
 
-	"github.com/hashicorp/vault-benchmark/command"
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault-benchmark/docker/benchmarkdocker"
-	"github.com/hashicorp/vault/sdk/helper/testcluster"
-	"github.com/hashicorp/vault/sdk/helper/testcluster/docker"
-	// "github.com/hashicorp/vault/helper/testhelpers/etcd"
+
+	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
 func TestEtcd3Backend(t *testing.T) {
-	// vault containers
-	binary := os.Getenv("VAULT_BINARY")
-	if binary == "" {
-		t.Skip("only running docker test when $VAULT_BINARY present")
+	rootToken, err := uuid.GenerateUUID()
+	if err != nil {
+		t.Fatalf("err: %s", err)
 	}
-	opts := &docker.DockerClusterOptions{
-		ImageRepo: "hashicorp/vault",
-		ImageTag:  "latest",
-		ClusterOptions: testcluster.ClusterOptions{
-			VaultNodeConfig: &testcluster.VaultNodeConfig{
-				LogLevel: "TRACE",
-			},
+
+	runner, err := dockhelper.NewServiceRunner(dockhelper.RunOptions{
+		ContainerName: "vault",
+		NetworkName:   "vault-ellie",
+		ImageRepo:     "docker.mirror.hashicorp.services/hashicorp/vault",
+		ImageTag:      "latest",
+		Cmd: []string{
+			"server", "-log-level=trace", "-dev", fmt.Sprintf("-dev-root-token-id=%s", rootToken),
+			"-dev-listen-address=0.0.0.0:8200",
 		},
-	}
-	cluster := docker.NewTestDockerCluster(t, opts)
+		Ports: []string{"8200/tcp"},
+	})
 
-	// defer cluster.Cleanup()
+	fmt.Println("error starting new runner", err)
 
-	client := cluster.Nodes()[0].APIClient()
+	result, err := runner.Start(context.Background(), false, false)
 
-	vaultAddr := client.Address()
-	vaultToken := cluster.GetRootToken()
-	certAddr := cluster.GetCACertPEMFile()
+	fmt.Println("result address", result.Addrs)
 
-	os.Setenv("VAULT_ADDR", client.Address())
-	fmt.Println("VAULT_ADDR", client.Address())
-	os.Setenv("VAULT_TOKEN", cluster.GetRootToken())
-	fmt.Println("VAULT_TOKEN", cluster.GetRootToken())
-	os.Setenv("VAULT_CACERT", cluster.GetCACertPEMFile())
-	fmt.Println("VAULT_CACERT", cluster.GetCACertPEMFile())
-
-	args := []string{"run", "-config=./approle.hcl"}
-
-	if command.Run(args) != 0 {
-		t.Fatal("Non-zero response")
-	}
+	fmt.Println("result of vault container", result)
 
 	// benchmark containers
-	_, _ = benchmarkdocker.PrepareTestContainer(t, vaultAddr, vaultToken, certAddr)
+	_, _ = benchmarkdocker.PrepareTestContainer(t, result.Addrs[0], rootToken)
 }
