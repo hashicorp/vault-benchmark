@@ -48,7 +48,7 @@ type LDAPSecretTestConfig struct {
 type LDAPConfig struct {
 	BindDN            string `hcl:"binddn"`
 	BindPass          string `hcl:"bindpass,optional"`
-	URL               string `hcl:"url"`
+	URL               string `hcl:"url,optional"`
 	PasswordPolicy    string `hcl:"password_policy,optional"`
 	Schema            string `hcl:"schema,optional"`
 	UserDN            string `hcl:"userdn,optional"`
