@@ -39,7 +39,7 @@ type LDAPSecretTest struct {
 	logger     hclog.Logger
 }
 
-// Intermediary struct to assist with HCL decoding
+// Main Config Struct
 type LDAPSecretTestConfig struct {
 	LDAPConfig     *LDAPConfig     `hcl:"secret,block"`
 	LDAPRoleConfig *LDAPRoleConfig `hcl:"role,block"`
