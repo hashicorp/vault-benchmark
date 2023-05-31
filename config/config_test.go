@@ -13,7 +13,7 @@ const (
 	BadCoreConfig = `
 	report_mode = terse	
 `
-	FixturePath = "../test-fixtures"
+	FixturePath = "../test-fixtures/configs"
 )
 
 func TestLoadConfig(t *testing.T) {
