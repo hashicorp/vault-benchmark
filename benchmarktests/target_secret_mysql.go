@@ -110,6 +110,15 @@ func (m *MySQLSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	m.config = testConfig.Config
+
+	if m.config.MySQLDBConfig.Username == "" {
+		return fmt.Errorf("no mysql username provided but required")
+	}
+
+	if m.config.MySQLDBConfig.Password == "" {
+		return fmt.Errorf("no mysql password provided but required")
+	}
+
 	return nil
 }
 
