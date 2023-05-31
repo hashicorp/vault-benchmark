@@ -2,8 +2,6 @@ module github.com/hashicorp/vault-benchmark
 
 go 1.20
 
-replace github.com/hashicorp/vault/sdk => /Users/elliesterner/Developer/hashicorp/vault/sdk
-
 require (
 	github.com/docker/docker v24.0.1+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
