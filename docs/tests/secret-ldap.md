@@ -1,4 +1,4 @@
-# LDAP Auth Benchmark `ldap_secret`
+# LDAP Auth Benchmark `ldap_dynamic_secret`
 
 This benchmark will test the dynamic generation of LDAP credentials.
 
@@ -34,7 +34,7 @@ This benchmark will test the dynamic generation of LDAP credentials.
 ## Example HCL
 
 ```hcl
-test "ldap_secret" "ldap_secret_test1" {
+test "ldap_dynamic_secret" "ldap_secret_test1" {
     weight = 100
     config {
         secret {

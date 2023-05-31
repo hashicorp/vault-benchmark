@@ -21,31 +21,31 @@ import (
 
 // Constants for test
 const (
-	LDAPSecretTestType       = "ldap_secret"
-	LDAPSecretTestMethod     = "GET"
-	LDAPSecretBindPassEnvVar = VaultBenchmarkEnvVarPrefix + "LDAP_BIND_PASS"
+	LDAPDynamicSecretTestType   = "ldap_dynamic_secret"
+	LDAPDynamicSecretTestMethod = "GET"
+	LDAPSecretBindPassEnvVar    = VaultBenchmarkEnvVarPrefix + "LDAP_BIND_PASS"
 )
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList[LDAPSecretTestType] = func() BenchmarkBuilder { return &LDAPSecretTest{} }
+	TestList[LDAPDynamicSecretTestType] = func() BenchmarkBuilder { return &LDAPDynamicSecretTest{} }
 }
 
-type LDAPSecretTest struct {
+type LDAPDynamicSecretTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *LDAPSecretTestConfig
+	config     *LDAPDynamicSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type LDAPSecretTestConfig struct {
-	LDAPConfig     *LDAPConfig     `hcl:"secret,block"`
-	LDAPRoleConfig *LDAPRoleConfig `hcl:"role,block"`
+type LDAPDynamicSecretTestConfig struct {
+	LDAPDynamicConfig     *LDAPDynamicConfig     `hcl:"secret,block"`
+	LDAPDynamicRoleConfig *LDAPDynamicRoleConfig `hcl:"role,block"`
 }
 
-type LDAPConfig struct {
+type LDAPDynamicConfig struct {
 	BindDN            string `hcl:"binddn"`
 	BindPass          string `hcl:"bindpass,optional"`
 	URL               string `hcl:"url,optional"`
@@ -63,7 +63,7 @@ type LDAPConfig struct {
 	ClientTLSKey      string `hcl:"client_tls_key,optional"`
 }
 
-type LDAPRoleConfig struct {
+type LDAPDynamicRoleConfig struct {
 	RoleName         string `hcl:"role_name,optional"`
 	CreationLDIF     string `hcl:"creation_ldif"`
 	DeletionLDIF     string `hcl:"deletion_ldif"`
@@ -73,15 +73,15 @@ type LDAPRoleConfig struct {
 	MaxTTL           int    `hcl:"max_ttl,optional"`
 }
 
-func (r *LDAPSecretTest) ParseConfig(body hcl.Body) error {
+func (r *LDAPDynamicSecretTest) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *LDAPSecretTestConfig `hcl:"config,block"`
+		Config *LDAPDynamicSecretTestConfig `hcl:"config,block"`
 	}{
-		Config: &LDAPSecretTestConfig{
-			LDAPConfig: &LDAPConfig{
+		Config: &LDAPDynamicSecretTestConfig{
+			LDAPDynamicConfig: &LDAPDynamicConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
 			},
-			LDAPRoleConfig: &LDAPRoleConfig{
+			LDAPDynamicRoleConfig: &LDAPDynamicRoleConfig{
 				RoleName: "benchmark-role",
 			},
 		},
@@ -93,18 +93,23 @@ func (r *LDAPSecretTest) ParseConfig(body hcl.Body) error {
 	}
 
 	r.config = testConfig.Config
+
+	if r.config.LDAPDynamicConfig.BindPass == "" {
+		return fmt.Errorf("no ldap bindpass provided but required")
+	}
+
 	return nil
 }
 
-func (r *LDAPSecretTest) Target(client *api.Client) vegeta.Target {
+func (r *LDAPDynamicSecretTest) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
-		Method: LDAPSecretTestMethod,
+		Method: LDAPDynamicSecretTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
 		Header: r.header,
 	}
 }
 
-func (r *LDAPSecretTest) Cleanup(client *api.Client) error {
+func (r *LDAPDynamicSecretTest) Cleanup(client *api.Client) error {
 	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
 	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
@@ -113,17 +118,17 @@ func (r *LDAPSecretTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (r *LDAPSecretTest) GetTargetInfo() TargetInfo {
+func (r *LDAPDynamicSecretTest) GetTargetInfo() TargetInfo {
 	return TargetInfo{
-		method:     LDAPSecretTestMethod,
+		method:     LDAPDynamicSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
 }
 
-func (r *LDAPSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (r *LDAPDynamicSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	r.logger = targetLogger.Named(LDAPSecretTestType)
+	r.logger = targetLogger.Named(LDAPDynamicSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -144,7 +149,7 @@ func (r *LDAPSecretTest) Setup(client *api.Client, randomMountName bool, mountNa
 
 	// Decode LDAP Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret"))
-	connectionConfigData, err := structToMap(r.config.LDAPConfig)
+	connectionConfigData, err := structToMap(r.config.LDAPDynamicConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing ldap secret config from struct: %v", err)
 	}
@@ -158,24 +163,24 @@ func (r *LDAPSecretTest) Setup(client *api.Client, randomMountName bool, mountNa
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret role"))
-	roleConfigData, err := structToMap(r.config.LDAPRoleConfig)
+	roleConfigData, err := structToMap(r.config.LDAPDynamicRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPRoleConfig.RoleName)
-	_, err = client.Logical().Write(secretPath+"/role/"+r.config.LDAPRoleConfig.RoleName, roleConfigData)
+	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPDynamicRoleConfig.RoleName)
+	_, err = client.Logical().Write(secretPath+"/role/"+r.config.LDAPDynamicRoleConfig.RoleName, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret role: %v", err)
 	}
 
-	return &LDAPSecretTest{
+	return &LDAPDynamicSecretTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   r.config.LDAPRoleConfig.RoleName,
+		roleName:   r.config.LDAPDynamicRoleConfig.RoleName,
 		logger:     r.logger,
 	}, nil
 }
 
-func (m *LDAPSecretTest) Flags(fs *flag.FlagSet) {}
+func (m *LDAPDynamicSecretTest) Flags(fs *flag.FlagSet) {}
