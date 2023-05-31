@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	FixturePath = "../test-fixtures"
+	FixturePath = "../test-fixtures/configs"
 )
 
 func TestLDAPAuthTest_ParseConfig(t *testing.T) {
