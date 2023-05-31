@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
-func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string) func() {
+func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string) int64 {
 	ctx := context.Background()
 	volume := map[string]string{
 		"configs/": "/etc/",
@@ -32,17 +32,25 @@ func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr s
 	}
 
 	result, err := runner.Start(ctx, true, false)
+	containerID := result.Container.ID
+
+	exitCh, errCh := runner.DockerAPI.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
 
 	if err != nil {
 		t.Fatalf("Error starting vault-benchmark container: %s", err)
 	}
 
-	cleanup := func() {
-		err := runner.DockerAPI.ContainerRemove(ctx, result.Container.ID, types.ContainerRemoveOptions{Force: true})
+	// wait until benchmark exit
+	var exitCode int64
+	select {
+	case err := <-errCh:
 		if err != nil {
-			t.Fatalf("Error removing vault-benchmark container: %s", err)
+			t.Fatal(err)
 		}
+	case status := <-exitCh:
+		statusCode := status.StatusCode
+		exitCode = statusCode
 	}
 
-	return cleanup
+	return exitCode
 }
