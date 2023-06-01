@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault-benchmark/helper/dockertest"
+	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
 )
 
 func TestApprole_Auth_Docker(t *testing.T) {
@@ -17,7 +18,7 @@ func TestApprole_Auth_Docker(t *testing.T) {
 	// Create Network
 	uuid, err := uuid.GenerateUUID()
 	if err != nil {
-		fmt.Errorf("error generating uuid for network name: %w", err)
+		t.Fatal("error generating uuid for network name: %w", err)
 	}
 
 	networkName := fmt.Sprintf("vault-benchmark-%v", uuid)
@@ -31,7 +32,7 @@ func TestApprole_Auth_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	exitCode := dockertest.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root")
+	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root")
 
 	if exitCode != 0 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
@@ -44,7 +45,7 @@ func TestApprole_Auth_Failed_Docker(t *testing.T) {
 	// Create Network
 	uuid, err := uuid.GenerateUUID()
 	if err != nil {
-		fmt.Errorf("error generating uuid for network name: %w", err)
+		t.Fatal("error generating uuid for network name: %w", err)
 	}
 
 	networkName := fmt.Sprintf("vault-benchmark-%v", uuid)
@@ -58,7 +59,7 @@ func TestApprole_Auth_Failed_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	exitCode := dockertest.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token")
+	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token")
 
 	if exitCode == 0 {
 		t.Fatalf("Unexpected error code: %v", exitCode)

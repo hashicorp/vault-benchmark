@@ -46,7 +46,7 @@ func TestParseConfig_InvalidTest(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), `invalid test type found: nope`) {
+	if !strings.Contains(err.Error(), `invalid test type found: invalid`) {
 		t.Errorf("bad error: %s", err.Error())
 	}
 }
