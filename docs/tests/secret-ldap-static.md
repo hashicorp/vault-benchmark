@@ -1,4 +1,4 @@
-# LDAP Auth Benchmark `ldap_dynamic_secret`
+# LDAP Static Secret Benchmark `ldap_static_secret`
 
 This benchmark will test the dynamic generation of LDAP credentials.
 
@@ -23,18 +23,14 @@ This benchmark will test the dynamic generation of LDAP credentials.
 
 ### Role Configuration `role`
 
-- `role_name` `(string: "benchmark-role")` - The name of the dynamic role.
-- `creation_ldif` `(string: <required>)` - A templatized LDIF string used to create a user account. This may contain multiple LDIF entries. The `creation_ldif` can also be used to add the user account to an **_existing_** group. All LDIF entries are performed in order. If Vault encounters an error while executing the `creation_ldif` it will stop at the first error and not execute any remaining LDIF entries. If an error occurs and `rollback_ldif` is specified, the LDIF entries in `rollback_ldif` will be executed. See `rollback_ldif` for more details. This field may optionally be provided as a base64 encoded string.
-- `deletion_ldif` `(string: <required>)` - A templatized LDIF string used to delete the user account once its TTL has expired. This may contain multiple LDIF entries. All LDIF entries are performed in order. If Vault encounters an error while executing an entry in the `deletion_ldif` it will attempt to continue executing any remaining entries. This field may optionally be provided as a base64 encoded string.
-- `rollback_ldif` `(string: <not required but recommended>)` - A templatized LDIF string used to attempt to rollback any changes in the event that execution of the `creation_ldif` results in an error. This may contain multiple LDIF entries. All LDIF entries are performed in order. If Vault encounters an error while executing an entry in the `rollback_ldif` it will attempt to continue executing any remaining entries. This field may optionally be provided as a base64 encoded string.
-- `username_template` `(string: <optional>)` - A template used to generate a dynamic username. This will be used to fill in the `.Username` field within the `creation_ldif` string.
-- `default_ttl` `(int: <optional>)` - Specifies the TTL for the leases associated with this role. Defaults to system/engine default TTL time.
-- `max_ttl` `(int: <optional>)` - Specifies the maximum TTL for the leases associated with this role. Defaults to system/mount default TTL time; this value is allowed to be less than the mount max TTL (or, if not set, the system max TTL), but it is not allowed to be longer.
+- `username` `(string: <required>)` - The username of the existing LDAP entry to manage password rotation for. LDAP search for the username will be rooted at the [userdn](/vault/api-docs/secret/ldap#userdn) configuration value. The attribute to use when searching for the user can be configured with the [userattr](/vault/api-docs/secret/ldap#userattr) configuration value. This is useful when `dn` isn't used for login purposes (such as SSH). Cannot be modified after creation.<br /> **Example:** `"bob"`
+- `dn` `(string: <optional>)` - Distinguished name (DN) of the existing LDAP entry to manage password rotation for. If given, it will take precedence over `username` for the LDAP search performed during password rotation. Cannot be modified after creation.<br /> **Example:** `cn=bob,ou=Users,dc=hashicorp,dc=com`
+- `rotation_period` `(string: <required>)` - How often Vault should rotate the password of the user entry. Accepts [duration format strings](/vault/docs/concepts/duration-format). The minimum rotation period is 5 seconds.<br /> **Example:** `"3600", "5s", "1h"`
 
 ## Example HCL
 
 ```hcl
-test "ldap_dynamic_secret" "ldap_secret_test1" {
+test "ldap_static_secret" "ldap_static_secret2" {
     weight = 100
     config {
         secret {
@@ -43,9 +39,9 @@ test "ldap_dynamic_secret" "ldap_secret_test1" {
             bindpass    = "admin"
         }
         role  {
-            creation_ldif = "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9aGFzaGljb3JwLGRjPWNvbQpvYmplY3RDbGFzczogcGVyc29uCm9iamVjdENsYXNzOiB0b3AKY246IGxlYXJuCnNuOiB7ey5QYXNzd29yZCB8IHV0ZjE2bGUgfCBiYXNlNjR9fQptZW1iZXJPZjogY249ZGV2LG91PWdyb3VwcyxkYz1oYXNoaWNvcnAsZGM9Y29tCnVzZXJQYXNzd29yZDoge3suUGFzc3dvcmR9fQo="
-            deletion_ldif = "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9bGVhcm4sZGM9ZXhhbXBsZQpjaGFuZ2V0eXBlOiBkZWxldGUK"
-            rollback_ldif = "ZG46IGNuPXt7LlVzZXJuYW1lfX0sb3U9dXNlcnMsZGM9bGVhcm4sZGM9ZXhhbXBsZQpjaGFuZ2V0eXBlOiBkZWxldGUK"
+            dn = "uid=alice,ou=users,dc=hashicorp,dc=com"
+            username = "alice"
+            rotation_period ="24h"
         }
     }
 }
@@ -59,6 +55,6 @@ $ vault-benchmark run -config=config.hcl
 2023-04-26T18:11:50.918-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
 2023-04-26T18:11:52.920-0500 [INFO]  vault-benchmark: benchmark complete
 Target: http://localhost:8200
-op               count  rate         throughput  mean        95th%       99th%       successRatio
-ldap_secret_test1  13345  6671.750122  0.000000    1.495695ms  2.128745ms  3.542841ms  100.00%
+op                   count  rate         throughput  mean        95th%       99th%       successRatio
+ldap_static_secret2  13345  6671.750122  0.000000    1.495695ms  2.128745ms  3.542841ms  100.00%
 ```

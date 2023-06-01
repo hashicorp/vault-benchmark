@@ -21,14 +21,14 @@ import (
 
 // Constants for test
 const (
-	LDAPStaticSecretTestType       = "ldap_static_secret"
-	LDAPStaticSecretTestMethod     = "GET"
+	LDAPStaticSecretTestType       = "ldap_static_secret_rotate"
+	LDAPStaticSecretTestMethod     = "POST"
 	LDAPStaticSecretBindPassEnvVar = VaultBenchmarkEnvVarPrefix + "LDAP_BIND_PASS"
 )
 
 func init() {
 	// "Register" this test to the main test registry
-	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{} }
+	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{action: "rotate"} }
 }
 
 type LDAPStaticSecretTest struct {
@@ -37,6 +37,7 @@ type LDAPStaticSecretTest struct {
 	roleName   string
 	config     *LDAPStaticSecretTestConfig
 	logger     hclog.Logger
+	action     string
 }
 
 // Main Config Struct
@@ -98,7 +99,7 @@ func (r *LDAPStaticSecretTest) ParseConfig(body hcl.Body) error {
 func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: LDAPStaticSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/static-role/" + r.roleName,
+		URL:    client.Address() + r.pathPrefix + "/rotate-role/" + r.roleName,
 		Header: r.header,
 	}
 }
@@ -122,7 +123,7 @@ func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
 func (r *LDAPStaticSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
+	r.logger = targetLogger.Named(LDAPDynamicSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
