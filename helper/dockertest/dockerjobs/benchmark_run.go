@@ -1,15 +1,16 @@
-package dockertest
+package dockerjobs
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
-func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string) int64 {
+func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string) (func(), int64) {
 	ctx := context.Background()
 	volume := map[string]string{
 		"configs/": "/etc/",
@@ -52,5 +53,12 @@ func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr s
 		exitCode = statusCode
 	}
 
-	return exitCode
+	cleanup := func() {
+		err := runner.DockerAPI.ContainerRemove(ctx, result.Container.ID, types.ContainerRemoveOptions{Force: true})
+		if err != nil {
+			t.Fatalf("Error removing vault container: %s", err)
+		}
+	}
+
+	return cleanup, exitCode
 }
