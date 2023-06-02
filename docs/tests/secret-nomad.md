@@ -8,7 +8,7 @@ This benchmark will test the dynamic generation of Nomad credentials.
 
 #### NOTE: Ensure that the Nomad system has a limit high enough to support the number of roles you are creating.  More information can be found in the [Nomad Documentation](https://developer.hashicorp.com/nomad/docs/configuration#limits)
 
-- `address` `(string: "")` – Specifies the address of the Nomad instance, provided as `"protocol://host:port"` like `"http://127.0.0.1:4646"`. This value can also be provided on individual calls with the NOMAD_ADDR environment variable.
+- `address` `(string: "")` – Specifies the address of the Nomad instance, provided as `"protocol://host:port"` like `"http://127.0.0.1:4646"`.
 - `token` `(string: "")` – Specifies the Nomad Management token to use. This value can also be provided on individual calls with the NOMAD_TOKEN environment variable.  This can also be provided via the `VAULT_BENCHMARK_NOMAD_TOKEN` environment variable.
 - `max_token_name_length` `(int: <optional>)` – Specifies the maximum length to use for the name of the Nomad token generated with [Generate Credential](https://developer.hashicorp.com/vault/api-docs/secret/nomad#generate-credential). If omitted, `0` is used and ignored, defaulting to the max value allowed by the Nomad version. For Nomad versions 0.8.3 and earlier, the default is `64`. For Nomad version 0.8.4 and later, the default is `256`.
 - `ca_cert` `(string: "")` - CA certificate to use when verifying Nomad server certificate, must be x509 PEM encoded.
