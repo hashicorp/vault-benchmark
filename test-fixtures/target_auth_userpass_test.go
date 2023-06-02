@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
 )
 
-func TestApprole_Auth_Docker(t *testing.T) {
+func TestUserpass_Auth_Docker(t *testing.T) {
 	t.Parallel()
 
 	// Create Network
@@ -32,14 +32,14 @@ func TestApprole_Auth_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "approle.hcl")
+	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "userpass.hcl")
 
 	if exitCode != 0 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
 	}
 }
 
-func TestApprole_Auth_Failed_Docker(t *testing.T) {
+func TestUserpass_Auth_Failed_Docker(t *testing.T) {
 	t.Parallel()
 
 	// Create Network
@@ -59,14 +59,14 @@ func TestApprole_Auth_Failed_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token", "approle.hcl")
+	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token", "userpass.hcl")
 
 	if exitCode != 1 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
 	}
 }
 
-func TestApprole_Invalid_Config_Docker(t *testing.T) {
+func TestUserpass_Invalid_Config_Docker(t *testing.T) {
 	t.Parallel()
 
 	// Create Network
@@ -86,7 +86,7 @@ func TestApprole_Invalid_Config_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "invalid_approle.hcl")
+	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "nvalid_userpass.hcl")
 
 	if exitCode != 1 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
