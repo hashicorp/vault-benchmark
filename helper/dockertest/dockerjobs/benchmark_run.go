@@ -10,7 +10,7 @@ import (
 	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
-func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string) (func(), int64) {
+func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string, configFile string) (func(), int64) {
 	ctx := context.Background()
 	volume := map[string]string{
 		"configs/": "/etc/",
@@ -23,7 +23,7 @@ func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr s
 		ImageTag:      "0.1",
 		Env:           []string{fmt.Sprintf("VAULT_ADDR=%s", vaultAddr), fmt.Sprintf("VAULT_TOKEN=%s", vaultToken)},
 		CopyFromTo:    volume,
-		Cmd:           []string{"/bin/vault-benchmark", "run", "-config=/etc/approle.hcl"},
+		Cmd:           []string{"/bin/vault-benchmark", "run", fmt.Sprintf("-config=/etc/%s", configFile)},
 	}
 
 	runner, err := dockhelper.NewServiceRunner(runOpts)
