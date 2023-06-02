@@ -1,6 +1,6 @@
 # LDAP Static Secret Benchmark `ldap_static_secret`
 
-This benchmark will test the dynamic generation of LDAP credentials.
+This benchmark will test the static generation of LDAP credentials.
 
 ## Test Parameters
 
