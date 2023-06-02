@@ -21,7 +21,7 @@ import (
 
 // Constants for test
 const (
-	LDAPStaticSecretTestType       = "ldap_static_secret_rotate"
+	LDAPStaticSecretTestType       = "ldap_static_secret"
 	LDAPStaticSecretTestMethod     = "POST"
 	LDAPStaticSecretBindPassEnvVar = VaultBenchmarkEnvVarPrefix + "LDAP_BIND_PASS"
 )
@@ -123,7 +123,7 @@ func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
 func (r *LDAPStaticSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	r.logger = targetLogger.Named(LDAPDynamicSecretTestType)
+	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
