@@ -102,6 +102,11 @@ This benchmark will test LDAP Authentication to Vault. The primary required fiel
   additional possibilities: `default-service` and `default-batch` which specify
   the type to return unless the client requests a different type at generation
   time.
+  - `max_page_size` `(integer: 0)` - If set to a value greater than 0, the LDAP
+  backend will use the LDAP server's paged search control to request pages of
+  up to the given size. This can be used to avoid hitting the LDAP server's
+  maximum result size limit. Otherwise, the LDAP backend will not use the
+  paged search control.
 
 ### Test User Config `role`
 
