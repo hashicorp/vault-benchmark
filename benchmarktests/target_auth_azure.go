@@ -65,7 +65,7 @@ type AzureTestUserConfig struct {
 	ResourceId        string `hcl:"resource_id,optional"`
 }
 
-func (l *AzureAuth) ParseConfig(body hcl.Body) error {
+func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
 		Config *AzureAuthTestConfig `hcl:"config,block"`
 	}{
@@ -82,50 +82,50 @@ func (l *AzureAuth) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
-	l.config = testConfig.Config
+	a.config = testConfig.Config
 
 	// Empty Credentials check
-	if l.config.AzureAuthConfig.ClientId == "" {
+	if a.config.AzureAuthConfig.ClientId == "" {
 		return fmt.Errorf("no client_id provided for vault to use")
 	}
 
-	if l.config.AzureAuthConfig.ClientSecret == "" {
+	if a.config.AzureAuthConfig.ClientSecret == "" {
 		return fmt.Errorf("no client_secret provided for vault to use")
 	}
 
 	return nil
 }
 
-func (l *AzureAuth) Target(client *api.Client) vegeta.Target {
+func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: "POST",
-		URL:    client.Address() + l.pathPrefix + "/login/",
-		Header: l.header,
-		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, l.role, l.jwt)),
+		URL:    client.Address() + a.pathPrefix + "/login/",
+		Header: a.header,
+		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, a.role, a.jwt)),
 	}
 }
 
-func (l *AzureAuth) Cleanup(client *api.Client) error {
-	l.logger.Trace(cleanupLogMessage(l.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/", 1))
+func (a *AzureAuth) Cleanup(client *api.Client) error {
+	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
 	return nil
 }
 
-func (l *AzureAuth) GetTargetInfo() TargetInfo {
+func (a *AzureAuth) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     AzureAuthTestMethod,
-		pathPrefix: l.pathPrefix,
+		pathPrefix: a.pathPrefix,
 	}
 }
 
-func (l *AzureAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (a *AzureAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := l.config
-	l.logger = targetLogger.Named(AzureAuthTestType)
+	config := a.config
+	a.logger = targetLogger.Named(AzureAuthTestType)
 
 	if randomMountName {
 		authPath, err = uuid.GenerateUUID()
@@ -135,7 +135,7 @@ func (l *AzureAuth) Setup(client *api.Client, randomMountName bool, mountName st
 	}
 
 	// Create Azure Auth mount
-	l.logger.Trace(mountLogMessage("auth", "azure", authPath))
+	a.logger.Trace(mountLogMessage("auth", "azure", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "azure",
 	})
@@ -143,7 +143,7 @@ func (l *AzureAuth) Setup(client *api.Client, randomMountName bool, mountName st
 		return nil, fmt.Errorf("error enabling azure: %v", err)
 	}
 
-	setupLogger := l.logger.Named(authPath)
+	setupLogger := a.logger.Named(authPath)
 
 	// Decode AzureConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("azure auth"))
@@ -164,9 +164,9 @@ func (l *AzureAuth) Setup(client *api.Client, randomMountName bool, mountName st
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		role:       config.AzureTestUserConfig.Role,
 		jwt:        config.AzureTestUserConfig.JWT,
-		logger:     l.logger,
+		logger:     a.logger,
 	}, nil
 }
 
 // Func Flags accepts a flag set to assign additional flags defined in the function
-func (l *AzureAuth) Flags(fs *flag.FlagSet) {}
+func (a *AzureAuth) Flags(fs *flag.FlagSet) {}

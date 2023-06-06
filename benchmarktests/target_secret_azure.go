@@ -63,7 +63,7 @@ type AzureRoleConfig struct {
 	PermanentlyDelete   bool   `hcl:"permanently_delete,optional"`
 }
 
-func (c *AzureTest) ParseConfig(body hcl.Body) error {
+func (a *AzureTest) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
 		Config *AzureSecretTestConfig `hcl:"config,block"`
 	}{
@@ -77,40 +77,40 @@ func (c *AzureTest) ParseConfig(body hcl.Body) error {
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
-	c.config = testConfig.Config
+	a.config = testConfig.Config
 
 	return nil
 }
 
-func (c *AzureTest) Target(client *api.Client) vegeta.Target {
+func (a *AzureTest) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: "GET",
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
+		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
+		Header: a.header,
 	}
 }
 
-func (c *AzureTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+func (a *AzureTest) Cleanup(client *api.Client) error {
+	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
 	if err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
 	return nil
 }
 
-func (c *AzureTest) GetTargetInfo() TargetInfo {
+func (a *AzureTest) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     AzureSecretTestMethod,
-		pathPrefix: c.pathPrefix,
+		pathPrefix: a.pathPrefix,
 	}
 }
 
-func (c *AzureTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (a *AzureTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := c.config
-	c.logger = targetLogger.Named(AzureSecretTestType)
+	config := a.config
+	a.logger = targetLogger.Named(AzureSecretTestType)
 
 	if randomMountName {
 		secretPath, err = uuid.GenerateUUID()
@@ -119,7 +119,7 @@ func (c *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 		}
 	}
 
-	c.logger.Trace(mountLogMessage("secrets", "azure", secretPath))
+	a.logger.Trace(mountLogMessage("secrets", "azure", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "azure",
 	})
@@ -127,7 +127,7 @@ func (c *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 		return nil, fmt.Errorf("error mounting azure: %v", err)
 	}
 
-	setupLogger := c.logger.Named(secretPath)
+	setupLogger := a.logger.Named(secretPath)
 
 	// Decode Azure Config
 	setupLogger.Trace(parsingConfigLogMessage("azure"))
@@ -138,7 +138,7 @@ func (c *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 
 	// Write Azure config
 	setupLogger.Trace(writingLogMessage("azure config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", azureConfigData)
+	_, err = client.Logical().Write(secretPath+"/config", azureConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing azure config: %v", err)
 	}
@@ -152,7 +152,7 @@ func (c *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("azure role"), "name", config.AzureRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.AzureRoleConfig.Name, azureRoleConfigData)
+	_, err = client.Logical().Write(secretPath+"/role/"+config.AzureRoleConfig.Name, azureRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing azure role: %v", err)
 	}
@@ -161,8 +161,8 @@ func (c *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.AzureRoleConfig.Name,
-		logger:     c.logger,
+		logger:     a.logger,
 	}, nil
 }
 
-func (c *AzureTest) Flags(fs *flag.FlagSet) {}
+func (a *AzureTest) Flags(fs *flag.FlagSet) {}
