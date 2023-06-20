@@ -2,7 +2,6 @@ package dockertest
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/docker/docker/api/types"
