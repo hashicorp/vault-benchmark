@@ -18,7 +18,7 @@ func CreateVaultContainer(t *testing.T, networkName string) (func(), string) {
 		ImageRepo:     "docker.mirror.hashicorp.services/hashicorp/vault",
 		ImageTag:      "latest",
 		Cmd: []string{
-			"server", "-log-level=trace", "-dev", fmt.Sprintf("-dev-root-token-id=%s", "root"),
+			"server", "-log-level=trace", "-dev", "-dev-root-token-id=root",
 			"-dev-listen-address=0.0.0.0:8200",
 		},
 		Ports: []string{"8200/tcp"},
