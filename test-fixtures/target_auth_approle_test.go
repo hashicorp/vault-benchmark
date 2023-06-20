@@ -85,7 +85,7 @@ func TestApprole_Invalid_Config_Docker(t *testing.T) {
 	defer vaultCleanup()
 
 	// Run Vault-Benchmark Container
-	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
+	vaultAddr := fmt.Sprintf("http://%s:8200", containerName)
 	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "invalid_approle.hcl")
 
 	if exitCode != 1 {
