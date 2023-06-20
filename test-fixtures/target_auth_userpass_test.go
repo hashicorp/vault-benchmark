@@ -32,7 +32,8 @@ func TestUserpass_Auth_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "userpass.hcl")
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "userpass.hcl")
+	defer benchmarkCleanup()
 
 	if exitCode != 0 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
@@ -59,7 +60,8 @@ func TestUserpass_Auth_Failed_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token", "userpass.hcl")
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token", "userpass.hcl")
+	defer benchmarkCleanup()
 
 	if exitCode != 1 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
@@ -86,7 +88,8 @@ func TestUserpass_Invalid_Config_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	_, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "nvalid_userpass.hcl")
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "nvalid_userpass.hcl")
+	defer benchmarkCleanup()
 
 	if exitCode != 1 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
