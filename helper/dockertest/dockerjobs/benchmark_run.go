@@ -17,13 +17,14 @@ func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr s
 	}
 
 	runOpts := dockhelper.RunOptions{
-		ContainerName: "vault-benchmark",
-		ImageRepo:     "docker.mirror.hashicorp.services/hashicorp/vault-benchmark",
-		NetworkName:   networkName,
-		ImageTag:      "0.1",
-		Env:           []string{fmt.Sprintf("VAULT_ADDR=%s", vaultAddr), fmt.Sprintf("VAULT_TOKEN=%s", vaultToken)},
-		CopyFromTo:    volume,
-		Cmd:           []string{"/bin/vault-benchmark", "run", fmt.Sprintf("-config=/etc/%s", configFile)},
+		ContainerName:   "vault-benchmark",
+		ImageRepo:       "docker.mirror.hashicorp.services/hashicorp/vault-benchmark",
+		NetworkName:     networkName,
+		ImageTag:        "0.1",
+		DoNotAutoRemove: true,
+		Env:             []string{fmt.Sprintf("VAULT_ADDR=%s", vaultAddr), fmt.Sprintf("VAULT_TOKEN=%s", vaultToken)},
+		CopyFromTo:      volume,
+		Cmd:             []string{"/bin/vault-benchmark", "run", fmt.Sprintf("-config=/etc/%s", configFile)},
 	}
 
 	runner, err := dockhelper.NewServiceRunner(runOpts)
