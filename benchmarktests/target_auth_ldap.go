@@ -85,6 +85,7 @@ type LDAPAuthConfig struct {
 	TokenNumUses         int      `hcl:"token_num_uses,optional"`
 	TokenPeriod          string   `hcl:"token_period,optional"`
 	TokenType            string   `hcl:"token_type,optional"`
+	MaxPageSize          string   `hcl:"max_page_size,optional"`
 }
 
 type LDAPTestUserConfig struct {

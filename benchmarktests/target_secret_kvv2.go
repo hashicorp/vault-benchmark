@@ -129,9 +129,9 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	config := k.config.Config
 	switch k.action {
 	case "write":
-		k.logger = targetLogger.Named(KVV1WriteTestType)
+		k.logger = targetLogger.Named(KVV2WriteTestType)
 	default:
-		k.logger = targetLogger.Named(KVV1ReadTestType)
+		k.logger = targetLogger.Named(KVV2ReadTestType)
 	}
 
 	if randomMountName {
