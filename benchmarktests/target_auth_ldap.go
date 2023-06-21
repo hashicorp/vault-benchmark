@@ -153,7 +153,6 @@ func (l *LDAPAuth) GetTargetInfo() TargetInfo {
 func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := l.config
 	l.logger = targetLogger.Named(LDAPAuthTestType)
 
 	if randomMountName {
@@ -176,7 +175,7 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Decode LDAPConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("ldap auth"))
-	ldapAuthConfig, err := structToMap(config.LDAPAuthConfig)
+	ldapAuthConfig, err := structToMap(l.config.LDAPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ldap auth config from struct: %v", err)
 	}
@@ -191,8 +190,8 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	return &LDAPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		authUser:   config.LDAPTestUserConfig.Username,
-		authPass:   config.LDAPTestUserConfig.Password,
+		authUser:   l.config.LDAPTestUserConfig.Username,
+		authPass:   l.config.LDAPTestUserConfig.Password,
 		logger:     l.logger,
 	}, nil
 }

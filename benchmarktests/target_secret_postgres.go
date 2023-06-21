@@ -147,7 +147,6 @@ func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
 func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := s.config
 	s.logger = targetLogger.Named(PostgreSQLSecretTestType)
 
 	if randomMountName {
@@ -170,14 +169,14 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 
 	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(config.PostgreSQLDBConfig)
+	dbData, err := structToMap(s.config.PostgreSQLDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
-	setupLogger.Trace(writingLogMessage("postgres db config"), "name", config.PostgreSQLDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", config.PostgreSQLDBConfig.Name)
+	setupLogger.Trace(writingLogMessage("postgres db config"), "name", s.config.PostgreSQLDBConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", s.config.PostgreSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing postgresql db config: %v", err)
@@ -185,23 +184,23 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 
 	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config.PostgreSQLRoleConfig)
+	roleData, err := structToMap(s.config.PostgreSQLRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("postgres role"), "name", config.PostgreSQLRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", config.PostgreSQLRoleConfig.Name)
+	setupLogger.Trace(writingLogMessage("postgres role"), "name", s.config.PostgreSQLRoleConfig.Name)
+	rolePath := filepath.Join(secretPath, "roles", s.config.PostgreSQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing postgresql role %q: %v", config.PostgreSQLRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing postgresql role %q: %v", s.config.PostgreSQLRoleConfig.Name, err)
 	}
 
 	return &PostgreSQLSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.PostgreSQLRoleConfig.Name,
+		roleName:   s.config.PostgreSQLRoleConfig.Name,
 	}, nil
 
 }

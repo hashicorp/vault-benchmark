@@ -125,7 +125,6 @@ func (k *KVV1Test) Cleanup(client *api.Client) error {
 func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := k.config
 	k.logger = targetLogger.Named("kvv1")
 
 	if randomMountName {
@@ -158,8 +157,8 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 
 	var lastIndex string
 	setupLogger.Trace("seeding secrets")
-	for i := 1; i <= config.NumKVs; i++ {
-		if i == config.NumKVs-1 {
+	for i := 1; i <= k.config.NumKVs; i++ {
+		if i == k.config.NumKVs-1 {
 			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))
 		}
 		_, err = client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(i), secval)
@@ -176,8 +175,8 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 		pathPrefix: "/v1/" + mountPath,
 		action:     k.action,
 		header:     headers,
-		numKVs:     config.NumKVs,
-		kvSize:     config.KVSize,
+		numKVs:     k.config.NumKVs,
+		kvSize:     k.config.KVSize,
 		logger:     k.logger,
 	}, nil
 }

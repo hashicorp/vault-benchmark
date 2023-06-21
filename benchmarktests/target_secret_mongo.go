@@ -135,7 +135,6 @@ func (m *MongoDBTest) GetTargetInfo() TargetInfo {
 func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := m.config
 	m.logger = targetLogger.Named(MongoDBSecretTestType)
 
 	if randomMountName {
@@ -157,36 +156,36 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbConfigData, err := structToMap(config.MongoDBConfig)
+	dbConfigData, err := structToMap(m.config.MongoDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding mongodb config from struct: %v", err)
 	}
 
 	// Write DB config
-	setupLogger.Trace(writingLogMessage("mongodb config"), "name", config.MongoDBConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/config/"+config.MongoDBConfig.Name, dbConfigData)
+	setupLogger.Trace(writingLogMessage("mongodb config"), "name", m.config.MongoDBConfig.Name)
+	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(config.MongoDBRoleConfig)
+	roleConfigData, err := structToMap(m.config.MongoDBRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("mongodb role"), "name", config.MongoDBRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.MongoDBRoleConfig.Name, roleConfigData)
+	setupLogger.Trace(writingLogMessage("mongodb role"), "name", m.config.MongoDBRoleConfig.Name)
+	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, roleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing mongodb role %q: %v", config.MongoDBRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing mongodb role %q: %v", m.config.MongoDBRoleConfig.Name, err)
 	}
 
 	return &MongoDBTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.MongoDBRoleConfig.Name,
+		roleName:   m.config.MongoDBRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
 }

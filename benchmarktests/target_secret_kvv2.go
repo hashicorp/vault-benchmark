@@ -125,7 +125,6 @@ func (k *KVV2Test) Cleanup(client *api.Client) error {
 func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := k.config
 	switch k.action {
 	case "write":
 		k.logger = targetLogger.Named(KVV1WriteTestType)
@@ -165,7 +164,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	time.Sleep(2 * time.Second)
 
 	setupLogger.Trace("seeding secrets")
-	for i := 1; i <= config.NumKVs; i++ {
+	for i := 1; i <= k.config.NumKVs; i++ {
 		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
 			return nil, fmt.Errorf("error writing kv secret: %v", err)
@@ -175,8 +174,8 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	return &KVV2Test{
 		pathPrefix: "/v1/" + mountPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-		numKVs:     config.NumKVs,
-		kvSize:     config.KVSize,
+		numKVs:     k.config.NumKVs,
+		kvSize:     k.config.KVSize,
 		logger:     k.logger,
 	}, nil
 }

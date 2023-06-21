@@ -157,7 +157,6 @@ func (j *JWTAuth) GetTargetInfo() TargetInfo {
 func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := j.config
 	j.logger = targetLogger.Named(JWTAuthTestType)
 
 	if randomMountName {
@@ -185,14 +184,14 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	}
 
 	// Default `jwt_validation_pubkeys` if neither `jwt_validation_pubkeys`, `jwks_url` nor `oidc_discovery_url` are set
-	if config.JWTAuthConfig.JWTValidationPubKeys == nil && config.JWTAuthConfig.JWKSUrl == "" && config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
+	if j.config.JWTAuthConfig.JWTValidationPubKeys == nil && j.config.JWTAuthConfig.JWKSUrl == "" && j.config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
 		setupLogger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
-		config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
+		j.config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
 	// Decode JWTAuthConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("jwt auth"))
-	jwtAuthConfig, err := structToMap(config.JWTAuthConfig)
+	jwtAuthConfig, err := structToMap(j.config.JWTAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing jwt auth config from struct: %v", err)
 	}
@@ -206,14 +205,14 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 
 	// Decode JWTRoleConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	jwtRoleConfig, err := structToMap(config.JWTRoleConfig)
+	jwtRoleConfig, err := structToMap(j.config.JWTRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Write JWT role
-	setupLogger.Trace(writingLogMessage("role"), "name", config.JWTRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+config.JWTRoleConfig.Name, jwtRoleConfig)
+	setupLogger.Trace(writingLogMessage("role"), "name", j.config.JWTRoleConfig.Name)
+	_, err = client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt role: %v", err)
 	}
@@ -224,7 +223,7 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	return &JWTAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		role:       config.JWTRoleConfig.Name,
+		role:       j.config.JWTRoleConfig.Name,
 		token:      jwtData,
 		logger:     j.logger,
 	}, nil
@@ -233,21 +232,19 @@ func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
 func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
-	config := j.config
-
 	cl := sqjwt.Claims{
-		Subject:   config.JWTRoleConfig.BoundSubject,
-		Issuer:    config.JWTAuthConfig.BoundIssuer,
+		Subject:   j.config.JWTRoleConfig.BoundSubject,
+		Issuer:    j.config.JWTAuthConfig.BoundIssuer,
 		NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
-		Audience:  append(sqjwt.Audience{}, config.JWTRoleConfig.BoundAudiences...),
+		Audience:  append(sqjwt.Audience{}, j.config.JWTRoleConfig.BoundAudiences...),
 	}
 
 	privateCl := struct {
 		User   string `json:"https://vault/user"`
 		Groups string `json:"https://vault/groups"`
 	}{
-		config.JWTRoleConfig.UserClaim,
-		config.JWTRoleConfig.GroupsClaim,
+		j.config.JWTRoleConfig.UserClaim,
+		j.config.JWTRoleConfig.GroupsClaim,
 	}
 
 	var key *ecdsa.PrivateKey

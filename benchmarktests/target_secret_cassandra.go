@@ -156,7 +156,6 @@ func (c *CassandraSecret) GetTargetInfo() TargetInfo {
 func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := c.config
 	c.logger = targetLogger.Named(CassandraSecretTestType)
 
 	if randomMountName {
@@ -179,14 +178,14 @@ func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 
 	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(config.CassandraDBConfig)
+	dbData, err := structToMap(c.config.CassandraDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
-	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", config.CassandraDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", config.CassandraDBConfig.Name)
+	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", c.config.CassandraDBConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing cassandra db config: %v", err)
@@ -194,23 +193,23 @@ func (c *CassandraSecret) Setup(client *api.Client, randomMountName bool, mountN
 
 	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config.CassandraRoleConfig)
+	roleData, err := structToMap(c.config.CassandraRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set Up Role
-	setupLogger.Trace(writingLogMessage("role"), "name", config.CassandraRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", config.CassandraRoleConfig.Name)
+	setupLogger.Trace(writingLogMessage("role"), "name", c.config.CassandraRoleConfig.Name)
+	rolePath := filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing cassandra role %q: %v", config.CassandraRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing cassandra role %q: %v", c.config.CassandraRoleConfig.Name, err)
 	}
 
 	return &CassandraSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.CassandraRoleConfig.Name,
+		roleName:   c.config.CassandraRoleConfig.Name,
 	}, nil
 
 }

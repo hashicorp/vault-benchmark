@@ -122,7 +122,6 @@ func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
 func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config
 	r.logger = targetLogger.Named(RabbitMQSecretTestType)
 
 	if randomMountName {
@@ -144,7 +143,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode RabbitMQ Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("rabbitmq connection"))
-	connectionConfigData, err := structToMap(config.RabbitMQConnectionConfig)
+	connectionConfigData, err := structToMap(r.config.RabbitMQConnectionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing rabbitmq connection config from struct: %v", err)
 	}
@@ -158,14 +157,14 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(config.RabbitMQRoleConfig)
+	roleConfigData, err := structToMap(r.config.RabbitMQRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", config.RabbitMQRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.RabbitMQRoleConfig.Name, roleConfigData)
+	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", r.config.RabbitMQRoleConfig.Name)
+	_, err = client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq role: %v", err)
 	}
@@ -173,7 +172,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 	return &RabbitMQTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.RabbitMQRoleConfig.Name,
+		roleName:   r.config.RabbitMQRoleConfig.Name,
 		logger:     r.logger,
 	}, nil
 }
