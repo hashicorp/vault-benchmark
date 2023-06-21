@@ -37,12 +37,8 @@ type ElasticSearchTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ElasticSearchTestConfig
+	config     *ElasticSearchSecretTestConfig
 	logger     hclog.Logger
-}
-
-type ElasticSearchTestConfig struct {
-	Config *ElasticSearchSecretTestConfig `hcl:"config,block"`
 }
 
 type ElasticSearchSecretTestConfig struct {
@@ -80,7 +76,9 @@ type ElasticSearchRoleConfig struct {
 }
 
 func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
-	e.config = &ElasticSearchTestConfig{
+	testConfig := &struct {
+		Config *ElasticSearchSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &ElasticSearchSecretTestConfig{
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
@@ -100,16 +98,17 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, e.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	e.config = testConfig.Config
 
-	if e.config.Config.ElasticSearchConfig.Username == "" {
+	if e.config.ElasticSearchConfig.Username == "" {
 		return fmt.Errorf("no elasticsearch username provided but required")
 	}
 
-	if e.config.Config.ElasticSearchConfig.Password == "" {
+	if e.config.ElasticSearchConfig.Password == "" {
 		return fmt.Errorf("no elasticsearch password provided but required")
 	}
 
@@ -143,7 +142,6 @@ func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
 func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := e.config.Config
 	e.logger = targetLogger.Named(ElasticSearchSecretTestType)
 
 	if randomMountName {
@@ -165,14 +163,14 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 
 	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	elasticSearchConfigData, err := structToMap(config.ElasticSearchConfig)
+	elasticSearchConfigData, err := structToMap(e.config.ElasticSearchConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing elasticsearch config from struct: %v", err)
 	}
 
 	// Write DB config
-	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", config.ElasticSearchConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", config.ElasticSearchConfig.Name)
+	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", e.config.ElasticSearchConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", e.config.ElasticSearchConfig.Name)
 	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
@@ -180,23 +178,23 @@ func (e *ElasticSearchTest) Setup(client *api.Client, randomMountName bool, moun
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	elasticSearchRoleConfigData, err := structToMap(config.ElasticSearchRoleConfig)
+	elasticSearchRoleConfigData, err := structToMap(e.config.ElasticSearchRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("elasticsearc role"), "name", config.ElasticSearchRoleConfig.RoleName)
-	rolePath := filepath.Join(secretPath, "roles", config.ElasticSearchRoleConfig.RoleName)
+	setupLogger.Trace(writingLogMessage("elasticsearc role"), "name", e.config.ElasticSearchRoleConfig.RoleName)
+	rolePath := filepath.Join(secretPath, "roles", e.config.ElasticSearchRoleConfig.RoleName)
 	_, err = client.Logical().Write(rolePath, elasticSearchRoleConfigData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing elasticsearch role %q: %v", config.ElasticSearchRoleConfig.RoleName, err)
+		return nil, fmt.Errorf("error writing elasticsearch role %q: %v", e.config.ElasticSearchRoleConfig.RoleName, err)
 	}
 
 	return &ElasticSearchTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.ElasticSearchRoleConfig.RoleName,
+		roleName:   e.config.ElasticSearchRoleConfig.RoleName,
 		logger:     e.logger,
 	}, nil
 }

@@ -36,16 +36,11 @@ type RabbitMQTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RabbitMQTestConfig
+	config     *RabbitMQSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type RabbitMQTestConfig struct {
-	Config *RabbitMQSecretTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type RabbitMQSecretTestConfig struct {
 	RabbitMQConnectionConfig *RabbitMQConnectionConfig `hcl:"connection,block"`
 	RabbitMQRoleConfig       *RabbitMQRoleConfig       `hcl:"role,block"`
@@ -68,7 +63,9 @@ type RabbitMQRoleConfig struct {
 }
 
 func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
-	r.config = &RabbitMQTestConfig{
+	testConfig := &struct {
+		Config *RabbitMQSecretTestConfig `hcl:"rabbitmq_secret,block"`
+	}{
 		Config: &RabbitMQSecretTestConfig{
 			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{
 				Username: os.Getenv(RabbitMQUsernameEnvVar),
@@ -81,16 +78,17 @@ func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, r.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	r.config = testConfig.Config
 
-	if r.config.Config.RabbitMQConnectionConfig.Username == "" {
+	if r.config.RabbitMQConnectionConfig.Username == "" {
 		return fmt.Errorf("no rabbitmq username provided but required")
 	}
 
-	if r.config.Config.RabbitMQConnectionConfig.Password == "" {
+	if r.config.RabbitMQConnectionConfig.Password == "" {
 		return fmt.Errorf("no rabbitmq password provided but required")
 	}
 
@@ -124,7 +122,6 @@ func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
 func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config.Config
 	r.logger = targetLogger.Named(RabbitMQSecretTestType)
 
 	if randomMountName {
@@ -146,7 +143,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode RabbitMQ Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("rabbitmq connection"))
-	connectionConfigData, err := structToMap(config.RabbitMQConnectionConfig)
+	connectionConfigData, err := structToMap(r.config.RabbitMQConnectionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing rabbitmq connection config from struct: %v", err)
 	}
@@ -160,14 +157,14 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(config.RabbitMQRoleConfig)
+	roleConfigData, err := structToMap(r.config.RabbitMQRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", config.RabbitMQRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.RabbitMQRoleConfig.Name, roleConfigData)
+	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", r.config.RabbitMQRoleConfig.Name)
+	_, err = client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq role: %v", err)
 	}
@@ -175,7 +172,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 	return &RabbitMQTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.RabbitMQRoleConfig.Name,
+		roleName:   r.config.RabbitMQRoleConfig.Name,
 		logger:     r.logger,
 	}, nil
 }

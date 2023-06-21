@@ -35,12 +35,8 @@ type UserpassAuth struct {
 	user       string
 	password   string
 	header     http.Header
-	config     *UserpassTestConfig
+	config     *UserpassAuthConfig
 	logger     hclog.Logger
-}
-
-type UserpassTestConfig struct {
-	Config *UserpassAuthConfig `hcl:"config,block"`
 }
 
 type UserpassAuthConfig struct {
@@ -61,17 +57,20 @@ type UserpassAuthConfig struct {
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
 func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
-	u.config = &UserpassTestConfig{
+	testConfig := &struct {
+		Config *UserpassAuthConfig `hcl:"config,block"`
+	}{
 		Config: &UserpassAuthConfig{
 			Username: "benchmark-user",
 			Password: password.MustGenerate(64, 10, 0, false, true),
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, u.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	u.config = testConfig.Config
 	return nil
 }
 
@@ -103,7 +102,6 @@ func (u *UserpassAuth) GetTargetInfo() TargetInfo {
 func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := u.config.Config
 	u.logger = targetLogger.Named(UserpassTestType)
 
 	if randomMountName {
@@ -126,23 +124,23 @@ func (u *UserpassAuth) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("user"))
-	userData, err := structToMap(config)
+	userData, err := structToMap(u.config)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing user config from struct: %v", err)
 	}
 
 	setupLogger.Trace(writingLogMessage("user config"))
-	userPath := filepath.Join("auth", authPath, "users", config.Username)
+	userPath := filepath.Join("auth", authPath, "users", u.config.Username)
 	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating userpass user %q: %v", config.Username, err)
+		return nil, fmt.Errorf("error creating userpass user %q: %v", u.config.Username, err)
 	}
 
 	return &UserpassAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		user:       config.Username,
-		password:   config.Password,
+		user:       u.config.Username,
+		password:   u.config.Password,
 		logger:     u.logger,
 	}, nil
 }

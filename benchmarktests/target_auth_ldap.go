@@ -39,12 +39,8 @@ type LDAPAuth struct {
 	authUser   string
 	authPass   string
 	header     http.Header
-	config     *LDAPTestConfig
+	config     *LDAPAuthTestConfig
 	logger     hclog.Logger
-}
-
-type LDAPTestConfig struct {
-	Config *LDAPAuthTestConfig `hcl:"config,block"`
 }
 
 type LDAPAuthTestConfig struct {
@@ -94,7 +90,9 @@ type LDAPTestUserConfig struct {
 }
 
 func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
-	l.config = &LDAPTestConfig{
+	testConfig := &struct {
+		Config *LDAPAuthTestConfig `hcl:"config,block"`
+	}{
 		Config: &LDAPAuthTestConfig{
 			LDAPAuthConfig: &LDAPAuthConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
@@ -106,22 +104,23 @@ func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, l.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	l.config = testConfig.Config
 
 	// Empty Credentials check
-	if l.config.Config.LDAPAuthConfig.BindPass == "" {
+	if l.config.LDAPAuthConfig.BindPass == "" {
 		return fmt.Errorf("no bindpass provided for vault to use")
 	}
 
-	if l.config.Config.LDAPTestUserConfig.Username == "" {
+	if l.config.LDAPTestUserConfig.Username == "" {
 		return fmt.Errorf("no ldap test user username provided but required")
 	}
 
-	if l.config.Config.LDAPTestUserConfig.Password == "" {
-		return fmt.Errorf("no password provided for ldap test user %v but required", l.config.Config.LDAPTestUserConfig.Username)
+	if l.config.LDAPTestUserConfig.Password == "" {
+		return fmt.Errorf("no password provided for ldap test user %v but required", l.config.LDAPTestUserConfig.Username)
 	}
 
 	return nil
@@ -155,7 +154,6 @@ func (l *LDAPAuth) GetTargetInfo() TargetInfo {
 func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := l.config.Config
 	l.logger = targetLogger.Named(LDAPAuthTestType)
 
 	if randomMountName {
@@ -178,7 +176,7 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Decode LDAPConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("ldap auth"))
-	ldapAuthConfig, err := structToMap(config.LDAPAuthConfig)
+	ldapAuthConfig, err := structToMap(l.config.LDAPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ldap auth config from struct: %v", err)
 	}
@@ -193,8 +191,8 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	return &LDAPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		authUser:   config.LDAPTestUserConfig.Username,
-		authPass:   config.LDAPTestUserConfig.Password,
+		authUser:   l.config.LDAPTestUserConfig.Username,
+		authPass:   l.config.LDAPTestUserConfig.Password,
 		logger:     l.logger,
 	}, nil
 }

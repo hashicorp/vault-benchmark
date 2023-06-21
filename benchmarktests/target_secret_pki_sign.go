@@ -40,14 +40,10 @@ type PKISignTest struct {
 	cn         string
 	intpath    string
 	rootpath   string
-	config     *pkiSignTestConfig
+	config     *pkiSecretIssueTestConfig
 	body       []byte
 	header     http.Header
 	logger     hclog.Logger
-}
-
-type pkiSignTestConfig struct {
-	Config *pkiSecretIssueTestConfig `hcl:"config,block"`
 }
 
 type pkiSecretIssueTestConfig struct {
@@ -235,7 +231,9 @@ type pkiSignRoleConfig struct {
 }
 
 func (p *PKISignTest) ParseConfig(body hcl.Body) error {
-	p.config = &pkiSignTestConfig{
+	testConfig := &struct {
+		Config *pkiSecretIssueTestConfig `hcl:"pki_sign,block"`
+	}{
 		Config: &pkiSecretIssueTestConfig{
 			SetupDelay: "1s",
 			RootCAConfig: &pkiSignRootConfig{
@@ -259,10 +257,11 @@ func (p *PKISignTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, p.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	p.config = testConfig.Config
 	return nil
 }
 
@@ -302,7 +301,6 @@ func (p *PKISignTest) Cleanup(client *api.Client) error {
 func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := p.config.Config
 	p.logger = targetLogger.Named(PKISignTestType)
 
 	if randomMountName {
@@ -326,23 +324,23 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	// CSR parsing / creation
-	if config.SignConfig.CSR == nil {
+	if p.config.SignConfig.CSR == nil {
 		p.logger.Warn("generating csr as one was not provided")
 		tCSR, err := p.generateTestCSR()
 		if err != nil {
 			return nil, fmt.Errorf("error generating test csr: %v", err)
 		}
-		config.SignConfig.CSR = &tCSR
+		p.config.SignConfig.CSR = &tCSR
 	} else {
 		// Check to see if its a path or a string and handle it
-		if ok, err := IsFile(*config.SignConfig.CSR); ok {
-			p.logger.Trace("loading csr from file", "path", *config.SignConfig.CSR)
-			csrBytes, err := os.ReadFile(*config.SignConfig.CSR)
+		if ok, err := IsFile(*p.config.SignConfig.CSR); ok {
+			p.logger.Trace("loading csr from file", "path", *p.config.SignConfig.CSR)
+			csrBytes, err := os.ReadFile(*p.config.SignConfig.CSR)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing CSR from file: %v", err)
 			}
 			csrString := string(csrBytes)
-			config.SignConfig.CSR = &csrString
+			p.config.SignConfig.CSR = &csrString
 
 		} else {
 			// Fast path out if directory
@@ -352,9 +350,9 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 			// Check if CSR data is valid
 			p.logger.Trace("validating csr string")
-			b, _ := pem.Decode([]byte(*config.SignConfig.CSR))
+			b, _ := pem.Decode([]byte(*p.config.SignConfig.CSR))
 			if b == nil {
-				_, err = x509.ParseCertificateRequest([]byte(*config.SignConfig.CSR))
+				_, err = x509.ParseCertificateRequest([]byte(*p.config.SignConfig.CSR))
 				if err != nil {
 					return nil, fmt.Errorf("error parsing CSR from string: %v", err)
 				}
@@ -370,7 +368,7 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Decode Signing Config
 	p.logger.Trace(parsingConfigLogMessage("signing"))
-	signingData, err := structToMap(config.SignConfig)
+	signingData, err := structToMap(p.config.SignConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing signing config from struct: %v", err)
 	}
@@ -382,7 +380,7 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	return &PKISignTest{
 		pathPrefix: "/v1/" + path,
-		cn:         config.SignConfig.CommonName,
+		cn:         p.config.SignConfig.CommonName,
 		header:     generateHeader(client),
 		body:       []byte(signingDataString),
 		rootpath:   p.rootpath,
@@ -392,7 +390,6 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 }
 
 func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
-	config := p.config.Config
 	rootPath := pfx + "-root"
 
 	// Create PKI Root mount
@@ -412,7 +409,7 @@ func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
 	// Avoid slow mount setup:
 	// URL: PUT $VAULT_ADDR/v1/9679cb02-65a4-f625-2f27-68d51e46af46-root/root/generate/internal
 	// Code: 404. Errors: * no handler for route "9679cb02-65a4-f625-2f27-68d51e46af46-root/root/generate/internal". route entry not found.
-	delay, err := time.ParseDuration(config.SetupDelay)
+	delay, err := time.ParseDuration(p.config.SetupDelay)
 	if err != nil {
 		return fmt.Errorf("error parsing duration: %v", err)
 	}
@@ -420,14 +417,14 @@ func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
 
 	// Decode Root Config struct into map to pass with request
 	rootSetupLogger.Trace(parsingConfigLogMessage("root"))
-	rootData, err := structToMap(config.RootCAConfig)
+	rootData, err := structToMap(p.config.RootCAConfig)
 	if err != nil {
 		return fmt.Errorf("error parsing root config from struct: %v", err)
 	}
 
 	// Setup Root CA
 	rootSetupLogger.Trace("generating root ca")
-	_, err = cli.Logical().Write(filepath.Join(rootPath, "root", "generate", config.RootCAConfig.Type), rootData)
+	_, err = cli.Logical().Write(filepath.Join(rootPath, "root", "generate", p.config.RootCAConfig.Type), rootData)
 	if err != nil {
 		return fmt.Errorf("error generating root CA: %v", err)
 	}
@@ -445,7 +442,6 @@ func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
 }
 
 func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
-	config := p.config.Config
 	rootPath := fmt.Sprintf("%v-root", pfx)
 	intPath := fmt.Sprintf("%v-int", pfx)
 
@@ -466,7 +462,7 @@ func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string,
 	// Avoid slow mount setup:
 	// URL: PUT $VAULT_ADDR/v1/9679cb02-65a4-f625-2f27-68d51e46af46-root/root/generate/internal
 	// Code: 404. Errors: * no handler for route "9679cb02-65a4-f625-2f27-68d51e46af46-root/root/generate/internal". route entry not found.
-	delay, err := time.ParseDuration(config.SetupDelay)
+	delay, err := time.ParseDuration(p.config.SetupDelay)
 	if err != nil {
 		return "", fmt.Errorf("error parsing duration: %v", err)
 	}
@@ -474,22 +470,22 @@ func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string,
 
 	// Decode Intermediate CSR config to map to pass with request
 	intSetupLogger.Trace(parsingConfigLogMessage("intermediate ca csr"))
-	intCSRData, err := structToMap(config.IntermediateCSRConfig)
+	intCSRData, err := structToMap(p.config.IntermediateCSRConfig)
 	if err != nil {
 		return "", fmt.Errorf("error parsing intermediate csr config from struct: %v", err)
 	}
 
 	// Create Intermediate CSR
 	intSetupLogger.Trace("generating intermediate cert csr")
-	resp, err := cli.Logical().Write(filepath.Join(intPath, "intermediate", "generate", config.IntermediateCSRConfig.Type), intCSRData)
+	resp, err := cli.Logical().Write(filepath.Join(intPath, "intermediate", "generate", p.config.IntermediateCSRConfig.Type), intCSRData)
 	if err != nil {
 		return "", fmt.Errorf("error generating intermediate cert csr: %v", err)
 	}
-	config.IntermediateCAConfig.CSR = resp.Data["csr"].(string)
+	p.config.IntermediateCAConfig.CSR = resp.Data["csr"].(string)
 
 	// Decode Intermediate Signing config to map to pass with request
 	intSetupLogger.Trace(parsingConfigLogMessage("intermediate cert signing"))
-	intSignData, err := structToMap(config.IntermediateCAConfig)
+	intSignData, err := structToMap(p.config.IntermediateCAConfig)
 	if err != nil {
 		return "", fmt.Errorf("error parsing intermediate signing config from struct: %v", err)
 	}
@@ -511,19 +507,19 @@ func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string,
 
 	// Decode Role config to map to pass with request
 	intSetupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config.RoleConfig)
+	roleData, err := structToMap(p.config.RoleConfig)
 	if err != nil {
 		return "", fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	intSetupLogger.Trace(writingLogMessage("pki role"), "name", config.RoleConfig.Name)
-	_, err = cli.Logical().Write(filepath.Join(intPath, "roles", config.RoleConfig.Name), roleData)
+	intSetupLogger.Trace(writingLogMessage("pki role"), "name", p.config.RoleConfig.Name)
+	_, err = cli.Logical().Write(filepath.Join(intPath, "roles", p.config.RoleConfig.Name), roleData)
 	if err != nil {
 		return "", fmt.Errorf("error writing pki role: %v", err)
 	}
 
-	return filepath.Join(intPath, "sign", config.RoleConfig.Name), nil
+	return filepath.Join(intPath, "sign", p.config.RoleConfig.Name), nil
 }
 
 func (p *PKISignTest) generateTestCSR() (string, error) {

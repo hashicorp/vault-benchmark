@@ -36,7 +36,7 @@ func init() {
 type CertAuth struct {
 	pathPrefix string
 	header     http.Header
-	config     *CertAuthTestConfig
+	config     *CertAuthRoleConfig
 	logger     hclog.Logger
 }
 
@@ -47,11 +47,6 @@ type CaCert struct {
 }
 
 // Main config struct
-type CertAuthTestConfig struct {
-	Config *CertAuthRoleConfig `hcl:"config,block"`
-}
-
-// Cert Auth Role Config
 type CertAuthRoleConfig struct {
 	Name                       string   `hcl:"name,optional"`
 	Certificate                string   `hcl:"certificate,optional"`
@@ -77,16 +72,19 @@ type CertAuthRoleConfig struct {
 }
 
 func (c *CertAuth) ParseConfig(body hcl.Body) error {
-	c.config = &CertAuthTestConfig{
+	testConfig := &struct {
+		Config *CertAuthRoleConfig `hcl:"config,block"`
+	}{
 		Config: &CertAuthRoleConfig{
 			Name: "benchmark-vault",
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, c.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	c.config = testConfig.Config
 	return nil
 }
 
@@ -108,7 +106,6 @@ func (c *CertAuth) GetTargetInfo() TargetInfo {
 func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := c.config.Config
 	c.logger = targetLogger.Named(CertAuthTestType)
 
 	if randomMountName {
@@ -118,7 +115,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 	}
 
-	if config.Certificate == "" {
+	if c.config.Certificate == "" {
 		// Create self-signed CA
 		c.logger.Warn("no CA provided; creating self-signed CA")
 		benchCA, err := GenerateCA()
@@ -151,7 +148,7 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 		}
 		nClient.SetToken(client.Token())
 
-		config.Certificate = clientCert
+		c.config.Certificate = clientCert
 
 		// TODO: This only will work for one cert auth test since we're using this new client
 		// We should invesitage how we can give each test its own client.
@@ -172,17 +169,17 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Decode config into map to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config)
+	roleData, err := structToMap(c.config)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set up role
-	setupLogger.Trace(writingLogMessage("role"), "name", config.Name)
-	rolePath := filepath.Join("auth", authPath, "certs", config.Name)
+	setupLogger.Trace(writingLogMessage("role"), "name", c.config.Name)
+	rolePath := filepath.Join("auth", authPath, "certs", c.config.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error creating cert role %q: %v", config.Name, err)
+		return nil, fmt.Errorf("error creating cert role %q: %v", c.config.Name, err)
 	}
 
 	return &CertAuth{

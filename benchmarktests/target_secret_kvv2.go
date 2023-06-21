@@ -40,34 +40,33 @@ func init() {
 type KVV2Test struct {
 	pathPrefix string
 	header     http.Header
-	config     *KVV2TestConfig
+	config     *KVV2SecretTestConfig
 	action     string
 	numKVs     int
 	kvSize     int
 	logger     hclog.Logger
 }
 
-type KVV2TestConfig struct {
-	Config *KVV2Config `hcl:"config,block"`
-}
-
-type KVV2Config struct {
+type KVV2SecretTestConfig struct {
 	KVSize int `hcl:"kvsize,optional"`
 	NumKVs int `hcl:"numkvs,optional"`
 }
 
 func (k *KVV2Test) ParseConfig(body hcl.Body) error {
-	k.config = &KVV2TestConfig{
-		Config: &KVV2Config{
+	testConfig := &struct {
+		Config *KVV2SecretTestConfig `hcl:"config,block"`
+	}{
+		Config: &KVV2SecretTestConfig{
 			KVSize: 1,
 			NumKVs: 1000,
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, k.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	k.config = testConfig.Config
 	return nil
 }
 
@@ -126,7 +125,6 @@ func (k *KVV2Test) Cleanup(client *api.Client) error {
 func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := k.config.Config
 	switch k.action {
 	case "write":
 		k.logger = targetLogger.Named(KVV2WriteTestType)
@@ -166,7 +164,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	time.Sleep(2 * time.Second)
 
 	setupLogger.Trace("seeding secrets")
-	for i := 1; i <= config.NumKVs; i++ {
+	for i := 1; i <= k.config.NumKVs; i++ {
 		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
 			return nil, fmt.Errorf("error writing kv secret: %v", err)
@@ -176,8 +174,8 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 	return &KVV2Test{
 		pathPrefix: "/v1/" + mountPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-		numKVs:     k.config.Config.NumKVs,
-		kvSize:     k.config.Config.KVSize,
+		numKVs:     k.config.NumKVs,
+		kvSize:     k.config.KVSize,
 		logger:     k.logger,
 	}, nil
 }

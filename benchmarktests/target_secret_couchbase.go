@@ -35,15 +35,11 @@ type CouchbaseSecretTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *CouchBaseSecretConfig
+	config     *CouchbaseSecretTestConfig
 	logger     hclog.Logger
 }
 
-type CouchBaseSecretConfig struct {
-	Config *CouchBaseTestConfig `hcl:"config,block"`
-}
-
-type CouchBaseTestConfig struct {
+type CouchbaseSecretTestConfig struct {
 	DBConfig   *CouchbaseConfig     `hcl:"db_connection,block"`
 	RoleConfig *CouchbaseRoleConfig `hcl:"role,block"`
 }
@@ -78,8 +74,10 @@ type CouchbaseRoleConfig struct {
 }
 
 func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
-	c.config = &CouchBaseSecretConfig{
-		Config: &CouchBaseTestConfig{
+	testConfig := &struct {
+		Config *CouchbaseSecretTestConfig `hcl:"config,block"`
+	}{
+		Config: &CouchbaseSecretTestConfig{
 			DBConfig: &CouchbaseConfig{
 				Name:       "benchmark-database",
 				PluginName: "couchbase-database-plugin",
@@ -97,16 +95,17 @@ func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, c.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	c.config = testConfig.Config
 
-	if c.config.Config.DBConfig.Username == "" {
+	if c.config.DBConfig.Username == "" {
 		return fmt.Errorf("no couchbase username provided but required")
 	}
 
-	if c.config.Config.DBConfig.Password == "" {
+	if c.config.DBConfig.Password == "" {
 		return fmt.Errorf("no couchbase password provided but required")
 	}
 
@@ -140,7 +139,6 @@ func (c *CouchbaseSecretTest) GetTargetInfo() TargetInfo {
 func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := c.config.Config
 	c.logger = targetLogger.Named(CouchbaseSecretTestType)
 
 	if randomMountName {
@@ -163,14 +161,14 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 
 	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(config.DBConfig)
+	dbData, err := structToMap(c.config.DBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Write Config
-	setupLogger.Trace(writingLogMessage("couchbase db config"), "name", config.DBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", config.DBConfig.Name)
+	setupLogger.Trace(writingLogMessage("couchbase db config"), "name", c.config.DBConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", c.config.DBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing couchbase db config: %v", err)
@@ -178,23 +176,23 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 
 	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config.RoleConfig)
+	roleData, err := structToMap(c.config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("couchbase role"), "name", config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", config.RoleConfig.Name)
+	setupLogger.Trace(writingLogMessage("couchbase role"), "name", c.config.RoleConfig.Name)
+	rolePath := filepath.Join(secretPath, "roles", c.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing couchbase role %q: %v", config.RoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing couchbase role %q: %v", c.config.RoleConfig.Name, err)
 	}
 
 	return &CouchbaseSecretTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.RoleConfig.Name,
+		roleName:   c.config.RoleConfig.Name,
 	}, nil
 }
 

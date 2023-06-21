@@ -36,12 +36,8 @@ type ConsulTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ConsulTestConfig
+	config     *ConsulSecretTestConfig
 	logger     hclog.Logger
-}
-
-type ConsulTestConfig struct {
-	Config *ConsulSecretTestConfig `hcl:"config,block"`
 }
 
 type ConsulSecretTestConfig struct {
@@ -77,7 +73,9 @@ type ConsulRoleConfig struct {
 }
 
 func (c *ConsulTest) ParseConfig(body hcl.Body) error {
-	c.config = &ConsulTestConfig{
+	testConfig := &struct {
+		Config *ConsulSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &ConsulSecretTestConfig{
 			Version: "1.14.0",
 			ConsulConfig: &ConsulConfig{
@@ -89,13 +87,14 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, c.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	c.config = testConfig.Config
 
 	// Ensure that the token has been set by either the environment variable or the config
-	if c.config.Config.ConsulConfig.Token == "" {
+	if c.config.ConsulConfig.Token == "" {
 		return fmt.Errorf("consul token must be set")
 	}
 	return nil
@@ -128,7 +127,6 @@ func (c *ConsulTest) GetTargetInfo() TargetInfo {
 func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := c.config.Config
 	c.logger = targetLogger.Named(ConsulSecretTestType)
 
 	if randomMountName {
@@ -150,7 +148,7 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 
 	// Decode Consul Config
 	setupLogger.Trace(parsingConfigLogMessage("consul"))
-	consulConfigData, err := structToMap(config.ConsulConfig)
+	consulConfigData, err := structToMap(c.config.ConsulConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul config from struct: %v", err)
 	}
@@ -164,14 +162,14 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 
 	// Get consul version
 	setupLogger.Trace("parsing consul version from config")
-	v, err := version.NewVersion(config.Version)
+	v, err := version.NewVersion(c.config.Version)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul version: %v", err)
 	}
 
 	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	consulRoleConfigData, err := structToMap(config.ConsulRoleConfig)
+	consulRoleConfigData, err := structToMap(c.config.ConsulRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
@@ -191,8 +189,8 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("consul role"), "name", config.ConsulRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.ConsulRoleConfig.Name, consulRoleConfigData)
+	setupLogger.Trace(writingLogMessage("consul role"), "name", c.config.ConsulRoleConfig.Name)
+	_, err = client.Logical().Write(secretPath+"/roles/"+c.config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul role: %v", err)
 	}
@@ -200,7 +198,7 @@ func (c *ConsulTest) Setup(client *api.Client, randomMountName bool, mountName s
 	return &ConsulTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.ConsulRoleConfig.Name,
+		roleName:   c.config.ConsulRoleConfig.Name,
 		logger:     c.logger,
 	}, nil
 }

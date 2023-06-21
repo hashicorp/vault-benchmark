@@ -38,16 +38,11 @@ type MSSQLSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *MSSQLTestConfig
+	config     *MSSQLSecretTestConfig
 	logger     hclog.Logger
 }
 
 // Main Config Struct
-type MSSQLTestConfig struct {
-	Config *MSSQLSecretTestConfig `hcl:"config,block"`
-}
-
-// Intermediary struct to assist with HCL decoding
 type MSSQLSecretTestConfig struct {
 	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db_connection,block"`
 	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role,block"`
@@ -88,7 +83,9 @@ type MSSQLRoleConfig struct {
 // parameters will be set here.
 func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	m.config = &MSSQLTestConfig{
+	testConfig := &struct {
+		Config *MSSQLSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &MSSQLSecretTestConfig{
 			MSSQLDBConfig: &MSSQLDBConfig{
 				Name:         "benchmark-mssql",
@@ -104,16 +101,17 @@ func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, m.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	m.config = testConfig.Config
 
-	if m.config.Config.MSSQLDBConfig.Username == "" {
+	if m.config.MSSQLDBConfig.Username == "" {
 		return fmt.Errorf("no mssql username provided but required")
 	}
 
-	if m.config.Config.MSSQLDBConfig.Password == "" {
+	if m.config.MSSQLDBConfig.Password == "" {
 		return fmt.Errorf("no mssql password provided but required")
 	}
 
@@ -147,7 +145,6 @@ func (m *MSSQLSecret) GetTargetInfo() TargetInfo {
 func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := m.config.Config
 	m.logger = targetLogger.Named(MSSQLSecretTestType)
 
 	if randomMountName {
@@ -170,14 +167,14 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(config.MSSQLDBConfig)
+	dbData, err := structToMap(m.config.MSSQLDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
-	setupLogger.Trace(writingLogMessage("mssql db config"), "name", config.MSSQLDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", config.MSSQLDBConfig.Name)
+	setupLogger.Trace(writingLogMessage("mssql db config"), "name", m.config.MSSQLDBConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", m.config.MSSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing mssql db config: %v", err)
@@ -185,23 +182,23 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config.MSSQLRoleConfig)
+	roleData, err := structToMap(m.config.MSSQLRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Create Role
-	setupLogger.Trace(writingLogMessage("mssql role"), "name", config.MSSQLRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", config.MSSQLRoleConfig.Name)
+	setupLogger.Trace(writingLogMessage("mssql role"), "name", m.config.MSSQLRoleConfig.Name)
+	rolePath := filepath.Join(secretPath, "roles", m.config.MSSQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing mssql role %q: %v", config.MSSQLRoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing mssql role %q: %v", m.config.MSSQLRoleConfig.Name, err)
 	}
 
 	return &MSSQLSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.MSSQLRoleConfig.Name,
+		roleName:   m.config.MSSQLRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
 }

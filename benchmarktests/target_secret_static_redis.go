@@ -36,12 +36,8 @@ type RedisStaticSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *RedisStaticTestConfig
+	config     *RedisStaticSecretTestConfig
 	logger     hclog.Logger
-}
-
-type RedisStaticTestConfig struct {
-	Config *RedisStaticSecretTestConfig `hcl:"config,block"`
 }
 
 type RedisStaticSecretTestConfig struct {
@@ -82,7 +78,9 @@ type RedisStaticRoleConfig struct {
 // parameters will be set here.
 func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
-	r.config = &RedisStaticTestConfig{
+	testConfig := &struct {
+		Config *RedisStaticSecretTestConfig `hcl:"config,block"`
+	}{
 		Config: &RedisStaticSecretTestConfig{
 			DBConfig: &RedisDBConfig{
 				Name:         "benchmark-redis-db",
@@ -98,17 +96,17 @@ func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, r.config)
-
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	r.config = testConfig.Config
 
-	if r.config.Config.DBConfig.Username == "" {
+	if r.config.DBConfig.Username == "" {
 		return fmt.Errorf("no redis username provided but required")
 	}
 
-	if r.config.Config.DBConfig.Password == "" {
+	if r.config.DBConfig.Password == "" {
 		return fmt.Errorf("no redis password provided but required")
 	}
 
@@ -144,7 +142,6 @@ func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {}
 func (r *RedisStaticSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	config := r.config.Config
 	r.logger = targetLogger.Named(RedisStaticSecretTestType)
 
 	if randomMountName {
@@ -167,37 +164,37 @@ func (r *RedisStaticSecret) Setup(client *api.Client, randomMountName bool, moun
 
 	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(config.DBConfig)
+	dbData, err := structToMap(r.config.DBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
 	// Set up db
-	setupLogger.Trace(writingLogMessage("redis db config"), "name", config.DBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", config.DBConfig.Name)
+	setupLogger.Trace(writingLogMessage("redis db config"), "name", r.config.DBConfig.Name)
+	dbPath := filepath.Join(secretPath, "config", r.config.DBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing redis db config: %v", err)
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(config.RoleConfig)
+	roleData, err := structToMap(r.config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Set Up Role
-	setupLogger.Trace(writingLogMessage("redis role"), "name", config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", config.RoleConfig.Name)
+	setupLogger.Trace(writingLogMessage("redis role"), "name", r.config.RoleConfig.Name)
+	rolePath := filepath.Join(secretPath, "roles", r.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
-		return nil, fmt.Errorf("error writing redis role %q: %v", config.RoleConfig.Name, err)
+		return nil, fmt.Errorf("error writing redis role %q: %v", r.config.RoleConfig.Name, err)
 	}
 
 	return &RedisStaticSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
-		roleName:   config.RoleConfig.Name,
+		roleName:   r.config.RoleConfig.Name,
 		config:     r.config,
 		logger:     r.logger,
 	}, nil

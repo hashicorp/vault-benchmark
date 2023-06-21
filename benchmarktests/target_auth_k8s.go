@@ -38,12 +38,8 @@ type KubeAuth struct {
 	jwt        string
 	header     http.Header
 	timeout    time.Duration
-	config     *KubeTestConfig
+	config     *KubeAuthTestConfig
 	logger     hclog.Logger
-}
-
-type KubeTestConfig struct {
-	Config *KubeAuthTestConfig `hcl:"config,block"`
 }
 
 type KubeAuthTestConfig struct {
@@ -81,18 +77,20 @@ type KubeTestRoleConfig struct {
 }
 
 func (k *KubeAuth) ParseConfig(body hcl.Body) error {
-	k.config = &KubeTestConfig{
+	testConfig := &struct {
+		Config *KubeAuthTestConfig `hcl:"config,block"`
+	}{
 		Config: &KubeAuthTestConfig{
 			KubeAuthConfig:     &KubeAuthConfig{},
 			KubeTestRoleConfig: &KubeTestRoleConfig{},
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, k.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
-
+	k.config = testConfig.Config
 	return nil
 }
 
@@ -132,7 +130,6 @@ func readTokenFromFile(filepath string) (string, error) {
 func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := k.config.Config
 	k.logger = targetLogger.Named(KubeAuthTestType)
 
 	if randomMountName {
@@ -152,7 +149,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	setupLogger := k.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes auth"))
-	kubeAuthConfig, err := structToMap(config.KubeAuthConfig)
+	kubeAuthConfig, err := structToMap(k.config.KubeAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing kubernetes auth config from struct: %v", err)
 	}
@@ -165,14 +162,14 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	kubeRoleConfig, err := structToMap(config.KubeTestRoleConfig)
+	kubeRoleConfig, err := structToMap(k.config.KubeTestRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Write Kubernetes Role
-	setupLogger.Trace(writingLogMessage("role"), "name", config.KubeTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+config.KubeTestRoleConfig.Name, kubeRoleConfig)
+	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
+	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
 	}
@@ -187,7 +184,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	return &KubeAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		roleName:   k.config.Config.KubeTestRoleConfig.Name,
+		roleName:   k.config.KubeTestRoleConfig.Name,
 		jwt:        jwt,
 		timeout:    k.timeout,
 		logger:     k.logger,

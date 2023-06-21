@@ -34,12 +34,8 @@ type SSHIssueTest struct {
 	pathPrefix string
 	body       []byte
 	header     http.Header
-	config     *SSHTestConfig
+	config     *SSHIssueTestConfig
 	logger     hclog.Logger
-}
-
-type SSHTestConfig struct {
-	Config *SSHIssueTestConfig `hcl:"config,block"`
 }
 
 type SSHIssueTestConfig struct {
@@ -108,7 +104,9 @@ type SSHRoleConfig struct {
 }
 
 func (s *SSHIssueTest) ParseConfig(body hcl.Body) error {
-	s.config = &SSHTestConfig{
+	testConfig := &struct {
+		Config *SSHIssueTestConfig `hcl:"config,block"`
+	}{
 		Config: &SSHIssueTestConfig{
 			CAConfig: &SSHCAConfig{
 				KeyType: "rsa",
@@ -127,10 +125,11 @@ func (s *SSHIssueTest) ParseConfig(body hcl.Body) error {
 		},
 	}
 
-	diags := gohcl.DecodeBody(body, nil, s.config)
+	diags := gohcl.DecodeBody(body, nil, testConfig)
 	if diags.HasErrors() {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
+	s.config = testConfig.Config
 	return nil
 }
 
@@ -162,7 +161,6 @@ func (s *SSHIssueTest) GetTargetInfo() TargetInfo {
 func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
-	config := s.config.Config
 	s.logger = targetLogger.Named(SSHIssueTestType)
 
 	if randomMountName {
@@ -185,7 +183,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode CA Config into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("ca"))
-	caConfig, err := structToMap(config.CAConfig)
+	caConfig, err := structToMap(s.config.CAConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ca config from struct: %v", err)
 	}
@@ -200,14 +198,14 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Decode Role Config into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfig, err := structToMap(config.RoleConfig)
+	roleConfig, err := structToMap(s.config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Write Role
-	setupLogger.Trace(writingLogMessage("ssh role"), "name", config.RoleConfig.Name)
-	rolePath := filepath.Join(mountPath, "roles", config.RoleConfig.Name)
+	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
+	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ssh role: %v", err)
@@ -215,7 +213,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Issue Config
 	setupLogger.Trace(parsingConfigLogMessage("ca issue"))
-	issueConfig, err := structToMap(config.IssuedCertConfig)
+	issueConfig, err := structToMap(s.config.IssuedCertConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing ca issue config from struct: %v", err)
 	}
@@ -227,7 +225,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	return &SSHIssueTest{
 		mountPath:  "/v1/" + mountPath,
-		pathPrefix: "/v1/" + filepath.Join(mountPath, "issue", config.RoleConfig.Name),
+		pathPrefix: "/v1/" + filepath.Join(mountPath, "issue", s.config.RoleConfig.Name),
 		body:       []byte(issueConfigString),
 		header:     generateHeader(client),
 		logger:     s.logger,
