@@ -10,7 +10,7 @@ import (
 	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
-func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr string, vaultToken string, configFile string) (func(), int64) {
+func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken string, configFile string) (func(), int64) {
 	ctx := context.Background()
 	volume := map[string]string{
 		"configs/": "/etc/",
@@ -19,7 +19,6 @@ func CreateVaultBenchmarkContainer(t *testing.T, networkName string, vaultAddr s
 	runOpts := dockhelper.RunOptions{
 		ContainerName:   "vault-benchmark",
 		ImageRepo:       "docker.mirror.hashicorp.services/hashicorp/vault-benchmark",
-		NetworkName:     networkName,
 		ImageTag:        "0.1",
 		DoNotAutoRemove: true,
 		Env:             []string{fmt.Sprintf("VAULT_ADDR=%s", vaultAddr), fmt.Sprintf("VAULT_TOKEN=%s", vaultToken)},

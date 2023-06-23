@@ -8,12 +8,11 @@ import (
 	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
-func CreateVaultContainer(t *testing.T, networkName string) (func(), string) {
+func CreateVaultContainer(t *testing.T) (func(), string) {
 	ctx := context.Background()
 
 	runOpts := dockhelper.RunOptions{
 		ContainerName: "vault",
-		NetworkName:   networkName,
 		ImageRepo:     "docker.mirror.hashicorp.services/hashicorp/vault",
 		ImageTag:      "latest",
 		Cmd: []string{
@@ -35,6 +34,15 @@ func CreateVaultContainer(t *testing.T, networkName string) (func(), string) {
 		t.Fatalf("Error starting vault container: %s", err)
 	}
 
+	var netName string
+	for netName = range result.Container.NetworkSettings.Networks {
+		// Networks above is a map; we just need to find the first and
+		// only key of this map (network name). The range handles this
+		// for us, but we need a loop construction in order to use range.
+	}
+
+	containerIPAddress := result.Container.NetworkSettings.Networks[netName].IPAddress
+
 	cleanup := func() {
 		err := runner.DockerAPI.ContainerRemove(ctx, result.Container.ID, types.ContainerRemoveOptions{Force: true})
 		if err != nil {
@@ -42,5 +50,5 @@ func CreateVaultContainer(t *testing.T, networkName string) (func(), string) {
 		}
 	}
 
-	return cleanup, result.Container.Name
+	return cleanup, containerIPAddress
 }
