@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault-benchmark/helper/dockertest"
 	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
 )
@@ -15,24 +14,13 @@ import (
 func TestApprole_Auth_Docker(t *testing.T) {
 	t.Parallel()
 
-	// Create Network
-	uuid, err := uuid.GenerateUUID()
-	if err != nil {
-		t.Fatal("error generating uuid for network name: %w", err)
-	}
-
-	networkName := fmt.Sprintf("vault-benchmark-%v", uuid)
-
-	networkCleanup := dockertest.CreateNetwork(t, networkName)
-	defer networkCleanup()
-
 	// Create Vault Container
-	vaultCleanup, containerName := dockertest.CreateVaultContainer(t, networkName)
+	vaultCleanup, containerIPAddress := dockertest.CreateVaultContainer(t)
 	defer vaultCleanup()
 
 	// Run Vault-Benchmark Container
-	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "approle.hcl")
+	vaultAddr := fmt.Sprintf("http://%s:8200", containerIPAddress)
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", "approle.hcl")
 	defer benchmarkCleanup()
 
 	if exitCode != 0 {
@@ -43,24 +31,13 @@ func TestApprole_Auth_Docker(t *testing.T) {
 func TestApprole_Auth_Failed_Docker(t *testing.T) {
 	t.Parallel()
 
-	// Create Network
-	uuid, err := uuid.GenerateUUID()
-	if err != nil {
-		t.Fatal("error generating uuid for network name: %w", err)
-	}
-
-	networkName := fmt.Sprintf("vault-benchmark-%v", uuid)
-
-	networkCleanup := dockertest.CreateNetwork(t, networkName)
-	defer networkCleanup()
-
 	// Create Vault Container
-	vaultCleanup, containerName := dockertest.CreateVaultContainer(t, networkName)
+	vaultCleanup, containerIPAddress := dockertest.CreateVaultContainer(t)
 	defer vaultCleanup()
 
 	// Run Vault-Benchmark Container
-	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "invalid_token", "approle.hcl")
+	vaultAddr := fmt.Sprintf("http://%s:8200", containerIPAddress)
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "invalid_token", "approle.hcl")
 	defer benchmarkCleanup()
 
 	if exitCode != 1 {
@@ -71,24 +48,13 @@ func TestApprole_Auth_Failed_Docker(t *testing.T) {
 func TestApprole_Invalid_Config_Docker(t *testing.T) {
 	t.Parallel()
 
-	// Create Network
-	uuid, err := uuid.GenerateUUID()
-	if err != nil {
-		t.Fatal("error generating uuid for network name: %w", err)
-	}
-
-	networkName := fmt.Sprintf("vault-benchmark-%v", uuid)
-
-	networkCleanup := dockertest.CreateNetwork(t, networkName)
-	defer networkCleanup()
-
 	// Create Vault Container
-	vaultCleanup, containerName := dockertest.CreateVaultContainer(t, networkName)
+	vaultCleanup, containerIPAddress := dockertest.CreateVaultContainer(t)
 	defer vaultCleanup()
 
 	// Run Vault-Benchmark Container
-	vaultAddr := fmt.Sprintf("http:/%s:8200", containerName)
-	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, networkName, vaultAddr, "root", "invalid_approle.hcl")
+	vaultAddr := fmt.Sprintf("http://%s:8200", containerIPAddress)
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", "invalid_approle.hcl")
 	defer benchmarkCleanup()
 
 	if exitCode != 1 {
