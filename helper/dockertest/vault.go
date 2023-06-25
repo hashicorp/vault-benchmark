@@ -28,23 +28,23 @@ func CreateVaultContainer(t *testing.T) (func(), string) {
 		t.Fatalf("Error starting docker client for vault: %s", err)
 	}
 
-	result, err := runner.Start(ctx, true, false)
+	svc, err := runner.Start(ctx, true, false)
 
 	if err != nil {
 		t.Fatalf("Error starting vault container: %s", err)
 	}
 
 	var netName string
-	for netName = range result.Container.NetworkSettings.Networks {
+	for netName = range svc.Container.NetworkSettings.Networks {
 		// Networks above is a map; we just need to find the first and
 		// only key of this map (network name). The range handles this
 		// for us, but we need a loop construction in order to use range.
 	}
 
-	containerIPAddress := result.Container.NetworkSettings.Networks[netName].IPAddress
+	containerIPAddress := svc.Container.NetworkSettings.Networks[netName].IPAddress
 
 	cleanup := func() {
-		err := runner.DockerAPI.ContainerRemove(ctx, result.Container.ID, types.ContainerRemoveOptions{Force: true})
+		err := runner.DockerAPI.ContainerRemove(ctx, svc.Container.ID, types.ContainerRemoveOptions{Force: true})
 		if err != nil {
 			t.Fatalf("Error removing vault container: %s", err)
 		}

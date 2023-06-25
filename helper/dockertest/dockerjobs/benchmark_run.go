@@ -32,8 +32,8 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 		t.Fatalf("Error starting docker client for benchmark: %s", err)
 	}
 
-	result, err := runner.Start(ctx, true, false)
-	containerID := result.Container.ID
+	service, err := runner.Start(ctx, true, false)
+	containerID := service.Container.ID
 
 	exitCh, errCh := runner.DockerAPI.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
 
@@ -54,7 +54,7 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 	}
 
 	cleanup := func() {
-		err := runner.DockerAPI.ContainerRemove(ctx, result.Container.ID, types.ContainerRemoveOptions{Force: true})
+		err := runner.DockerAPI.ContainerRemove(ctx, service.Container.ID, types.ContainerRemoveOptions{Force: true})
 		if err != nil {
 			t.Fatalf("Error removing vault container: %s", err)
 		}
