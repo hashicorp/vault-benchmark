@@ -152,7 +152,7 @@ func (a *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("azure role"), "name", config.AzureRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.AzureRoleConfig.Name, azureRoleConfigData)
+	_, err = client.Logical().Write(secretPath+"/roles/"+config.AzureRoleConfig.Name, azureRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing azure role: %v", err)
 	}
