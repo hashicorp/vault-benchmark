@@ -32,6 +32,10 @@ dist:
 bin: dist
 	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(OS) go build -o $(BIN)
 
+.PHONY: dockerbin
+dockerbin: dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/linux/amd64/vault-benchmark
+
 .PHONY: build
 build:
 	@$(CURDIR)/scripts/crt-build.sh build
