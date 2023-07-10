@@ -16,14 +16,18 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	credentials "cloud.google.com/go/iam/credentials/apiv1"
-	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
+	"github.com/hashicorp/go-cleanhttp"
+	"github.com/hashicorp/go-gcp-common/gcputil"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/iamcredentials/v1"
+	"google.golang.org/api/option"
 )
 
 // Constants for test
@@ -152,6 +156,18 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	}
 	setupLogger := g.logger.Named(authPath)
 
+	// check if the provided argument should be read from file
+	creds := config.GCPAuthConfig.Credentials
+	if len(creds) > 0 && creds[0] == '@' {
+		var err error
+		contents, err := ioutil.ReadFile(creds[1:])
+		if err != nil {
+			return nil, fmt.Errorf("error reading file: %w", err)
+		}
+
+		config.GCPAuthConfig.Credentials = string(contents)
+	}
+
 	setupLogger.Trace(parsingConfigLogMessage("gcp auth"))
 	GCPAuthConfig, err := structToMap(config.GCPAuthConfig)
 	if err != nil {
@@ -161,6 +177,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
+
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
@@ -178,9 +195,16 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error writing gcp role: %v", err)
 	}
 
+	// TODO: handle more than one service account
+	jwt, err := getSignedJwt(g.config.Config.GCPTestRoleConfig.Name, config.GCPAuthConfig.Credentials, config.GCPTestRoleConfig.MaxJWTExp, config.GCPTestRoleConfig.BoundServiceAccounts[0])
+	if err != nil {
+		return nil, fmt.Errorf("error fetching JWT: %v", err)
+	}
+
 	return &GCPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
+		jwt:        jwt,
 		roleName:   g.config.Config.GCPTestRoleConfig.Name,
 		timeout:    g.timeout,
 		logger:     g.logger,
@@ -190,69 +214,71 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 // Func Flags accepts a flag set to assign additional flags defined in the function
 func (k *GCPAuth) Flags(fs *flag.FlagSet) {}
 
-func (a *GCPAuth) getJWTFromMetadataService(vaultAddr string) (string, error) {
-	if !metadata.OnGCE() {
-		return "", fmt.Errorf("GCE metadata service not available")
-	}
-
-	// build request to metadata server
-	c := &http.Client{}
-	req, err := http.NewRequest(http.MethodGet, IdentityMetadataURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("error creating http request: %w", err)
-	}
-
-	req.Header.Add("Metadata-Flavor", "Google")
-	q := url.Values{}
-	q.Add("audience", fmt.Sprintf("%s/vault/%s", vaultAddr, a.roleName))
-	q.Add("format", "full")
-	req.URL.RawQuery = q.Encode()
-	resp, err := c.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error making request to metadata service: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// get jwt from response
-	body, err := ioutil.ReadAll(resp.Body)
-	jwt := string(body)
-	if err != nil {
-		return "", fmt.Errorf("error reading response from metadata service: %w", err)
-	}
-
-	return jwt, nil
-}
-
-// generate signed JWT token from GCP IAM.
-func signJWT(roleName, serviceAccountEmail string) (*credentialspb.SignJwtResponse, error) {
+func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string) (string, error) {
+	// ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
 	ctx := context.Background()
-	iamClient, err := credentials.NewIamCredentialsClient(ctx) // can pass option.WithCredentialsFile("path/to/creds.json") as second param if GOOGLE_APPLICATION_CREDENTIALS env var not set
+
+	credentials, tokenSource, err := gcputil.FindCredentials(jwtCreds, ctx, iamcredentials.CloudPlatformScope)
 	if err != nil {
-		return nil, fmt.Errorf("unable to initialize IAM credentials client: %w", err)
-	}
-	defer iamClient.Close()
-
-	resourceName := fmt.Sprintf("projects/-/serviceAccounts/%s", serviceAccountEmail)
-	jwtPayload := map[string]interface{}{
-		"aud": fmt.Sprintf("vault/%s", roleName),
-		"sub": serviceAccountEmail,
-		"exp": time.Now().Add(time.Minute * 10).Unix(),
+		return "", fmt.Errorf("could not obtain credentials: %v", err)
 	}
 
-	payloadBytes, err := json.Marshal(jwtPayload)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal jwt payload to json: %w", err)
+	httpClient := oauth2.NewClient(ctx, tokenSource)
+
+	if serviceAccount == "" && jwtCreds != "" {
+		serviceAccount = credentials.ClientEmail
 	}
 
-	signJWTReq := &credentialspb.SignJwtRequest{
-		Name:    resourceName,
-		Payload: string(payloadBytes),
-	}
+	if serviceAccount == "" {
+		// Check if the metadata server is available.
+		if !metadata.OnGCE() {
+			return "", fmt.Errorf("could not obtain service account from credentials (are you using Application Default Credentials?). You must provide a service account to authenticate as")
+		}
+		metadataClient := metadata.NewClient(cleanhttp.DefaultClient())
+		v := url.Values{}
+		v.Set("audience", fmt.Sprintf("http://vault/%s", role))
+		v.Set("format", "full")
+		path := "instance/service-accounts/default/identity?" + v.Encode()
+		instanceJwt, err := metadataClient.Get(path)
+		if err != nil {
+			return "", fmt.Errorf("unable to read the identity token: %w", err)
+		}
+		return instanceJwt, nil
 
-	jwtResp, err := iamClient.SignJwt(ctx, signJWTReq)
-	if err != nil {
-		return nil, fmt.Errorf("unable to sign JWT: %w", err)
-	}
+	} else {
+		ttl := time.Duration(15) * time.Minute
+		if jwtExp != "" {
+			ttl, err = parseutil.ParseDurationSecond(jwtExp)
+			if err != nil {
+				return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", jwtExp)
+			}
+		}
 
-	return jwtResp, nil
+		jwtPayload := map[string]interface{}{
+			"aud": fmt.Sprintf("http://vault/%s", role),
+			"sub": serviceAccount,
+			"exp": time.Now().Add(ttl).Unix(),
+		}
+		payloadBytes, err := json.Marshal(jwtPayload)
+		if err != nil {
+			return "", fmt.Errorf("could not convert JWT payload to JSON string: %v", err)
+		}
+
+		jwtReq := &iamcredentials.SignJwtRequest{
+			Payload: string(payloadBytes),
+		}
+
+		iamClient, err := iamcredentials.NewService(ctx, option.WithHTTPClient(httpClient))
+		if err != nil {
+			return "", fmt.Errorf("could not create IAM client: %v", err)
+		}
+
+		resourceName := fmt.Sprintf(gcputil.ServiceAccountCredentialsTemplate, serviceAccount)
+		resp, err := iamClient.Projects.ServiceAccounts.SignJwt(resourceName, jwtReq).Do()
+		if err != nil {
+			return "", fmt.Errorf("unable to sign JWT for %s using given Vault credentials: %v", resourceName, err)
+		}
+
+		return resp.SignedJwt, nil
+	}
 }
