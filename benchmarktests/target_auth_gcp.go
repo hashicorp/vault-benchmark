@@ -215,8 +215,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 func (k *GCPAuth) Flags(fs *flag.FlagSet) {}
 
 func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string) (string, error) {
-	// ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
 
 	credentials, tokenSource, err := gcputil.FindCredentials(jwtCreds, ctx, iamcredentials.CloudPlatformScope)
 	if err != nil {
