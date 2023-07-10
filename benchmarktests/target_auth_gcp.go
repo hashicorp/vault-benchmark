@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -195,8 +196,11 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error writing gcp role: %v", err)
 	}
 
-	// TODO: handle more than one service account
-	jwt, err := getSignedJwt(g.config.Config.GCPTestRoleConfig.Name, config.GCPAuthConfig.Credentials, config.GCPTestRoleConfig.MaxJWTExp, config.GCPTestRoleConfig.BoundServiceAccounts[0])
+	// Select one of the configured service accounts if more than 1
+	rand.Seed(time.Now().Unix())
+	n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
+
+	jwt, err := getSignedJwt(g.config.Config.GCPTestRoleConfig.Name, config.GCPAuthConfig.Credentials, config.GCPTestRoleConfig.MaxJWTExp, config.GCPTestRoleConfig.BoundServiceAccounts[n])
 	if err != nil {
 		return nil, fmt.Errorf("error fetching JWT: %v", err)
 	}
