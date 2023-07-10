@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 duration      = "2s"
 report_mode   = "terse"
 random_mounts = true
