@@ -50,8 +50,7 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 			t.Fatal(err)
 		}
 	case status := <-exitCh:
-		statusCode := status.StatusCode
-		exitCode = statusCode
+		exitCode = status.StatusCode
 	}
 
 	cleanup := func() {
