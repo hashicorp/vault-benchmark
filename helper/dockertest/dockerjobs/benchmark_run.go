@@ -38,9 +38,6 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 
 	exitCh, errCh := runner.DockerAPI.ContainerWait(ctx, service.Container.ID, container.WaitConditionNotRunning)
 
-	if err != nil {
-		t.Fatalf("Error starting vault-benchmark container: %s", err)
-	}
 
 	// wait until benchmark exit
 	var exitCode int64
