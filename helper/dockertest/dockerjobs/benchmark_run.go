@@ -27,15 +27,16 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 	}
 
 	runner, err := dockhelper.NewServiceRunner(runOpts)
-
 	if err != nil {
 		t.Fatalf("Error starting docker client for benchmark: %s", err)
 	}
 
 	service, err := runner.Start(ctx, true, false)
-	containerID := service.Container.ID
+	if err != nil {
+		t.Fatalf("Error running docker client for benchmark: %s", err)
+	}
 
-	exitCh, errCh := runner.DockerAPI.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+	exitCh, errCh := runner.DockerAPI.ContainerWait(ctx, service.Container.ID, container.WaitConditionNotRunning)
 
 	if err != nil {
 		t.Fatalf("Error starting vault-benchmark container: %s", err)
