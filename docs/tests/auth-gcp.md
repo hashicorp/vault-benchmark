@@ -11,12 +11,10 @@ This benchmark will test GC Authentication to Vault. The primary required fields
   file must have the following [permissions](https://developer.hashicorp.com/vault/docs/auth/gcp#required-gcp-permissions).
   If this value is empty, Vault will try to use [Application Default Credentials][https://developers.google.com/identity/protocols/application-default-credentials]
   from the machine on which the Vault server is running.
-
 - `iam_alias` `(string: "role_id")` - Must be either `unique_id` or `role_id`.
   If `unique_id` is specified, the service account's unique ID will be used for
   alias names during login. If `role_id` is specified, the ID of the Vault role
   will be used. Only used if role `type` is `iam`.
-
 - `iam_metadata` `(string: "default")` - The metadata to include on the token
   returned by the `login` endpoint. This metadata will be added to both audit logs,
   and on the `iam_alias`. By default, it includes `project_id`, `role`,
@@ -26,12 +24,10 @@ This benchmark will test GC Authentication to Vault. The primary required fields
   **Only select fields that will have a low rate of change** for your `iam_alias` because
   each change triggers a storage write and can have a performance impact at scale.
   Only used if role `type` is `iam`.
-
 - `gce_alias` `(string: "role_id")` - Must be either `instance_id` or `role_id`.
   If `instance_id` is specified, the GCE instance ID will be used for alias names
   during login. If `role_id` is specified, the ID of the Vault role will be used.
   Only used if role `type` is `gce`.
-
 - `gce_metadata` `(string: "default")` - The metadata to include on the token
   returned by the `login` endpoint. This metadata will be added to both audit logs,
   and on the `gce_alias`. By default, it includes `instance_creation_timestamp`,
@@ -42,7 +38,6 @@ This benchmark will test GC Authentication to Vault. The primary required fields
   **Only select fields that will have a low rate of change** for your `gce_alias` because
   each change triggers a storage write and can have a performance impact at scale.
   Only used if role `type` is `gce`.
-
 - `custom_endpoint` `(map<string|string>: <optional>)` - Specifies overrides to
   [service endpoints](https://cloud.google.com/apis/design/glossary#api_service_endpoint)
   used when making API requests. This allows specific requests made during authentication
@@ -51,28 +46,22 @@ This benchmark will test GC Authentication to Vault. The primary required fields
 
 ### Test User Config `role`
 ### Parameters
-
 - `name` `(string: <required>)` - The name of the role.
-
 - `type` `(string: <required>)` - The type of this role. Certain fields
   correspond to specific roles and will be rejected otherwise. Please see below
   for more information.
-
 - `bound_service_accounts` `(array: <required for iam>)` - An array of
   service account emails or IDs that login is restricted to,
   either directly or through an associated instance. If set to
   `*`, all service accounts are allowed (you can bind this further using
   `bound_projects`.)
-
 - `bound_projects` `(array: [])` - An array of GCP project IDs. Only entities
   belonging to this project can authenticate under the role.
-
 - `add_group_aliases` `(bool: false)` - If true, any auth token
   generated under this token will have associated group aliases, namely
   `project-$PROJECT_ID`, `folder-$PROJECT_ID`, and `organization-$ORG_ID`
   for the entities project and all its folder or organization ancestors. This
   requires Vault to have IAM permission `resourcemanager.projects.get`.
-
 - `token_bound_cidrs` `(array: [])` - List of
   CIDR blocks; if set, specifies blocks of IP addresses which can authenticate
   successfully, and ties the resulting token to these blocks as well.
@@ -106,45 +95,33 @@ This benchmark will test GC Authentication to Vault. The primary required fields
   time.
 
 #### `iam`-only Parameters
-
 The following parameters are only valid when the role is of type `"iam"`:
-
 - `max_jwt_exp` `(string: "15m")` - The number of seconds past the time of
   authentication that the login param JWT must expire within. For example, if a
   user attempts to login with a token that expires within an hour and this is
   set to 15 minutes, Vault will return an error prompting the user to create a
   new signed JWT with a shorter `exp`. The GCE metadata tokens currently do not
   allow the `exp` claim to be customized.
-
 - `allow_gce_inference` `(bool: true)` - A flag to determine if this role should
   allow GCE instances to authenticate by inferring service accounts from the
   GCE identity metadata token.
 
 #### `gce`-only Parameters
-
 The following parameters are only valid when the role is of type `"gce"`:
-
 - `bound_zones` `(array: [])`: The list of zones that a GCE instance must belong
   to in order to be authenticated. If `bound_instance_groups` is provided, it is
   assumed to be a zonal group and the group must belong to this zone.
-
 - `bound_regions` `(array: [])`: The list of regions that a GCE instance must
   belong to in order to be authenticated. If `bound_instance_groups` is
   provided, it is assumed to be a regional group and the group must belong to
   this region. If `bound_zones` are provided, this attribute is ignored.
-
 - `bound_instance_groups` `(array: [])`: The instance groups that an authorized
   instance must belong to in order to be authenticated. If specified, either
   `bound_zones` or `bound_regions` must be set too.
-
 - `bound_labels` `(array: [])`: A comma-separated list of GCP labels formatted
   as "key:value" strings that must be set on authorized GCE instances. Because
   GCP labels are not currently ACL'd, we recommend that this be used in
   conjunction with other restrictions.
-
-
-
-
 
 ## Example HCL
 
