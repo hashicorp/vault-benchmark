@@ -1,6 +1,6 @@
 # Google Cloud Platform Auth Benchmark `gcp_auth`
 
-This benchmark will test GC Authentication to Vault. The primary required fields are `credentials` and `groupdn` depending on the LDAP environment setup and desired connection method.
+This benchmark will test GC Authentication to Vault. The primary required fields are `credentials`, `name` and `type`.
 
 ## Test Parameters
 
