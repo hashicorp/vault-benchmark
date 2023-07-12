@@ -218,20 +218,20 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 // Func Flags accepts a flag set to assign additional flags defined in the function
 func (k *GCPAuth) Flags(fs *flag.FlagSet) {}
 
-func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string) (string, error) {
+func getSignedJwt(role string, m map[string]string) (string, error) {
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
 
-	credentials, tokenSource, err := gcputil.FindCredentials(jwtCreds, ctx, iamcredentials.CloudPlatformScope)
+	credentials, tokenSource, err := gcputil.FindCredentials(m["credentials"], ctx, iamcredentials.CloudPlatformScope)
 	if err != nil {
 		return "", fmt.Errorf("could not obtain credentials: %v", err)
 	}
 
 	httpClient := oauth2.NewClient(ctx, tokenSource)
 
-	if serviceAccount == "" && jwtCreds != "" {
+	serviceAccount, ok := m["service_account"]
+	if !ok && credentials != nil {
 		serviceAccount = credentials.ClientEmail
 	}
-
 	if serviceAccount == "" {
 		// Check if the metadata server is available.
 		if !metadata.OnGCE() {
@@ -250,10 +250,11 @@ func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount st
 
 	} else {
 		ttl := time.Duration(15) * time.Minute
-		if jwtExp != "" {
-			ttl, err = parseutil.ParseDurationSecond(jwtExp)
+		jwtExpStr, ok := m["jwt_exp"]
+		if ok {
+			ttl, err = parseutil.ParseDurationSecond(jwtExpStr)
 			if err != nil {
-				return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", jwtExp)
+				return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", jwtExpStr)
 			}
 		}
 
