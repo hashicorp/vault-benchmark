@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/docker/docker v24.0.1+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
+	github.com/hashicorp/go-secure-stdlib/awsutil v0.2.2
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/go-version v1.6.0
@@ -32,6 +33,7 @@ require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/aws/aws-sdk-go v1.34.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
@@ -58,6 +60,7 @@ require (
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/influxdata/tdigest v0.0.1 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect

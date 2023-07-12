@@ -1,4 +1,4 @@
-# Redis Static Credential Benchmark (`jwt_auth`)
+# JWT Static Credential Benchmark (`jwt_auth`)
 
 This benchmark tests the performance of logins using the jwt auth method.
 
