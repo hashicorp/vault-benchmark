@@ -82,7 +82,7 @@ type GCPTestRoleConfig struct {
 	BoundRegions         []string `hcl:"bound_regions,optional"`
 	BoundInstanceGroups  []string `hcl:"bound_instance_groups,optional"`
 	BoundLabels          []string `hcl:"bound_labels,optional"`
-	MaxJWTExp            string   `hcl:"maw_jwt_exp,optional"`
+	MaxJWTExp            string   `hcl:"max_jwt_exp,optional"`
 	TokenBoundCIDRs      []string `hcl:"token_bound_cidrs,optional"`
 	TokenExplicitMaxTTL  string   `hcl:"token_explicit_max_ttl,optional"`
 	TokenMaxTTL          string   `hcl:"token_max_ttl,optional"`
@@ -198,9 +198,16 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 
 	// Select one of the configured service accounts if more than 1
 	rand.Seed(time.Now().Unix())
-	n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
 
-	jwt, err := getSignedJwt(g.config.Config.GCPTestRoleConfig.Name, config.GCPAuthConfig.Credentials, config.GCPTestRoleConfig.MaxJWTExp, config.GCPTestRoleConfig.BoundServiceAccounts[n])
+	var serviceAccount string
+
+	if len(config.GCPTestRoleConfig.BoundServiceAccounts) > 0 {
+		n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
+		serviceAccount = config.GCPTestRoleConfig.BoundServiceAccounts[n]
+	}
+
+	iam := config.GCPTestRoleConfig.Type == "iam"
+	jwt, err := getSignedJwt(g.config.Config.GCPTestRoleConfig.Name, config.GCPAuthConfig.Credentials, config.GCPTestRoleConfig.MaxJWTExp, serviceAccount, iam)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching JWT: %v", err)
 	}
@@ -218,7 +225,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 // Func Flags accepts a flag set to assign additional flags defined in the function
 func (k *GCPAuth) Flags(fs *flag.FlagSet) {}
 
-func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string) (string, error) {
+func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string, iam bool) (string, error) {
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
 
 	credentials, tokenSource, err := gcputil.FindCredentials(jwtCreds, ctx, iamcredentials.CloudPlatformScope)
@@ -228,10 +235,11 @@ func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount st
 
 	httpClient := oauth2.NewClient(ctx, tokenSource)
 
-	if serviceAccount == "" && jwtCreds != "" {
+	if serviceAccount == "" && credentials != nil {
 		serviceAccount = credentials.ClientEmail
 	}
-	if serviceAccount == "" {
+
+	if !iam {
 		// Check if the metadata server is available.
 		if !metadata.OnGCE() {
 			return "", fmt.Errorf("could not obtain service account from credentials (are you using Application Default Credentials?). You must provide a service account to authenticate as")
