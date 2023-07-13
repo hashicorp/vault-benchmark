@@ -177,6 +177,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		numKVs:     k.config.NumKVs,
 		kvSize:     k.config.KVSize,
 		logger:     k.logger,
+		action:     k.action,
 	}, nil
 }
 
