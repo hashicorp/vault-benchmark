@@ -109,6 +109,6 @@ COPY vault-benchmark /bin/vault-benchmark
 	if err != nil {
 		return "", err
 	}
-	// dc.builtTags[tag] = struct{}{}
+
 	return tag, nil
 }

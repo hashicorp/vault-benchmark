@@ -23,7 +23,7 @@ LATEST_TAG?=$(REGISTRY_NAME)/$(PRODUCT_NAME):latest
 BUILD_DIR=dist
 GOFMT_FILES?=$$(find . -name '*.go' | grep -v vendor)
 LDFLAGS?="-X '$(PKG).Version=v$(VERSION)'"
-BENCHMARK_IMAGES?=$$(docker images --format="{{json .}}" | jq -r 'select(.Tag=="latest-benchmark-testing")'.ID)
+BENCHMARK_IMAGES?=$$(docker images --format="{{json .}}" | jq -r 'select(.Tag=="latest-benchmark-testing" or .Tag=="<none>")'.ID)
 
 dist:
 	mkdir -p $(DIST)
