@@ -23,6 +23,7 @@ LATEST_TAG?=$(REGISTRY_NAME)/$(PRODUCT_NAME):latest
 BUILD_DIR=dist
 GOFMT_FILES?=$$(find . -name '*.go' | grep -v vendor)
 LDFLAGS?="-X '$(PKG).Version=v$(VERSION)'"
+BENCHMARK_IMAGES?=$$(docker images --format="{{json .}}" | jq -r 'select(.Tag=="latest-benchmark-testing")'.ID)
 
 dist:
 	mkdir -p $(DIST)
@@ -31,6 +32,14 @@ dist:
 .PHONY: bin
 bin: dist
 	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=$(OS) go build -o $(BIN)
+
+PHONY: dockerbin
+dockerbin: dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/linux/amd64/vault-benchmark
+
+PHONY: cleanupimages
+cleanupimages: 
+	docker rmi $(BENCHMARK_IMAGES)
 
 .PHONY: build
 build:
