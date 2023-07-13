@@ -223,7 +223,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 }
 
 // Func Flags accepts a flag set to assign additional flags defined in the function
-func (k *GCPAuth) Flags(fs *flag.FlagSet) {}
+func (g *GCPAuth) Flags(fs *flag.FlagSet) {}
 
 func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string, iam bool) (string, error) {
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
