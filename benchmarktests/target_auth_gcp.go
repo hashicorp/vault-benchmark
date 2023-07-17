@@ -178,7 +178,6 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
-
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
