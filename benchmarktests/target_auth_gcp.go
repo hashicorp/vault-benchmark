@@ -194,18 +194,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		return nil, fmt.Errorf("error writing gcp role: %v", err)
 	}
 
-	// Select one of the configured service accounts if more than 1
-	rand.Seed(time.Now().Unix())
-
-	var serviceAccount string
-
-	if len(config.GCPTestRoleConfig.BoundServiceAccounts) > 0 {
-		n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
-		serviceAccount = config.GCPTestRoleConfig.BoundServiceAccounts[n]
-	}
-
-	iam := config.GCPTestRoleConfig.Type == "iam"
-	jwt, err := getSignedJwt(g.config.Config.GCPTestRoleConfig.Name, config.GCPAuthConfig.Credentials, config.GCPTestRoleConfig.MaxJWTExp, serviceAccount, iam)
+	jwt, err := getSignedJwt(config)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching JWT: %v", err)
 	}
@@ -214,7 +203,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		jwt:        jwt,
-		roleName:   g.config.Config.GCPTestRoleConfig.Name,
+		roleName:   config.GCPTestRoleConfig.Name,
 		timeout:    g.timeout,
 		logger:     g.logger,
 	}, nil
@@ -223,28 +212,36 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 // Func Flags accepts a flag set to assign additional flags defined in the function
 func (g *GCPAuth) Flags(fs *flag.FlagSet) {}
 
-func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount string, iam bool) (string, error) {
+func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
 
-	credentials, tokenSource, err := gcputil.FindCredentials(jwtCreds, ctx, iamcredentials.CloudPlatformScope)
+	credentials, tokenSource, err := gcputil.FindCredentials(config.GCPAuthConfig.Credentials, ctx, iamcredentials.CloudPlatformScope)
 	if err != nil {
 		return "", fmt.Errorf("could not obtain credentials: %v", err)
 	}
 
 	httpClient := oauth2.NewClient(ctx, tokenSource)
 
+	var serviceAccount string
+	// Select one of the configured service accounts if more than 1
+	rand.Seed(time.Now().Unix())
+	if len(config.GCPTestRoleConfig.BoundServiceAccounts) > 0 {
+		n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
+		serviceAccount = config.GCPTestRoleConfig.BoundServiceAccounts[n]
+	}
+
 	if serviceAccount == "" && credentials != nil {
 		serviceAccount = credentials.ClientEmail
 	}
 
-	if !iam {
+	if config.GCPTestRoleConfig.Type != "iam" {
 		// Check if the metadata server is available.
 		if !metadata.OnGCE() {
 			return "", fmt.Errorf("could not obtain service account from credentials (are you using Application Default Credentials?). You must provide a service account to authenticate as")
 		}
 		metadataClient := metadata.NewClient(cleanhttp.DefaultClient())
 		v := url.Values{}
-		v.Set("audience", fmt.Sprintf("http://vault/%s", role))
+		v.Set("audience", fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name))
 		v.Set("format", "full")
 		path := "instance/service-accounts/default/identity?" + v.Encode()
 		instanceJwt, err := metadataClient.Get(path)
@@ -255,15 +252,15 @@ func getSignedJwt(role string, jwtCreds string, jwtExp string, serviceAccount st
 
 	} else {
 		ttl := time.Duration(15) * time.Minute
-		if jwtExp != "" {
-			ttl, err = parseutil.ParseDurationSecond(jwtExp)
+		if config.GCPTestRoleConfig.MaxJWTExp != "" {
+			ttl, err = parseutil.ParseDurationSecond(config.GCPTestRoleConfig.MaxJWTExp)
 			if err != nil {
-				return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", jwtExp)
+				return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", config.GCPTestRoleConfig.MaxJWTExp)
 			}
 		}
 
 		jwtPayload := map[string]interface{}{
-			"aud": fmt.Sprintf("http://vault/%s", role),
+			"aud": fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name),
 			"sub": serviceAccount,
 			"exp": time.Now().Add(ttl).Unix(),
 		}
