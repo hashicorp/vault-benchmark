@@ -126,7 +126,7 @@ The following parameters are only valid when the role is of type `"gce"`:
 ## Example HCL
 
 ```hcl
-test "gcp_auth" "gcp_secret1" {
+test "gcp_auth" "gcp_auth1" {
     weight = 100
     config {
         auth {
