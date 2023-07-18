@@ -160,7 +160,6 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	// check if the provided argument should be read from file
 	creds := config.GCPAuthConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
-		var err error
 		contents, err := ioutil.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading file: %w", err)
