@@ -34,7 +34,7 @@ This benchmark will test the dynamic generation of AWS credentials.
   {{ end }}
   ```
 
-### Role Config
+### Role Config `role`
 
 - `name` `(string: <required>)` – Specifies the name of the role to create. This
   is part of the request URL.
