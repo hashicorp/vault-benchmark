@@ -36,9 +36,9 @@ This benchmark will test the dynamic generation of AWS credentials.
 
 ### Role Config `role`
 
-- `name` `(string: <required>)` – Specifies the name of the role to create. This
+- `name` `(string: "benchmark-role")` – Specifies the name of the role to create. This
   is part of the request URL.
-- `credential_type` `(string: <required>)` – Specifies the type of credential to be used when
+- `credential_type` `(string: "iam_user")` – Specifies the type of credential to be used when
   retrieving credentials from the role. Must be one of `iam_user`,
   `assumed_role`, or `federation_token`.
 - `role_arns` `(list: [])` – Specifies the ARNs of the AWS roles this Vault role

@@ -62,7 +62,7 @@ type AWSAuthConfig struct {
 }
 
 type AWSTestUserConfig struct {
-	Role                       string `hcl:"role,optional"`
+	Role                       string `hcl:"role"`
 	AuthType                   string `hcl:"auth_type,optional"`
 	BoundAMIID                 string `hcl:"bound_ami_id,optional"`
 	BoundAccountID             string `hcl:"bound_account_id,optional"`
@@ -195,8 +195,6 @@ func (a *AWSAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	// Create AWS Test Role
 	setupLogger.Trace(writingLogMessage("aws auth user config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, awsAuthUser)
-	// print out what we are writing
-	fmt.Print("auth/"+authPath+"/role/"+a.role, awsAuthUser)
 	if err != nil {
 		return nil, fmt.Errorf("error writing aws auth user: %v", err)
 	}

@@ -48,8 +48,8 @@ type AWSSecretTestConfig struct {
 
 type AWSConnectionConfig struct {
 	MaxRetries       int    `hcl:"max_retries,optional"`
-	AccessKey        string `hcl:"access_key"`
-	SecretKey        string `hcl:"secret_key"`
+	AccessKey        string `hcl:"access_key,optional"`
+	SecretKey        string `hcl:"secret_key,optional"`
 	Region           string `hcl:"region,optional"`
 	IAMEndpoint      string `hcl:"iam_endpoint,optional"`
 	STSEndpoint      string `hcl:"sts_endpoint,optional"`
