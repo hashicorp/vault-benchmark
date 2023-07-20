@@ -12,12 +12,22 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
+
+// Configuration that applies to all individual tests
+type TopLevelTargetConfig struct {
+	Duration     time.Duration
+	Tests        []*BenchmarkTarget
+	RandomMounts bool
+	Logger       *hclog.Logger
+	Client       *api.Client
+}
 
 const (
 	VaultBenchmarkEnvVarPrefix = "VAULT_BENCHMARK_"
@@ -30,7 +40,7 @@ type BenchmarkBuilder interface {
 	// Setup uses the passed in client and configuration to create the necessary test resources
 	// in Vault, and retrieve any necessary information needed to perform the test itself. Setup
 	// returns a test struct type which satisfies this BenchmarkBuilder interface.
-	Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error)
+	Setup(mountName string, config *TopLevelTargetConfig) (BenchmarkBuilder, error)
 
 	// Cleanup uses the passed in client to clean up any created resources used as part of the test
 	Cleanup(client *api.Client) error
@@ -180,32 +190,32 @@ func (tm TargetMulti) DebugInfo(client *api.Client) {
 	}
 }
 
-func BuildTargets(tests []*BenchmarkTarget, client *api.Client, logger hclog.Logger, randomMounts bool) (*TargetMulti, error) {
+func BuildTargets(config *TopLevelTargetConfig) (*TargetMulti, error) {
 	var tm TargetMulti
 	var err error
-	targetLogger = logger
+	targetLogger = *config.Logger
 
 	// Check to make sure all weights add to 100
-	err = percentageValidate(tests)
+	err = percentageValidate(config.Tests)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build tests
-	for _, bvTest := range tests {
+	for _, bvTest := range config.Tests {
 		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name
 		if bvTest.MountName != "" {
 			mountName = bvTest.MountName
 		}
-		bvTest.Builder, err = bvTest.Builder.Setup(client, randomMounts, mountName)
+		bvTest.Builder, err = bvTest.Builder.Setup(mountName, config)
 		if err != nil {
 			// TODO:
 			// We should look to implement some mechanism to clean up the mount if we
 			// fail to configure some aspect of it (config, role, etc.)
 			return nil, err
 		}
-		bvTest.ConfigureTarget(client)
+		bvTest.ConfigureTarget(config.Client)
 		tm.targets = append(tm.targets, *bvTest)
 	}
 

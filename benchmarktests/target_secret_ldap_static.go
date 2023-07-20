@@ -120,12 +120,12 @@ func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (r *LDAPStaticSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (r *LDAPStaticSecretTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -133,7 +133,7 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, randomMountName bool, m
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "ldap", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "ldap",
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, randomMountName bool, m
 
 	// Write connection config
 	setupLogger.Trace(writingLogMessage("ldap secret config"))
-	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
 	}
@@ -165,14 +165,14 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, randomMountName bool, m
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPStaticRoleConfig.Username)
-	_, err = client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret static role: %v", err)
 	}
 
 	return &LDAPStaticSecretTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   r.config.LDAPStaticRoleConfig.Username,
 		logger:     r.logger,
 	}, nil

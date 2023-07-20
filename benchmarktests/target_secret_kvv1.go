@@ -122,12 +122,12 @@ func (k *KVV1Test) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (k *KVV1Test) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	k.logger = targetLogger.Named("kvv1")
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -136,7 +136,7 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 
 	var setupIndex string
 	k.logger.Trace(mountLogMessage("secrets", "kvv1", mountPath))
-	err = client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
+	err = topLevelConfig.Client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 	})
 	if err != nil {
@@ -151,8 +151,9 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 		},
 	}
 
+	var client *api.Client
 	if setupIndex != "" {
-		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
+		client = topLevelConfig.Client.WithRequestCallbacks(api.RequireState(setupIndex))
 	}
 
 	var lastIndex string
@@ -161,13 +162,13 @@ func (k *KVV1Test) Setup(client *api.Client, randomMountName bool, mountName str
 		if i == k.config.NumKVs-1 {
 			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))
 		}
-		_, err = client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(i), secval)
+		_, err = topLevelConfig.Client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
 			return nil, fmt.Errorf("error writing kvv1 secret: %v", err)
 		}
 	}
 
-	headers := http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}}
+	headers := http.Header{"X-Vault-Token": []string{topLevelConfig.Client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}}
 	if lastIndex != "" {
 		headers["X-Vault-Index"] = []string{lastIndex}
 	}

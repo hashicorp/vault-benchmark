@@ -127,12 +127,12 @@ func readTokenFromFile(filepath string) (string, error) {
 	return string(jwt), nil
 }
 
-func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (k *KubeAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	k.logger = targetLogger.Named(KubeAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("can't generate UUID for mount name: %v", err)
@@ -140,7 +140,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	k.logger.Trace(mountLogMessage("auth", "kubernetes", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "kubernetes",
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Write Kubernetes config
 	setupLogger.Trace(writingLogMessage("kubernetes auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes config: %v", err)
 	}
@@ -169,7 +169,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Write Kubernetes Role
 	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
 	}
@@ -182,7 +182,7 @@ func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	}
 
 	return &KubeAuth{
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleName:   k.config.KubeTestRoleConfig.Name,
 		jwt:        jwt,

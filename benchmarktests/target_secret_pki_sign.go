@@ -298,12 +298,12 @@ func (p *PKISignTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (p *PKISignTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	p.logger = targetLogger.Named(PKISignTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -312,13 +312,13 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 	p.logger = p.logger.Named(secretPath)
 
 	// Create Root CA
-	err = p.createRootCA(client, secretPath)
+	err = p.createRootCA(topLevelConfig.Client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating root CA: %v", err)
 	}
 
 	// Create and sign Intermediate CA
-	path, err := p.createIntermediateCA(client, secretPath)
+	path, err := p.createIntermediateCA(topLevelConfig.Client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating intermediate ca: %v", err)
 	}
@@ -381,7 +381,7 @@ func (p *PKISignTest) Setup(client *api.Client, randomMountName bool, mountName 
 	return &PKISignTest{
 		pathPrefix: "/v1/" + path,
 		cn:         p.config.SignConfig.CommonName,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		body:       []byte(signingDataString),
 		rootpath:   p.rootpath,
 		intpath:    p.intpath,

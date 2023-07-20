@@ -132,12 +132,12 @@ func (m *MongoDBTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (m *MongoDBTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MongoDBSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -145,7 +145,7 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 	}
 
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -163,7 +163,7 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Write DB config
 	setupLogger.Trace(writingLogMessage("mongodb config"), "name", m.config.MongoDBConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBConfig.Name, dbConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config/"+m.config.MongoDBConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
@@ -177,14 +177,14 @@ func (m *MongoDBTest) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("mongodb role"), "name", m.config.MongoDBRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, roleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing mongodb role %q: %v", m.config.MongoDBRoleConfig.Name, err)
 	}
 
 	return &MongoDBTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   m.config.MongoDBRoleConfig.Name,
 		logger:     m.logger,
 	}, nil

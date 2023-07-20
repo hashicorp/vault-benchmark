@@ -119,12 +119,12 @@ func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (r *RabbitMQTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(RabbitMQSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -132,7 +132,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "rabbitmq", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "rabbitmq",
 	})
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Write connection config
 	setupLogger.Trace(writingLogMessage("rabbitmq connection config"))
-	_, err = client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq connection config: %v", err)
 	}
@@ -164,14 +164,14 @@ func (r *RabbitMQTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", r.config.RabbitMQRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq role: %v", err)
 	}
 
 	return &RabbitMQTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   r.config.RabbitMQRoleConfig.Name,
 		logger:     r.logger,
 	}, nil

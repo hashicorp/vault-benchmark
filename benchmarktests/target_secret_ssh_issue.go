@@ -158,12 +158,12 @@ func (s *SSHIssueTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (s *SSHIssueTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	s.logger = targetLogger.Named(SSHIssueTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -172,7 +172,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 
 	// Create SSH Secrets engine Mount
 	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
-	err = client.Sys().Mount(mountPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "ssh",
 	})
 	if err != nil {
@@ -191,7 +191,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	// Write CA Config
 	setupLogger.Trace(writingLogMessage("ca config"))
 	caPath := filepath.Join(mountPath, "config", "ca")
-	_, err = client.Logical().Write(caPath, caConfig)
+	_, err = topLevelConfig.Client.Logical().Write(caPath, caConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ca config: %v", err)
 	}
@@ -206,7 +206,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	// Write Role
 	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
 	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleConfig)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ssh role: %v", err)
 	}
@@ -227,7 +227,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "issue", s.config.RoleConfig.Name),
 		body:       []byte(issueConfigString),
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		logger:     s.logger,
 	}, nil
 }

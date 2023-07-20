@@ -151,12 +151,12 @@ func (l *LDAPAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (l *LDAPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	l.logger = targetLogger.Named(LDAPAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -165,7 +165,7 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Create LDAP Auth mount
 	l.logger.Trace(mountLogMessage("auth", "ldap", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "ldap",
 	})
 	if err != nil {
@@ -183,13 +183,13 @@ func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 	// Write LDAP config
 	setupLogger.Trace(writingLogMessage("ldap auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap auth config: %v", err)
 	}
 
 	return &LDAPAuth{
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   l.config.LDAPTestUserConfig.Username,
 		authPass:   l.config.LDAPTestUserConfig.Password,

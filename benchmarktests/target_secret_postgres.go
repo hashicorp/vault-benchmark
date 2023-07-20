@@ -144,12 +144,12 @@ func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (s *PostgreSQLSecret) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	s.logger = targetLogger.Named(PostgreSQLSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -158,7 +158,7 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 
 	// Create Database Secret Mount
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -177,7 +177,7 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	// Set up db
 	setupLogger.Trace(writingLogMessage("postgres db config"), "name", s.config.PostgreSQLDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", s.config.PostgreSQLDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
+	_, err = topLevelConfig.Client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing postgresql db config: %v", err)
 	}
@@ -192,14 +192,14 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, randomMountName bool, mount
 	// Create Role
 	setupLogger.Trace(writingLogMessage("postgres role"), "name", s.config.PostgreSQLRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", s.config.PostgreSQLRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing postgresql role %q: %v", s.config.PostgreSQLRoleConfig.Name, err)
 	}
 
 	return &PostgreSQLSecret{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   s.config.PostgreSQLRoleConfig.Name,
 	}, nil
 

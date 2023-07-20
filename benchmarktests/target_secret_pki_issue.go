@@ -294,12 +294,12 @@ func (p *PKIIssueTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (p *PKIIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (p *PKIIssueTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	p.logger = targetLogger.Named(PKIIssueTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -308,13 +308,13 @@ func (p *PKIIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	p.logger = p.logger.Named(secretPath)
 
 	// Create Root CA
-	err = p.createRootCA(client, secretPath)
+	err = p.createRootCA(topLevelConfig.Client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating root CA: %v", err)
 	}
 
 	// Create and sign Intermediate CA
-	path, err := p.createIntermediateCA(client, secretPath)
+	path, err := p.createIntermediateCA(topLevelConfig.Client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating intermediate CA: %v", err)
 	}
@@ -334,7 +334,7 @@ func (p *PKIIssueTest) Setup(client *api.Client, randomMountName bool, mountName
 	return &PKIIssueTest{
 		pathPrefix: "/v1/" + path,
 		cn:         p.config.IssueConfig.CommonName,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		body:       []byte(issueDataString),
 		rootpath:   p.rootpath,
 		intpath:    p.intpath,

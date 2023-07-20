@@ -111,13 +111,13 @@ func (c *NomadTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (c *NomadTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (c *NomadTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := c.config
 	c.logger = targetLogger.Named(NomadSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -125,7 +125,7 @@ func (c *NomadTest) Setup(client *api.Client, randomMountName bool, mountName st
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "nomad", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "nomad",
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func (c *NomadTest) Setup(client *api.Client, randomMountName bool, mountName st
 
 	// Write Nomad config
 	setupLogger.Trace(writingLogMessage("nomad config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", nomadConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config/access", nomadConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing nomad config: %v", err)
 	}
@@ -157,14 +157,14 @@ func (c *NomadTest) Setup(client *api.Client, randomMountName bool, mountName st
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("nomad role"), "name", config.NomadRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing nomad role: %v", err)
 	}
 
 	return &NomadTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   config.NomadRoleConfig.Name,
 		logger:     c.logger,
 	}, nil

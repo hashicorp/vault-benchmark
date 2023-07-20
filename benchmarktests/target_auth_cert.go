@@ -103,12 +103,12 @@ func (c *CertAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (c *CertAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	c.logger = targetLogger.Named(CertAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -139,26 +139,26 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 
 		// Create new client with newly generated cert
 		c.logger.Trace("creating new client with generated cert")
-		tClientConfig := client.CloneConfig()
+		tClientConfig := topLevelConfig.Client.CloneConfig()
 		tClientConfig.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
 
 		nClient, err := api.NewClient(tClientConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure vault client with client cert: %v", err)
 		}
-		nClient.SetToken(client.Token())
+		nClient.SetToken(topLevelConfig.Client.Token())
 
 		c.config.Certificate = clientCert
 
 		// TODO: This only will work for one cert auth test since we're using this new client
 		// We should invesitage how we can give each test its own client.
 		// Set the client to the new client with the newly generated client cert
-		client = nClient
+		topLevelConfig.Client = nClient
 	}
 
 	// Create Cert Auth mount
 	c.logger.Trace(mountLogMessage("auth", "cert", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "cert",
 	})
 	if err != nil {
@@ -177,14 +177,14 @@ func (c *CertAuth) Setup(client *api.Client, randomMountName bool, mountName str
 	// Set up role
 	setupLogger.Trace(writingLogMessage("role"), "name", c.config.Name)
 	rolePath := filepath.Join("auth", authPath, "certs", c.config.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cert role %q: %v", c.config.Name, err)
 	}
 
 	return &CertAuth{
 		pathPrefix: "/v1/auth/" + authPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		logger:     c.logger,
 	}, nil
 }

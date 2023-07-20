@@ -142,12 +142,12 @@ func (m *MSSQLSecret) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (m *MSSQLSecret) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MSSQLSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -156,7 +156,7 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 
 	// Create Database Secret Mount
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -175,7 +175,7 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 	// Set up db
 	setupLogger.Trace(writingLogMessage("mssql db config"), "name", m.config.MSSQLDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", m.config.MSSQLDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
+	_, err = topLevelConfig.Client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing mssql db config: %v", err)
 	}
@@ -190,14 +190,14 @@ func (m *MSSQLSecret) Setup(client *api.Client, randomMountName bool, mountName 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("mssql role"), "name", m.config.MSSQLRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", m.config.MSSQLRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing mssql role %q: %v", m.config.MSSQLRoleConfig.Name, err)
 	}
 
 	return &MSSQLSecret{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   m.config.MSSQLRoleConfig.Name,
 		logger:     m.logger,
 	}, nil

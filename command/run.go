@@ -406,7 +406,15 @@ func (r *RunCommand) Run(args []string) int {
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
 	benchmarkLogger.Info("setting up targets")
-	tm, err := benchmarktests.BuildTargets(conf.Tests, clients[0], benchmarkLogger, conf.RandomMounts)
+
+	topLevelConfig := benchmarktests.TopLevelTargetConfig{
+		Duration:     parsedDuration,
+		Tests:        conf.Tests,
+		RandomMounts: conf.RandomMounts,
+		Logger:       &benchmarkLogger,
+		Client:       clients[0],
+	}
+	tm, err := benchmarktests.BuildTargets(&topLevelConfig)
 	if err != nil {
 		benchmarkLogger.Error(fmt.Sprintf("target setup failed: %v", err))
 		return 1

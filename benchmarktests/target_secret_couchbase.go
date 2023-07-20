@@ -136,12 +136,12 @@ func (c *CouchbaseSecretTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (c *CouchbaseSecretTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	c.logger = targetLogger.Named(CouchbaseSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -150,7 +150,7 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 
 	// Create Database Secret Mount
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -169,7 +169,7 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 	// Write Config
 	setupLogger.Trace(writingLogMessage("couchbase db config"), "name", c.config.DBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", c.config.DBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
+	_, err = topLevelConfig.Client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing couchbase db config: %v", err)
 	}
@@ -184,14 +184,14 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mo
 	// Create Role
 	setupLogger.Trace(writingLogMessage("couchbase role"), "name", c.config.RoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", c.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing couchbase role %q: %v", c.config.RoleConfig.Name, err)
 	}
 
 	return &CouchbaseSecretTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   c.config.RoleConfig.Name,
 	}, nil
 }
