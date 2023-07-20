@@ -125,7 +125,7 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "nomad", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "nomad",
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 
 	// Write Nomad config
 	setupLogger.Trace(writingLogMessage("nomad config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", nomadConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config/access", nomadConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing nomad config: %v", err)
 	}
@@ -157,14 +157,14 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("nomad role"), "name", config.NomadRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing nomad role: %v", err)
 	}
 
 	return &NomadTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   config.NomadRoleConfig.Name,
 		logger:     c.logger,
 	}, nil

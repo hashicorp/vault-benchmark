@@ -132,7 +132,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "rabbitmq", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "rabbitmq",
 	})
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 
 	// Write connection config
 	setupLogger.Trace(writingLogMessage("rabbitmq connection config"))
-	_, err = client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq connection config: %v", err)
 	}
@@ -164,14 +164,14 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", r.config.RabbitMQRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq role: %v", err)
 	}
 
 	return &RabbitMQTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   r.config.RabbitMQRoleConfig.Name,
 		logger:     r.logger,
 	}, nil

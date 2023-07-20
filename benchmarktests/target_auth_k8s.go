@@ -140,7 +140,7 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	k.logger.Trace(mountLogMessage("auth", "kubernetes", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "kubernetes",
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	// Write Kubernetes config
 	setupLogger.Trace(writingLogMessage("kubernetes auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes config: %v", err)
 	}
@@ -169,7 +169,7 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	// Write Kubernetes Role
 	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
 	}
@@ -182,7 +182,7 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	return &KubeAuth{
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleName:   k.config.KubeTestRoleConfig.Name,
 		jwt:        jwt,

@@ -174,7 +174,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 
 	// Create SSH Secrets engine Mount
 	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
-	err = client.Sys().Mount(mountPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "ssh",
 	})
 	if err != nil {
@@ -193,7 +193,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 	// Write CA Config
 	setupLogger.Trace(writingLogMessage("ca config"))
 	caPath := filepath.Join(mountPath, "config", "ca")
-	_, err = client.Logical().Write(caPath, caConfig)
+	_, err = topLevelConfig.Client.Logical().Write(caPath, caConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ca config: %v", err)
 	}
@@ -208,7 +208,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 	// Write Role
 	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
 	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleConfig)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ssh role: %v", err)
 	}
@@ -268,7 +268,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "sign", s.config.RoleConfig.Name),
 		body:       []byte(signingConfigString),
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		logger:     s.logger,
 	}, nil
 }

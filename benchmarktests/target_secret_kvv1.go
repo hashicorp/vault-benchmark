@@ -136,7 +136,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	var setupIndex string
 	k.logger.Trace(mountLogMessage("secrets", "kvv1", mountPath))
-	err = client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
+	err = topLevelConfig.Client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 	})
 	if err != nil {
@@ -151,8 +151,9 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		},
 	}
 
+	var client *api.Client
 	if setupIndex != "" {
-		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
+		client = topLevelConfig.Client.WithRequestCallbacks(api.RequireState(setupIndex))
 	}
 
 	var lastIndex string
@@ -161,13 +162,13 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		if i == k.config.NumKVs-1 {
 			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))
 		}
-		_, err = client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(i), secval)
+		_, err = topLevelConfig.Client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
 			return nil, fmt.Errorf("error writing kvv1 secret: %v", err)
 		}
 	}
 
-	headers := http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}}
+	headers := http.Header{"X-Vault-Token": []string{topLevelConfig.Client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}}
 	if lastIndex != "" {
 		headers["X-Vault-Index"] = []string{lastIndex}
 	}

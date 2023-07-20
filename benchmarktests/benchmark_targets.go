@@ -193,13 +193,13 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 	targetLogger = *logger
 
 	// Check to make sure all weights add to 100
-	err = percentageValidate(tests)
+	err = percentageValidate(config.Tests)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build tests
-	for _, bvTest := range tests {
+	for _, bvTest := range config.Tests {
 		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name
 		if bvTest.MountName != "" {
@@ -212,7 +212,7 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 			// fail to configure some aspect of it (config, role, etc.)
 			return nil, err
 		}
-		bvTest.ConfigureTarget(client)
+		bvTest.ConfigureTarget(config.Client)
 		tm.targets = append(tm.targets, *bvTest)
 	}
 

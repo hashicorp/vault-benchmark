@@ -137,7 +137,7 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "consul", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "consul",
 	})
 	if err != nil {
@@ -155,7 +155,7 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	// Write Consul config
 	setupLogger.Trace(writingLogMessage("consul config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", consulConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config/access", consulConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul config: %v", err)
 	}
@@ -190,14 +190,14 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("consul role"), "name", c.config.ConsulRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+c.config.ConsulRoleConfig.Name, consulRoleConfigData)
+	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/roles/"+c.config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul role: %v", err)
 	}
 
 	return &ConsulTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   c.config.ConsulRoleConfig.Name,
 		logger:     c.logger,
 	}, nil

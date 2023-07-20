@@ -135,13 +135,13 @@ func (g *GCPAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (g *GCPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
-	config := g.config.Config
+	targetConfig := g.config.Config
 	g.logger = targetLogger.Named(GCPAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("can't generate UUID for mount name: %v", err)
@@ -149,7 +149,7 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	}
 
 	g.logger.Trace(mountLogMessage("auth", "gcp", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "gcp",
 	})
 	if err != nil {
@@ -158,52 +158,61 @@ func (g *GCPAuth) Setup(client *api.Client, randomMountName bool, mountName stri
 	setupLogger := g.logger.Named(authPath)
 
 	// check if the provided argument should be read from file
-	creds := config.GCPAuthConfig.Credentials
+	creds := targetConfig.GCPAuthConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
 		contents, err := ioutil.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading file: %w", err)
 		}
 
-		config.GCPAuthConfig.Credentials = string(contents)
+		targetConfig.GCPAuthConfig.Credentials = string(contents)
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("gcp auth"))
-	GCPAuthConfig, err := structToMap(config.GCPAuthConfig)
+	GCPAuthConfig, err := structToMap(targetConfig.GCPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcp auth config from struct: %v", err)
 	}
 
+	// Check that JWT TTL is not shorter than benchmark test duration
+	parsedTTL, err := time.ParseDuration(targetConfig.GCPTestRoleConfig.MaxJWTExp)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing JWT TTL from configuration: %v", err)
+	}
+	if parsedTTL < topLevelConfig.Duration {
+		return nil, fmt.Errorf("GCP role max_jwt_exp (%v) cannot be shorter than benchmark test duration (%v)", parsedTTL, topLevelConfig.Duration)
+	}
+
 	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	GCPRoleConfig, err := structToMap(config.GCPTestRoleConfig)
+	GCPRoleConfig, err := structToMap(targetConfig.GCPTestRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	// Write GCP Role
-	setupLogger.Trace(writingLogMessage("role"), "name", config.GCPTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+config.GCPTestRoleConfig.Name, GCPRoleConfig)
+	setupLogger.Trace(writingLogMessage("role"), "name", targetConfig.GCPTestRoleConfig.Name)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+targetConfig.GCPTestRoleConfig.Name, GCPRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp role: %v", err)
 	}
 
-	jwt, err := getSignedJwt(config)
+	jwt, err := getSignedJwt(targetConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching JWT: %v", err)
 	}
 
 	return &GCPAuth{
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		jwt:        jwt,
-		roleName:   config.GCPTestRoleConfig.Name,
+		roleName:   targetConfig.GCPTestRoleConfig.Name,
 		timeout:    g.timeout,
 		logger:     g.logger,
 	}, nil

@@ -131,7 +131,7 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 
 	// Create Database Secret Mount
 	r.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -150,7 +150,7 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 	// Set up db
 	setupLogger.Trace(writingLogMessage("redis db config"), "name", r.config.DBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", r.config.DBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
+	_, err = topLevelConfig.Client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing redis db config: %v", err)
 	}
@@ -164,14 +164,14 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 	// Set Up Role
 	setupLogger.Trace(writingLogMessage("redis role"), "name", r.config.RoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", r.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing redis role %q: %v", r.config.RoleConfig.Name, err)
 	}
 
 	return &RedisDynamicSecret{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   r.config.RoleConfig.Name,
 		config:     r.config,
 		logger:     r.logger,

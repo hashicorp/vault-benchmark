@@ -167,7 +167,7 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 
 	// Create Database Secret Mount
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
+	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -186,7 +186,7 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 	// Set up db
 	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", c.config.CassandraDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
+	_, err = topLevelConfig.Client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing cassandra db config: %v", err)
 	}
@@ -201,14 +201,14 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 	// Set Up Role
 	setupLogger.Trace(writingLogMessage("role"), "name", c.config.CassandraRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
+	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing cassandra role %q: %v", c.config.CassandraRoleConfig.Name, err)
 	}
 
 	return &CassandraSecret{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		roleName:   c.config.CassandraRoleConfig.Name,
 	}, nil
 

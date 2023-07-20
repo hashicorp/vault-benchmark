@@ -168,7 +168,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	// Create JWT Auth mount
 	j.logger.Trace(mountLogMessage("auth", "jwt", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "jwt",
 	})
 	if err != nil {
@@ -198,7 +198,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	// Write JWT config
 	setupLogger.Trace(writingLogMessage("jwt auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt config: %v", err)
 	}
@@ -212,7 +212,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	// Write JWT role
 	setupLogger.Trace(writingLogMessage("role"), "name", j.config.JWTRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
+	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt role: %v", err)
 	}
@@ -221,7 +221,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	jwtData, _ := j.getTestJWT(privKey)
 
 	return &JWTAuth{
-		header:     generateHeader(client),
+		header:     generateHeader(topLevelConfig.Client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		role:       j.config.JWTRoleConfig.Name,
 		token:      jwtData,

@@ -39,9 +39,9 @@ func (s *StatusCheck) Setup(client *api.Client, mountName string, topLevelConfig
 	var h http.Header
 	switch s.pathPrefix {
 	case "metrics":
-		h = http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{"root"}}
+		h = http.Header{"X-Vault-Token": []string{topLevelConfig.Client.Token()}, "X-Vault-Namespace": []string{"root"}}
 	default:
-		h = generateHeader(client)
+		h = generateHeader(topLevelConfig.Client)
 	}
 	return &StatusCheck{
 		header:     h,
