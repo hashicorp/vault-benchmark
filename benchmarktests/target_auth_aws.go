@@ -37,7 +37,6 @@ func init() {
 
 type AWSAuth struct {
 	pathPrefix string
-	role       string
 	loginData  map[string]interface{}
 	header     http.Header
 	config     *AWSAuthTestConfig

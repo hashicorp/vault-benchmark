@@ -9,8 +9,8 @@ This benchmark will test the dynamic generation of AWS credentials.
 - `max_retries` `(int: -1)` - Number of max retries the client should use for
   recoverable errors. The default (`-1`) falls back to the AWS SDK's default
   behavior.
-- `access_key` `(string: <required>)` – Specifies the AWS access key ID.
-- `secret_key` `(string: <required>)` – Specifies the AWS secret access key.
+- `access_key` `(string: <required>)` – Specifies the AWS access key ID.  This can also be provided via the `VAULT_BENCHMARK_AWS_ACCESS_KEY` environment variable.
+- `secret_key` `(string: <required>)` – Specifies the AWS secret access key.  This can also be provided via the `VAULT_BENCHMARK_AWS_SECRET_KEY` environment variable.
 - `region` `(string: <optional>)` – Specifies the AWS region. If not set it
   will use the `AWS_REGION` env var, `AWS_DEFAULT_REGION` env var, or
   `us-east-1` in that order.
