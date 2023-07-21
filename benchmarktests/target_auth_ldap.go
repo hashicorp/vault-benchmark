@@ -151,7 +151,7 @@ func (l *LDAPAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (l *LDAPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	l.logger = targetLogger.Named(LDAPAuthTestType)
@@ -165,7 +165,7 @@ func (l *LDAPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 
 	// Create LDAP Auth mount
 	l.logger.Trace(mountLogMessage("auth", "ldap", authPath))
-	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "ldap",
 	})
 	if err != nil {
@@ -183,13 +183,13 @@ func (l *LDAPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 
 	// Write LDAP config
 	setupLogger.Trace(writingLogMessage("ldap auth config"))
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap auth config: %v", err)
 	}
 
 	return &LDAPAuth{
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   l.config.LDAPTestUserConfig.Username,
 		authPass:   l.config.LDAPTestUserConfig.Password,

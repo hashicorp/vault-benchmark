@@ -133,7 +133,7 @@ func (g *GCPAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (g *GCPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	g.logger = targetLogger.Named(GCPAuthTestType)
@@ -146,7 +146,7 @@ func (g *GCPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 	}
 
 	g.logger.Trace(mountLogMessage("auth", "gcp", authPath))
-	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "gcp",
 	})
 	if err != nil {
@@ -173,7 +173,7 @@ func (g *GCPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 
 	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
@@ -186,7 +186,7 @@ func (g *GCPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 
 	// Write GCP Role
 	setupLogger.Trace(writingLogMessage("role"), "name", g.config.GCPTestRoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, GCPRoleConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, GCPRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp role: %v", err)
 	}
@@ -197,7 +197,7 @@ func (g *GCPAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 	}
 
 	return &GCPAuth{
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		jwt:        jwt,
 		roleName:   g.config.GCPTestRoleConfig.Name,

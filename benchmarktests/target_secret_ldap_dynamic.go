@@ -125,7 +125,7 @@ func (r *LDAPDynamicSecretTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (r *LDAPDynamicSecretTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPDynamicSecretTestType)
@@ -138,7 +138,7 @@ func (r *LDAPDynamicSecretTest) Setup(mountName string, topLevelConfig *TopLevel
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "ldap", secretPath))
-	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "ldap",
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func (r *LDAPDynamicSecretTest) Setup(mountName string, topLevelConfig *TopLevel
 
 	// Write connection config
 	setupLogger.Trace(writingLogMessage("ldap secret config"))
-	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config", connectionConfigData)
+	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
 	}
@@ -170,14 +170,14 @@ func (r *LDAPDynamicSecretTest) Setup(mountName string, topLevelConfig *TopLevel
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPDynamicRoleConfig.RoleName)
-	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/role/"+r.config.LDAPDynamicRoleConfig.RoleName, roleConfigData)
+	_, err = client.Logical().Write(secretPath+"/role/"+r.config.LDAPDynamicRoleConfig.RoleName, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret role: %v", err)
 	}
 
 	return &LDAPDynamicSecretTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		roleName:   r.config.LDAPDynamicRoleConfig.RoleName,
 		logger:     r.logger,
 	}, nil

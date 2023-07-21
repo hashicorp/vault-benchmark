@@ -154,7 +154,7 @@ func (j *JWTAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (j *JWTAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	j.logger = targetLogger.Named(JWTAuthTestType)
@@ -168,7 +168,7 @@ func (j *JWTAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 
 	// Create JWT Auth mount
 	j.logger.Trace(mountLogMessage("auth", "jwt", authPath))
-	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "jwt",
 	})
 	if err != nil {
@@ -198,7 +198,7 @@ func (j *JWTAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 
 	// Write JWT config
 	setupLogger.Trace(writingLogMessage("jwt auth config"))
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt config: %v", err)
 	}
@@ -212,7 +212,7 @@ func (j *JWTAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 
 	// Write JWT role
 	setupLogger.Trace(writingLogMessage("role"), "name", j.config.JWTRoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt role: %v", err)
 	}
@@ -221,7 +221,7 @@ func (j *JWTAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) 
 	jwtData, _ := j.getTestJWT(privKey)
 
 	return &JWTAuth{
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		role:       j.config.JWTRoleConfig.Name,
 		token:      jwtData,

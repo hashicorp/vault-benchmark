@@ -127,7 +127,7 @@ func readTokenFromFile(filepath string) (string, error) {
 	return string(jwt), nil
 }
 
-func (k *KubeAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	k.logger = targetLogger.Named(KubeAuthTestType)
@@ -140,7 +140,7 @@ func (k *KubeAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 	}
 
 	k.logger.Trace(mountLogMessage("auth", "kubernetes", authPath))
-	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "kubernetes",
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func (k *KubeAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 
 	// Write Kubernetes config
 	setupLogger.Trace(writingLogMessage("kubernetes auth config"))
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes config: %v", err)
 	}
@@ -169,7 +169,7 @@ func (k *KubeAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 
 	// Write Kubernetes Role
 	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
 	}
@@ -182,7 +182,7 @@ func (k *KubeAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 	}
 
 	return &KubeAuth{
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleName:   k.config.KubeTestRoleConfig.Name,
 		jwt:        jwt,

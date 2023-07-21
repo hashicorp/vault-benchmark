@@ -196,7 +196,7 @@ func (t *TransitTest) GetTargetInfo() TargetInfo {
 		pathPrefix: t.pathPrefix,
 	}
 }
-func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	switch t.action {
@@ -218,7 +218,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	}
 
 	t.logger.Trace(mountLogMessage("secrets", "transit", secretPath))
-	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "transit",
 		Config: api.MountConfigInput{
 			MaxLeaseTTL: "87600h",
@@ -237,7 +237,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	}
 
 	setupLogger.Trace(writingLogMessage("key config"), "name", t.config.TransitConfigKeys.Name)
-	_, err = topLevelConfig.Client.Logical().Write(filepath.Join(secretPath, "keys", t.config.TransitConfigKeys.Name), keysConfigData)
+	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", t.config.TransitConfigKeys.Name), keysConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing transit key config: %v", err)
 	}
@@ -273,7 +273,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 
 		return &TransitTest{
 			pathPrefix: "/v1/" + secretPath,
-			header:     generateHeader(topLevelConfig.Client),
+			header:     generateHeader(client),
 			body:       []byte(signingDataString),
 			logger:     t.logger,
 		}, nil
@@ -288,7 +288,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 
 		// Sign the payload first
 		setupLogger.Trace("signing payload")
-		resp, err := topLevelConfig.Client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitConfigVerify.Name), signData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitConfigVerify.Name), signData)
 		if err != nil {
 			return nil, fmt.Errorf("error signing payload: %v", err)
 		}
@@ -311,7 +311,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 
 		return &TransitTest{
 			pathPrefix: "/v1/" + verifyPath,
-			header:     generateHeader(topLevelConfig.Client),
+			header:     generateHeader(client),
 			body:       []byte(verifyDataString),
 			logger:     t.logger,
 		}, nil
@@ -336,7 +336,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 		encryptPath := filepath.Join(secretPath, "encrypt", t.config.TransitConfigEncrypt.Name)
 		return &TransitTest{
 			pathPrefix: "/v1/" + encryptPath,
-			header:     generateHeader(topLevelConfig.Client),
+			header:     generateHeader(client),
 			body:       []byte(encryptDataString),
 			logger:     t.logger,
 		}, nil
@@ -353,7 +353,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 		}
 
 		setupLogger.Trace("encrypting payload")
-		resp, err := topLevelConfig.Client.Logical().Write(filepath.Join(secretPath, "encrypt", t.config.TransitConfigDecrypt.Name), testEncryptData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", t.config.TransitConfigDecrypt.Name), testEncryptData)
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
@@ -381,7 +381,7 @@ func (t *TransitTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 		// Now decrypt it
 		return &TransitTest{
 			pathPrefix: "/v1/" + decryptPath,
-			header:     generateHeader(topLevelConfig.Client),
+			header:     generateHeader(client),
 			body:       []byte(decryptDataString),
 			logger:     t.logger,
 		}, nil

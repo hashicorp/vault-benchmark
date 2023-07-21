@@ -124,7 +124,7 @@ func (a *ApproleAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (a *ApproleAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	a.logger = targetLogger.Named(ApproleAuthTestType)
@@ -138,7 +138,7 @@ func (a *ApproleAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 
 	// Create AppRole Auth Mount
 	a.logger.Trace(mountLogMessage("auth", "approle", authPath))
-	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "approle",
 	})
 	if err != nil {
@@ -156,14 +156,14 @@ func (a *ApproleAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	// Set Up Role
 	setupLogger.Trace(writingLogMessage("role"), "name", a.config.RoleConfig.Name)
 	rolePath := filepath.Join("auth", authPath, "role", a.config.RoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
+	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating approle role %q: %v", a.config.RoleConfig.Name, err)
 	}
 
 	// Get Role ID
 	setupLogger.Trace("getting role-id")
-	roleIDSecret, err := topLevelConfig.Client.Logical().Read(rolePath + "/role-id")
+	roleIDSecret, err := client.Logical().Read(rolePath + "/role-id")
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle role-id: %v", err)
 	}
@@ -177,13 +177,13 @@ func (a *ApproleAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 
 	// Get SecretID
 	setupLogger.Trace("getting secret-id")
-	secretId, err := topLevelConfig.Client.Logical().Write(rolePath+"/secret-id", secretIDData)
+	secretId, err := client.Logical().Write(rolePath+"/secret-id", secretIDData)
 	if err != nil {
 		return nil, fmt.Errorf("error reading approle secret-id: %v", err)
 	}
 
 	return &ApproleAuth{
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		roleID:     roleIDSecret.Data["role_id"].(string),
 		role:       a.config.RoleConfig.Name,

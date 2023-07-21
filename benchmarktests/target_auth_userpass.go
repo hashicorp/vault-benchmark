@@ -99,7 +99,7 @@ func (u *UserpassAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (u *UserpassAuth) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	u.logger = targetLogger.Named(UserpassTestType)
@@ -113,7 +113,7 @@ func (u *UserpassAuth) Setup(mountName string, topLevelConfig *TopLevelTargetCon
 
 	// Create Userpass Auth Mount
 	u.logger.Trace(mountLogMessage("auth", "userpass", authPath))
-	err = topLevelConfig.Client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "userpass",
 	})
 	if err != nil {
@@ -131,13 +131,13 @@ func (u *UserpassAuth) Setup(mountName string, topLevelConfig *TopLevelTargetCon
 
 	setupLogger.Trace(writingLogMessage("user config"))
 	userPath := filepath.Join("auth", authPath, "users", u.config.Username)
-	_, err = topLevelConfig.Client.Logical().Write(userPath, userData)
+	_, err = client.Logical().Write(userPath, userData)
 	if err != nil {
 		return nil, fmt.Errorf("error creating userpass user %q: %v", u.config.Username, err)
 	}
 
 	return &UserpassAuth{
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		user:       u.config.Username,
 		password:   u.config.Password,

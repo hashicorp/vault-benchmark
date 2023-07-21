@@ -155,7 +155,7 @@ func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	t.logger = targetLogger.Named(TransformTokenizationTestType)
@@ -169,7 +169,7 @@ func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopL
 
 	// Create Transform mount
 	t.logger.Trace(mountLogMessage("secrets", "transform", secretPath))
-	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "transform",
 	})
 	if err != nil {
@@ -192,7 +192,7 @@ func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopL
 		// Setup store
 		setupLogger.Trace(writingLogMessage("store config"), "name", t.config.StoreConfig.Name)
 		storePath := filepath.Join(secretPath, "stores", t.config.StoreConfig.Name)
-		_, err = topLevelConfig.Client.Logical().Write(storePath, storeConfigData)
+		_, err = client.Logical().Write(storePath, storeConfigData)
 		if err != nil {
 			return nil, fmt.Errorf("error writing store config %q: %v", t.config.StoreConfig.Name, err)
 		}
@@ -210,7 +210,7 @@ func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopL
 			// Setup store
 			setupLogger.Trace(writingLogMessage("store schema"), "store", t.config.StoreSchemaConfig.Name)
 			storeSchemaPath := filepath.Join(secretPath, "stores", t.config.StoreSchemaConfig.Name, "schema")
-			_, err = topLevelConfig.Client.Logical().Write(storeSchemaPath, storeSchemaConfigData)
+			_, err = client.Logical().Write(storeSchemaPath, storeSchemaConfigData)
 			if err != nil {
 				return nil, fmt.Errorf("error writing store schema %q: %v", t.config.StoreSchemaConfig.Name, err)
 			}
@@ -227,7 +227,7 @@ func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopL
 	// Create Role
 	setupLogger.Trace(writingLogMessage("role"), "name", t.config.RoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "role", t.config.RoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleConfigData)
+	_, err = client.Logical().Write(rolePath, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing role %q: %v", t.config.RoleConfig.Name, err)
 	}
@@ -242,7 +242,7 @@ func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopL
 	// Create Transformation
 	setupLogger.Trace(writingLogMessage("tokenization transformation"), "name", t.config.TokenizationConfig.Name)
 	transformationPath := filepath.Join(secretPath, "transformations", "tokenization", t.config.TokenizationConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write(transformationPath, tokenizationConfigData)
+	_, err = client.Logical().Write(transformationPath, tokenizationConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing tokenization transformation %q: %v", t.config.TokenizationConfig.Name, err)
 	}
@@ -261,7 +261,7 @@ func (t *TransformTokenizationTest) Setup(mountName string, topLevelConfig *TopL
 
 	return &TransformTokenizationTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		body:       []byte(testDataString),
 		roleName:   t.config.RoleConfig.Name,
 		logger:     t.logger,

@@ -120,7 +120,7 @@ func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (r *LDAPStaticSecretTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
@@ -133,7 +133,7 @@ func (r *LDAPStaticSecretTest) Setup(mountName string, topLevelConfig *TopLevelT
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "ldap", secretPath))
-	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "ldap",
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func (r *LDAPStaticSecretTest) Setup(mountName string, topLevelConfig *TopLevelT
 
 	// Write connection config
 	setupLogger.Trace(writingLogMessage("ldap secret config"))
-	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/config", connectionConfigData)
+	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
 	}
@@ -165,14 +165,14 @@ func (r *LDAPStaticSecretTest) Setup(mountName string, topLevelConfig *TopLevelT
 
 	// Create Role
 	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPStaticRoleConfig.Username)
-	_, err = topLevelConfig.Client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
+	_, err = client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret static role: %v", err)
 	}
 
 	return &LDAPStaticSecretTest{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		roleName:   r.config.LDAPStaticRoleConfig.Username,
 		logger:     r.logger,
 	}, nil

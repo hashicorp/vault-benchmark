@@ -146,7 +146,7 @@ func (m *MySQLSecret) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (m *MySQLSecret) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MySQLSecretTestType)
@@ -160,7 +160,7 @@ func (m *MySQLSecret) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 
 	// Create Database Secret Mount
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = topLevelConfig.Client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
 	})
 	if err != nil {
@@ -179,7 +179,7 @@ func (m *MySQLSecret) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	// Set up db
 	setupLogger.Trace(writingLogMessage("mysql db config"), "name", m.config.MySQLDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", m.config.MySQLDBConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write(dbPath, dbData)
+	_, err = client.Logical().Write(dbPath, dbData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing mysql db config: %v", err)
 	}
@@ -194,14 +194,14 @@ func (m *MySQLSecret) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	// Create Role
 	setupLogger.Trace(writingLogMessage("mysql role"), "name", m.config.MySQLRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", m.config.MySQLRoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleData)
+	_, err = client.Logical().Write(rolePath, roleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing mysql role %q: %v", m.config.MySQLRoleConfig.Name, err)
 	}
 
 	return &MySQLSecret{
 		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		roleName:   m.config.MySQLRoleConfig.Name,
 		logger:     m.logger,
 	}, nil

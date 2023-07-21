@@ -298,7 +298,7 @@ func (p *PKISignTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (p *PKISignTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (p *PKISignTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	p.logger = targetLogger.Named(PKISignTestType)
@@ -312,13 +312,13 @@ func (p *PKISignTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	p.logger = p.logger.Named(secretPath)
 
 	// Create Root CA
-	err = p.createRootCA(topLevelConfig.Client, secretPath)
+	err = p.createRootCA(client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating root CA: %v", err)
 	}
 
 	// Create and sign Intermediate CA
-	path, err := p.createIntermediateCA(topLevelConfig.Client, secretPath)
+	path, err := p.createIntermediateCA(client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating intermediate ca: %v", err)
 	}
@@ -381,7 +381,7 @@ func (p *PKISignTest) Setup(mountName string, topLevelConfig *TopLevelTargetConf
 	return &PKISignTest{
 		pathPrefix: "/v1/" + path,
 		cn:         p.config.SignConfig.CommonName,
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		body:       []byte(signingDataString),
 		rootpath:   p.rootpath,
 		intpath:    p.intpath,

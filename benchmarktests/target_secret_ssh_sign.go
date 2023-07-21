@@ -160,7 +160,7 @@ func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (s *SSHKeySignTest) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	s.logger = targetLogger.Named(SSHKeySignTestType)
@@ -174,7 +174,7 @@ func (s *SSHKeySignTest) Setup(mountName string, topLevelConfig *TopLevelTargetC
 
 	// Create SSH Secrets engine Mount
 	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
-	err = topLevelConfig.Client.Sys().Mount(mountPath, &api.MountInput{
+	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "ssh",
 	})
 	if err != nil {
@@ -193,7 +193,7 @@ func (s *SSHKeySignTest) Setup(mountName string, topLevelConfig *TopLevelTargetC
 	// Write CA Config
 	setupLogger.Trace(writingLogMessage("ca config"))
 	caPath := filepath.Join(mountPath, "config", "ca")
-	_, err = topLevelConfig.Client.Logical().Write(caPath, caConfig)
+	_, err = client.Logical().Write(caPath, caConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ca config: %v", err)
 	}
@@ -208,7 +208,7 @@ func (s *SSHKeySignTest) Setup(mountName string, topLevelConfig *TopLevelTargetC
 	// Write Role
 	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
 	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
-	_, err = topLevelConfig.Client.Logical().Write(rolePath, roleConfig)
+	_, err = client.Logical().Write(rolePath, roleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ssh role: %v", err)
 	}
@@ -268,7 +268,7 @@ func (s *SSHKeySignTest) Setup(mountName string, topLevelConfig *TopLevelTargetC
 		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "sign", s.config.RoleConfig.Name),
 		body:       []byte(signingConfigString),
-		header:     generateHeader(topLevelConfig.Client),
+		header:     generateHeader(client),
 		logger:     s.logger,
 	}, nil
 }

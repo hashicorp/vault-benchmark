@@ -122,7 +122,7 @@ func (k *KVV2Test) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (k *KVV2Test) Setup(mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	switch k.action {
@@ -140,7 +140,7 @@ func (k *KVV2Test) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 	}
 
 	k.logger.Trace(mountLogMessage("secrets", "kvv2", mountPath))
-	err = topLevelConfig.Client.Sys().Mount(mountPath, &api.MountInput{
+	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 		Options: map[string]string{
 			"version": "2",
@@ -165,7 +165,7 @@ func (k *KVV2Test) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 
 	setupLogger.Trace("seeding secrets")
 	for i := 1; i <= k.config.NumKVs; i++ {
-		_, err = topLevelConfig.Client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
+		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
 			return nil, fmt.Errorf("error writing kv secret: %v", err)
 		}
@@ -173,7 +173,7 @@ func (k *KVV2Test) Setup(mountName string, topLevelConfig *TopLevelTargetConfig)
 
 	return &KVV2Test{
 		pathPrefix: "/v1/" + mountPath,
-		header:     http.Header{"X-Vault-Token": []string{topLevelConfig.Client.Token()}, "X-Vault-Namespace": []string{topLevelConfig.Client.Headers().Get("X-Vault-Namespace")}},
+		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		numKVs:     k.config.NumKVs,
 		kvSize:     k.config.KVSize,
 		logger:     k.logger,
