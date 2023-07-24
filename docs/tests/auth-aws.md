@@ -1,6 +1,6 @@
 # AWS Authentication Credential Benchmark (`aws_auth`)
 
-This benchmark tests the performance of logins using the aws auth method.
+This benchmark tests the performance of logins using the AWS auth method.
 
 ## Benchmark Configuration Parameters
 
