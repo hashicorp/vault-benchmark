@@ -185,4 +185,4 @@ func (a *AWSTest) Setup(client *api.Client, randomMountName bool, mountName stri
 	}, nil
 }
 
-func (m *AWSTest) Flags(fs *flag.FlagSet) {}
+func (a *AWSTest) Flags(fs *flag.FlagSet) {}
