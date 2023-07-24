@@ -1,6 +1,6 @@
 # JWT Static Credential Benchmark (`jwt_auth`)
 
-This benchmark tests the performance of logins using the jwt auth method.
+This benchmark tests the performance of logins using the JWT auth method.
 
 ## Benchmark Configuration Parameters
 
