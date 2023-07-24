@@ -16,7 +16,7 @@ This benchmark will test the dynamic generation of Azure credentials.
   environment variable. If not specified, Vault will use Azure Public Cloud.
 - `password_policy` `(string: "")` - Specifies a [password policy](https://developer.hashicorp.com/vault/docs/concepts/password-policies) to
   use when creating dynamic credentials. Defaults to generating an alphanumeric password if not set.
-- `root_password_ttl` `(string: 182d)` - Specifies how long the root password is valid for in Azure when
+- `root_password_ttl` `(string: "182d")` - Specifies how long the root password is valid for in Azure when
   rotate-root generates a new client secret. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 
 ### Azure Role (`role`)
