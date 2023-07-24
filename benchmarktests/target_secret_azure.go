@@ -91,6 +91,14 @@ func (a *AzureTest) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
+	if a.config.AzureConfig.SubscriptionId == "" {
+		return fmt.Errorf("subscription ID is required")
+	}
+
+	if a.config.AzureConfig.TenantId == "" {
+		return fmt.Errorf("tenant ID is required")
+	}
+
 	return nil
 }
 
