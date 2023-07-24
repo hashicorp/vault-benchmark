@@ -11,13 +11,18 @@ import (
 	dockhelper "github.com/hashicorp/vault/sdk/helper/docker"
 )
 
+const (
+	benchmarkImageRepo = "docker.mirror.hashicorp.services/hashicorp/vault"
+	benchmarkImageTag  = "latest"
+)
+
 func CreateVaultContainer(t *testing.T) (func(), string) {
 	ctx := context.Background()
 
 	runOpts := dockhelper.RunOptions{
 		ContainerName: "vault",
-		ImageRepo:     "docker.mirror.hashicorp.services/hashicorp/vault",
-		ImageTag:      "latest",
+		ImageRepo:     benchmarkImageRepo,
+		ImageTag:      benchmarkImageTag,
 		Cmd: []string{
 			"server", "-log-level=trace", "-dev", "-dev-root-token-id=root",
 			"-dev-listen-address=0.0.0.0:8200",
