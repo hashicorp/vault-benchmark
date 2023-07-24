@@ -25,9 +25,18 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 	}
 
 	api, err := dockhelper.NewDockerAPI()
+
+	if err != nil {
+		t.Fatalf("Error starting docker api: %s", err)
+	}
+
 	imageRepo := "hashicorp/vault-benchmark"
 	imageTag := "latest"
 	tag, err := setupBenchmarkImage(ctx, imageRepo, imageTag, binary, api)
+
+	if err != nil {
+		t.Fatalf("Error setting up benchmark image: %s", err)
+	}
 
 	volume := map[string]string{
 		"configs/": "/etc/",
