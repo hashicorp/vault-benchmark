@@ -122,7 +122,7 @@ func (k *KVV1Test) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (k *KVV1Test) Setup(c *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	k.logger = targetLogger.Named("kvv1")
@@ -136,7 +136,7 @@ func (k *KVV1Test) Setup(c *api.Client, mountName string, topLevelConfig *TopLev
 
 	var setupIndex string
 	k.logger.Trace(mountLogMessage("secrets", "kvv1", mountPath))
-	err = c.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
+	err = client.WithResponseCallbacks(api.RecordState(&setupIndex)).Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
 	})
 	if err != nil {
@@ -151,7 +151,6 @@ func (k *KVV1Test) Setup(c *api.Client, mountName string, topLevelConfig *TopLev
 		},
 	}
 
-	var client *api.Client
 	if setupIndex != "" {
 		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
 	}
