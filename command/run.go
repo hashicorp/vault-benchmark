@@ -4,6 +4,7 @@
 package command
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -37,23 +38,24 @@ var (
 
 type RunCommand struct {
 	*BaseCommand
+	flagDuration         time.Duration
+	flagPPROFInterval    time.Duration
 	flagVaultAddr        string
 	flagVaultToken       string
 	flagAuditPath        string
 	flagVBCoreConfigPath string
 	flagCAPEMFile        string
 	flagVaultNamespace   string
+	flagReportMode       string
+	flagAnnotate         string
+	flagClusterJson      string
+	flagLogLevel         string
 	flagWorkers          int
 	flagRPS              int
-	flagDuration         time.Duration
-	flagReportMode       string
-	flagPPROFInterval    time.Duration
-	flagAnnotate         string
 	flagRandomMounts     bool
 	flagCleanup          bool
 	flagDebug            bool
-	flagClusterJson      string
-	flagLogLevel         string
+	flagDisableHTTP2     bool
 }
 
 func (r *RunCommand) Synopsis() string {
@@ -214,6 +216,13 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Run vault-benchmark in Debug mode.",
 	})
 
+	f.BoolVar(&BoolVar{
+		Name:    "disable_http2",
+		Target:  &r.flagDisableHTTP2,
+		Default: false,
+		Usage:   "Force HTTP/1.1",
+	})
+
 	// Add any additional flags from tests
 	for _, vbTest := range benchmarktests.TestList {
 		vbTest().Flags(f.mainSet)
@@ -346,11 +355,23 @@ func (r *RunCommand) Run(args []string) int {
 		if conf.CAPEMFile != "" {
 			tlsCfg.CACert = conf.CAPEMFile
 		}
+
 		err := cfg.ConfigureTLS(tlsCfg)
 		if err != nil {
 			benchmarkLogger.Error("error creating vault client", "error", hclog.Fmt("%v", err))
 			return 1
 		}
+
+		// Check if we're forcing HTTP/1.1
+		if conf.DisableHTTP2 {
+			benchmarkLogger.Warn("http2 disabled, using http/1.1")
+			transport := cfg.HttpClient.Transport.(*http.Transport)
+			transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+			transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+			transport.ForceAttemptHTTP2 = false
+			cfg.HttpClient.Transport = transport
+		}
+
 		cfg.Address = addr
 		client, err := vaultapi.NewClient(cfg)
 		if err != nil {
@@ -587,8 +608,14 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: "INFO",
 		EnvVar:  "VAULT_BENCHMARK_LOG_LEVEL",
 	})
-
 	config.LogLevel = r.flagLogLevel
+
+	r.setBoolFlag(f, config.DisableHTTP2, &BoolVar{
+		Name:    "disable_http2",
+		Target:  &r.flagDisableHTTP2,
+		Default: false,
+	})
+	config.DisableHTTP2 = r.flagDisableHTTP2
 }
 
 func (r *RunCommand) setBoolFlag(f *FlagSets, configVal bool, fVar *BoolVar) {
