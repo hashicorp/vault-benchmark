@@ -362,7 +362,8 @@ func (r *RunCommand) Run(args []string) int {
 			return 1
 		}
 
-		// Check if we're forcing HTTP/1.1
+		// Check if we're forcing HTTP/1.1. Used to make sure benchmark traffic
+		// is spread across nodes when Vault is behind a load balancer.
 		if conf.DisableHTTP2 {
 			benchmarkLogger.Warn("http2 disabled, using http/1.1")
 			transport := cfg.HttpClient.Transport.(*http.Transport)
