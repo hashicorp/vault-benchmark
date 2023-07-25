@@ -35,6 +35,7 @@ type VaultBenchmarkCoreConfig struct {
 	ClusterJSON    string                            `hcl:"cluster_json,optional"`
 	CAPEMFile      string                            `hcl:"ca_pem_file,optional"`
 	PPROFInterval  string                            `hcl:"pprof_interval,optional"`
+	LogLevel       string                            `hcl:"log_level,optional"`
 	Tests          []*benchmarktests.BenchmarkTarget `hcl:"test,block"`
 	RPS            int                               `hcl:"rps,optional"`
 	Workers        int                               `hcl:"workers,optional"`
@@ -42,7 +43,7 @@ type VaultBenchmarkCoreConfig struct {
 	InputResults   bool                              `hcl:"input_results,optional"`
 	Cleanup        bool                              `hcl:"cleanup,optional"`
 	Debug          bool                              `hcl:"debug,optional"`
-	LogLevel       string                            `hcl:"log_level,optional"`
+	DisableHTTP2   bool                              `hcl:"disable_http2,optional"`
 }
 
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
