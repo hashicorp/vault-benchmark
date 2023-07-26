@@ -40,6 +40,9 @@ func GetHumanVersion() string {
 		version += fmt.Sprintf("+%s", metadata)
 	}
 
+	// Remove any newlines that may have been added by the git information.
+	version = strings.ReplaceAll(version, "\n", "")
+
 	// Strip off any single quotes added by the git information.
 	return strings.ReplaceAll(version, "'", "")
 }
