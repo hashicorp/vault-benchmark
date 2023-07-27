@@ -1,8 +1,8 @@
 # Changelog
 
-## [v0.1.1](https://github.com/hashicorp/vault-benchmark/tree/v0.1.1) (July 26, 2023)
+## [Unreleased](https://github.com/hashicorp/vault-benchmark/tree/HEAD)
 
-[Full Changelog](https://github.com/hashicorp/vault-benchmark/compare/v0.1.0...v0.1.1)
+[Full Changelog](https://github.com/hashicorp/vault-benchmark/compare/v0.1.0...HEAD)
 
 ### Features
 
