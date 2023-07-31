@@ -10,7 +10,7 @@ This benchmark will test GitHub Authentication to Vault. The primary required fi
 - `organization_id` `(int: 0)` - The ID of the organization users must be part of. Vault will attempt to fetch and set this value if it is not provided.
 - `base_url` `(string: "")` - The API endpoint to use. Useful if you are running GitHub Enterprise or an API-compatible authentication server.
 - `token_ttl` `(string: "")` - The incremental lifetime for generated tokens. This current value of this will be referenced at renewal time.
-- `token_max_ttl` `(integer: 0 or string: "")` - The maximum lifetime for generated tokens. This current value of this will be referenced at renewal time.
+- `token_max_ttl` `(string: "")` - The maximum lifetime for generated tokens. This current value of this will be referenced at renewal time.
 - `token_policies` `(array: [] or comma-delimited string: "")` - List of token policies to encode onto generated tokens. Depending on the auth method, this list may be supplemented by user/group/other values.
 - `policies` `(array: [] or comma-delimited string: "")` - DEPRECATED: Please use the `token_policies` parameter instead. List of token policies to encode onto generated tokens. Depending on the auth method, this list may be supplemented by user/group/other values.
 - `token_bound_cidrs` `(array: [] or comma-delimited string: "")` - List of CIDR blocks; if set, specifies blocks of IP addresses which can authenticate successfully, and ties the resulting token to these blocks as well.
