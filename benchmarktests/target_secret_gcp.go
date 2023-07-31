@@ -207,4 +207,4 @@ func (g *GCPTest) Setup(client *api.Client, randomMountName bool, mountName stri
 	}, nil
 }
 
-func (a *GCPTest) Flags(fs *flag.FlagSet) {}
+func (g *GCPTest) Flags(fs *flag.FlagSet) {}
