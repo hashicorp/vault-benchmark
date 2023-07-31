@@ -1,4 +1,4 @@
-# Azure Authentication Benchmark (`azure_auth`)
+# Azure Secrets Engine Benchmark (`azure_secret`)
 This benchmark will test the dynamic generation of Azure credentials.
 
 ## Benchmark Configuration Parameters
