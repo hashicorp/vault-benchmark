@@ -55,7 +55,7 @@ type GitHubAuthConfig struct {
 	Policies             string `hcl:"policies,optional"`
 	TokenBoundCIDRs      string `hcl:"token_bound_cidrs,optional"`
 	TokenExplicitMaxTTL  string `hcl:"token_explicit_max_ttl,optional"`
-	TokenNoDefaultPolicy string `hcl:"token_no_default_policy,optional"`
+	TokenNoDefaultPolicy bool   `hcl:"token_no_default_policy,optional"`
 	TokenNumUses         string `hcl:"token_num_uses,optional"`
 	TokenPeriod          string `hcl:"token_period,optional"`
 	TokenType            string `hcl:"token_type,optional"`
