@@ -57,7 +57,7 @@ test "gcp_secret" "gcp_secret1" {
   weight = 100
   config {
     gcp {
-    //   credentials = "@VaultServiceAccountKeyNew.json"
+    credentials = "@VaultServiceAccountKey.json"
     }
 
     roleset {
