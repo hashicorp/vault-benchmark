@@ -47,7 +47,7 @@ test "kvv2_write" "static_secret_writes" {
 }
 ```
 This test configuration will run two different benchmark tests, an `approle_auth` test, and a `kvv2_write` test, with the percentage of requests being split evenly between the two.
- 
+
 Then we run the binary and provide the configuration file path:
 ```bash
 $ vault-benchmark run -config=config.hcl
