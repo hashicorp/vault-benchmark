@@ -126,12 +126,12 @@ func (a *AzureTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (a *AzureTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+	var err error
+	secretPath := mountName
 	a.logger = targetLogger.Named(AzureSecretTestType)
 
-	secretPath := mountName
-	if randomMountName {
-		var err error
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -142,7 +142,7 @@ func (a *AzureTest) Setup(client *api.Client, randomMountName bool, mountName st
 	a.logger.Trace(mountLogMessage("secrets", "azure", secretPath))
 	setupLogger := a.logger.Named(secretPath)
 
-	err := client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "azure",
 	})
 	if err != nil {
