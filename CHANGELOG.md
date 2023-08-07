@@ -6,6 +6,7 @@
 
 ### Features
 
+- Add GitHub Auth Support [\#141](https://github.com/hashicorp/vault-benchmark/pull/141)
 - Add Azure Secret Support [\#137](https://github.com/hashicorp/vault-benchmark/pull/137)
 - Add AWS Secret/Auth Support [\#133](https://github.com/hashicorp/vault-benchmark/pull/133)
 - Add GCP Auth Support [\#131](https://github.com/hashicorp/vault-benchmark/pull/131)
