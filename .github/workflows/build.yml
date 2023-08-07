@@ -148,6 +148,11 @@ jobs:
           deb_depends: "openssl"
           rpm_depends: "openssl"
 
+      - name: List Packages
+        run: |
+          echo "this is a test"
+          ls dist/
+
       - name: Set Package Names
         if: ${{ matrix.goos == 'linux' }}
         run: |
@@ -253,3 +258,14 @@ jobs:
           dev_tags: |
             docker.io/hashicorppreview/${{ env.repo }}:${{ env.version }}-dev
             docker.io/hashicorppreview/${{ env.repo }}:${{ env.version }}-${{ github.sha }}
+
+  # run-tests:
+  #   name: "Run Tests"
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+  #     - uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4.0.1
+  #       with:
+  #         go-version-file: .go-version
+  #     - name: Run Tests
+  #       run: make test
