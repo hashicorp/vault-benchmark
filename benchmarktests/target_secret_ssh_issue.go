@@ -158,12 +158,12 @@ func (s *SSHIssueTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (s *SSHIssueTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	s.logger = targetLogger.Named(SSHIssueTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

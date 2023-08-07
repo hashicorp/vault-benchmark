@@ -155,12 +155,12 @@ func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (t *TransformTokenizationTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	t.logger = targetLogger.Named(TransformTokenizationTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

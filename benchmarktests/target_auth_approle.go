@@ -124,12 +124,12 @@ func (a *ApproleAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (a *ApproleAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	a.logger = targetLogger.Named(ApproleAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

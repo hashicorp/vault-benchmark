@@ -127,12 +127,12 @@ func readTokenFromFile(filepath string) (string, error) {
 	return string(jwt), nil
 }
 
-func (k *KubeAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	k.logger = targetLogger.Named(KubeAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("can't generate UUID for mount name: %v", err)

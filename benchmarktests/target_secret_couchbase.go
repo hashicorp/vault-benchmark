@@ -136,12 +136,12 @@ func (c *CouchbaseSecretTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (c *CouchbaseSecretTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	c.logger = targetLogger.Named(CouchbaseSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

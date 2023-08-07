@@ -139,12 +139,12 @@ func (r *RedisStaticSecret) GetTargetInfo() TargetInfo {
 
 func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {}
 
-func (r *RedisStaticSecret) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (r *RedisStaticSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(RedisStaticSecretTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

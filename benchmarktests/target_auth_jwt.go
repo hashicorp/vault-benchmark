@@ -154,12 +154,12 @@ func (j *JWTAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (j *JWTAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	j.logger = targetLogger.Named(JWTAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

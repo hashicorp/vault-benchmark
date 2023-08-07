@@ -196,7 +196,7 @@ func (t *TransitTest) GetTargetInfo() TargetInfo {
 		pathPrefix: t.pathPrefix,
 	}
 }
-func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	switch t.action {
@@ -210,7 +210,7 @@ func (t *TransitTest) Setup(client *api.Client, randomMountName bool, mountName 
 		t.logger = targetLogger.Named(TransitDecryptSecretTestType)
 	}
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

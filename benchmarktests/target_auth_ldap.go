@@ -151,12 +151,12 @@ func (l *LDAPAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (l *LDAPAuth) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	l.logger = targetLogger.Named(LDAPAuthTestType)
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")

@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-gcp-common v0.8.0
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-secure-stdlib/awsutil v0.2.2
+	github.com/hashicorp/go-secure-stdlib/awsutil v0.2.3
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/go-version v1.6.0

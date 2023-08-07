@@ -122,7 +122,7 @@ func (k *KVV2Test) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
+func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	switch k.action {
@@ -132,7 +132,7 @@ func (k *KVV2Test) Setup(client *api.Client, randomMountName bool, mountName str
 		k.logger = targetLogger.Named(KVV2ReadTestType)
 	}
 
-	if randomMountName {
+	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
