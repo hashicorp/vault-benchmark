@@ -178,7 +178,8 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 	if parsedTTL < topLevelConfig.Duration {
 		g.config.GCPTestRoleConfig.MaxJWTExp = topLevelConfig.Duration.String()
-		fmt.Printf("GCP role max_jwt_exp (%v) cannot be shorter than benchmark test duration (%v) setting max_jwt_exp to test length (%v)", parsedTTL, topLevelConfig.Duration, topLevelConfig.Duration)
+		warnMsg := fmt.Sprintf("max_jwt_exp (%v) cannot be shorter than test duration (%v). Setting max_jwt_exp to %v", parsedTTL, topLevelConfig.Duration, topLevelConfig.Duration)
+		setupLogger.Warn(warnMsg)
 	}
 
 	// Write GCP config
