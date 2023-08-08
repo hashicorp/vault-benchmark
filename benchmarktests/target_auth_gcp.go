@@ -171,6 +171,17 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error parsing gcp auth config from struct: %v", err)
 	}
 
+	// Check that JWT TTL is not shorter than benchmark test duration
+	parsedTTL, err := time.ParseDuration(g.config.GCPTestRoleConfig.MaxJWTExp)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing JWT TTL from configuration: %v", err)
+	}
+	if parsedTTL < topLevelConfig.Duration {
+		g.config.GCPTestRoleConfig.MaxJWTExp = topLevelConfig.Duration.String()
+		warnMsg := fmt.Sprintf("max_jwt_exp (%v) cannot be shorter than test duration (%v). Setting max_jwt_exp to %v", parsedTTL, topLevelConfig.Duration, topLevelConfig.Duration)
+		setupLogger.Warn(warnMsg)
+	}
+
 	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
