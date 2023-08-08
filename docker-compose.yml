@@ -1,0 +1,22 @@
+version: "3.8"
+services:
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_ADDR: "http://localhost:8200"
+      VAULT_DEV_LISTEN_ADDRESS : "vault:8200"
+    privileged: true
+
+  vault-benchmark:
+    image: hashicorp/vault-benchmark:latest
+    container_name: vault-benchmark
+    hostname: vault-benchmark
+    volumes:
+      - ./configs/:/opt/vault-benchmark/configs
+    command: ["vault-benchmark", "run", "-config", "/opt/vault-benchmark/configs/config.hcl"]
+    depends_on:
+      - vault
