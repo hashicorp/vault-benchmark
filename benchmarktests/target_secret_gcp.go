@@ -151,7 +151,7 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	// check if the credentials argument should be read from file
 	creds := config.GCPConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
-		contents, err := ioutil.ReadFile(creds[1:])
+		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading credentials file: %w", err)
 		}
