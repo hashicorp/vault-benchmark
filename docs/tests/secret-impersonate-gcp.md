@@ -50,35 +50,3 @@ Target: http://127.0.0.1:8200
 op           count  rate      throughput  mean        95th%       99th%       successRatio
 gcp_secret1  10     1.111245  1.110902    3.851262ms  6.247583ms  6.247583ms  100.00%
 ```
-
-## Example Usage (generating a service account key)
-```
-rps = "1"
-
-test "gcp_secret" "gcp_secret1" {
-  weight = 100
-  config {
-    gcp {
-      credentials = "@VaultServiceAccountKeyNew.json"
-    }
-
-    roleset {
-      name    = "gcp-secrets-roleset"
-      project = "<project-id>"
-      secret_type = "service_account_key"
-      bindings = "@gcpbindings.hcl" 
-      token_scopes = ["access_token"]
-    }
-  }
-}
-```
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-07-31T09:32:16.964-0500 [INFO]  vault-benchmark: setting up targets
-2023-07-31T09:32:18.896-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-07-31T09:32:21.503-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op           count  rate      throughput  mean          95th%         99th%         successRatio
-gcp_secret1  2      1.999662  1.246645    559.547125ms  604.136792ms  604.136792ms  100.00%
-```
