@@ -125,12 +125,12 @@ func (g *GCPTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (g *GCPTest) Setup(client *api.Client, randomMountName bool, mountName string) (BenchmarkBuilder, error) {
-	g.logger = targetLogger.Named(GCPSecretTestType)
-
+func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+	var err error
 	secretPath := mountName
-	if randomMountName {
-		var err error
+	g.logger = targetLogger.Named(RedisDynamicSecretTestType)
+
+	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
 		if err != nil {
 			log.Fatalf("can't create UUID")
@@ -141,7 +141,7 @@ func (g *GCPTest) Setup(client *api.Client, randomMountName bool, mountName stri
 	g.logger.Trace(mountLogMessage("secrets", "gcp", secretPath))
 	setupLogger := g.logger.Named(secretPath)
 
-	err := client.Sys().Mount(secretPath, &api.MountInput{
+	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "gcp",
 	})
 	if err != nil {
