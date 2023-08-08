@@ -8,10 +8,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -157,7 +157,7 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	// check if the provided argument should be read from file
 	creds := g.config.GCPAuthConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
-		contents, err := ioutil.ReadFile(creds[1:])
+		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading file: %w", err)
 		}

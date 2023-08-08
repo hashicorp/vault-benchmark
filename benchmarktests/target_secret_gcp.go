@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -151,7 +150,7 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	// check if the credentials argument should be read from file
 	creds := config.GCPConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
-		contents, err := ioutil.ReadFile(creds[1:])
+		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading credentials file: %w", err)
 		}
@@ -162,7 +161,7 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	// check if the bindings argument should be read from file
 	bindings := config.GCPRoleset.Bindings
 	if len(bindings) > 0 && bindings[0] == '@' {
-		contents, err := ioutil.ReadFile(bindings[1:])
+		contents, err := os.ReadFile(bindings[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading bindings file: %w", err)
 		}
