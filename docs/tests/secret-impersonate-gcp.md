@@ -59,7 +59,7 @@ test "gcp_secret" "gcp_secret1" {
   weight = 100
   config {
     gcp {
-    //   credentials = "@VaultServiceAccountKeyNew.json"
+      credentials = "@VaultServiceAccountKeyNew.json"
     }
 
     roleset {
@@ -67,7 +67,7 @@ test "gcp_secret" "gcp_secret1" {
       project = "<project-id>"
       secret_type = "service_account_key"
       bindings = "@gcpbindings.hcl" 
-    //   token_scopes = ["access_token"]
+      token_scopes = ["access_token"]
     }
   }
 }
