@@ -64,7 +64,7 @@ test "gcp_secret" "gcp_secret1" {
 
     roleset {
       name    = "gcp-secrets-roleset"
-      project = "hc-5a8eb1bf5cb84ac28a118b4f59a"
+      project = "<project-id>"
       secret_type = "service_account_key"
       bindings = "@gcpbindings.hcl" 
     //   token_scopes = ["access_token"]
