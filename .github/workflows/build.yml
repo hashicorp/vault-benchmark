@@ -273,4 +273,6 @@ jobs:
       - name: Run Tests
         run: | 
           make bin
-          ls dist/linux
+          ls dist/linux/amd64
+          export BENCHMARK_BINARY=dist/linux/amd64/vault-benchmark
+          go test ./... 
