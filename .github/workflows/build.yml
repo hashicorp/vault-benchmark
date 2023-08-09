@@ -262,14 +262,9 @@ jobs:
             docker.io/hashicorppreview/${{ env.repo }}:${{ env.version }}-dev
             docker.io/hashicorppreview/${{ env.repo }}:${{ env.version }}-${{ github.sha }}
 
-  run-linux-tests:
+  run-tests:
     name: "Run Tests"
-    needs: build-docker-default
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goos: [linux]
-        goarch: ["arm", "arm64", "386", "amd64"]
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
       - uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4.0.1
@@ -277,5 +272,6 @@ jobs:
           go-version-file: .go-version
       - name: Run Tests
         run: | 
-          echo "this is a second test"
-          ls
+          make bin
+          ls 
+          ls dist/
