@@ -274,5 +274,5 @@ jobs:
         run: | 
           make bin
           ls dist/linux/amd64
-          export BENCHMARK_BINARY=dist/linux/amd64/vault-benchmark
+          export BENCHMARK_BINARY=$(pwd)/dist/linux/amd64/vault-benchmark
           go test ./... 
