@@ -23,7 +23,7 @@ func TestApprole_Auth_Docker(t *testing.T) {
 	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", "approle.hcl")
 	defer benchmarkCleanup()
 
-	if exitCode == 0 {
+	if exitCode != 0 {
 		t.Fatalf("Unexpected error code: %v", exitCode)
 	}
 }
