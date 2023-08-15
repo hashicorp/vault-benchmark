@@ -105,7 +105,7 @@ func (g *GCPImpersonationTest) GetTargetInfo() TargetInfo {
 func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	g.logger = targetLogger.Named(RedisDynamicSecretTestType)
+	g.logger = targetLogger.Named(GCPImpersonationSecretTestType)
 
 	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
