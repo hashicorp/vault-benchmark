@@ -28,6 +28,7 @@
 
 - Fix setup func to match interface [\#148](https://github.com/hashicorp/vault-benchmark/pull/148)
 - Fix KVv2 write action [\#135](https://github.com/hashicorp/vault-benchmark/pull/135)
+- Fix config key [\#154](https://github.com/hashicorp/vault-benchmark/pull/154)
 
 ## [v0.1.0](https://github.com/hashicorp/vault-benchmark/tree/v0.1.0) (May 08, 2023)
 
