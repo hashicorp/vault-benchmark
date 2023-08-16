@@ -232,7 +232,7 @@ type pkiSignRoleConfig struct {
 
 func (p *PKISignTest) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *pkiSecretIssueTestConfig `hcl:"pki_sign,block"`
+		Config *pkiSecretIssueTestConfig `hcl:"config,block"`
 	}{
 		Config: &pkiSecretIssueTestConfig{
 			SetupDelay: "1s",
