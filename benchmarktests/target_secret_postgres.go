@@ -86,7 +86,7 @@ type PostgreSQLRoleConfig struct {
 func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
 	testConfig := &struct {
-		Config *PostgreSQLSecretTestConfig `hcl:"postgresql_secret,block"`
+		Config *PostgreSQLSecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &PostgreSQLSecretTestConfig{
 			PostgreSQLDBConfig: &PostgreSQLDBConfig{
