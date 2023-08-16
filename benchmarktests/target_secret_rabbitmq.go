@@ -64,7 +64,7 @@ type RabbitMQRoleConfig struct {
 
 func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RabbitMQSecretTestConfig `hcl:"rabbitmq_secret,block"`
+		Config *RabbitMQSecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &RabbitMQSecretTestConfig{
 			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{

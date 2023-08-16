@@ -70,7 +70,7 @@ type MongoDBRoleConfig struct {
 
 func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *MongoDBSecretTestConfig `hcl:"mongodb_secret,block"`
+		Config *MongoDBSecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &MongoDBSecretTestConfig{
 			MongoDBConfig: &MongoDBConfig{
