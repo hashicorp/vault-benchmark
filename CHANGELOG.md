@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased](https://github.com/hashicorp/vault-benchmark/tree/HEAD)
-
 [Full Changelog](https://github.com/hashicorp/vault-benchmark/compare/v0.1.0...HEAD)
+
+## [v0.2.0](https://github.com/hashicorp/vault-benchmark/tree/v0.2.0)
 
 ### Features
 
