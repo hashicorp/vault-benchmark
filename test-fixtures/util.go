@@ -28,7 +28,7 @@ func editHCL(t *testing.T, file string, existing string, replace string) (func()
 		t.Errorf("unable to write (%s): %s", modifiedFileName, err.Error())
 	}
 
-	// add defer cleanup of old file
+	// cleanup of modified file
 	cleanup := func() {
 		err := os.Remove(modifiedFileName)
 		if err != nil {
