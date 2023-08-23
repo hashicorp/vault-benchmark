@@ -7,7 +7,7 @@ project "vault-benchmark" {
   // the team key is not used by CRT currently
   team = "vault-benchmark"
   slack {
-    notification_channel = "C037RP0BBQF"
+    notification_channel = "C056ELA44UR"
   }
   github {
     organization = "hashicorp"
