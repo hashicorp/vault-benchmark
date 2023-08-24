@@ -33,6 +33,10 @@ Below is a list of all currently available benchmark tests
 
 ### Auth Benchmark Tests
 - [Approle](tests/auth-approle.md)
+- [AWS](tests/auth-aws.md)
+- [Azure](tests/auth-azure.md)
+- [GCP](tests/auth-gcp.md)
+- [Github](tests/auth-github.md)
 - [TLS Certificates](tests/auth-certificate.md) 
 - [JWT](tests/auth-jwt.md)
 - [Kubernetes](tests/auth-k8s.md)
@@ -40,13 +44,21 @@ Below is a list of all currently available benchmark tests
 - [Userpass](tests/auth-userpass.md)
 
 ### Secrets Benchmark Tests
+- [AWS](tests/secret-aws.md)
+- [Azure](tests/secret-azure.md)
 - [Cassandra](tests/secret-cassandra.md) 
 - [Consul](tests/secret-consul.md) 
 - [Couchbase](tests/secret-couchbase.md)
 - [ElasticSearch](tests/secret-elasticsearch.md)
+- [GCP](tests/secret-gcp.md)
+- [GCP Impersonation](tests/secret-impersonate-gcp.md)
 - [KV](tests/secret-kv.md.md)
+- [LDAP (Dynamic)](tests/secret-ldap-dynamic.md)
+- [LDAP (Static)](tests/secret-ldap-static.md)
 - [MongoDB](tests/secret-mongo.md)
 - [MSSQL](tests/secret-mssql.md)
+- [MySQL](tests/secret-mysql.md)
+- [Nomad](tests/secret-nomad.md)
 - [PKI (Issue)](tests/secret-pki-issue.md)
 - [PKI (Sign)](tests/secret-pki-sign.md)
 - [PostgreSQL](tests/secret-postgresql.md)
