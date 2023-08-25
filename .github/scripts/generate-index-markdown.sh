@@ -27,7 +27,7 @@ generate_tests_list() {
             fi
         fi
     done
-    echo "\n\n### Auth Benchmark Tests$auth_tests_list\n\n### Secret Benchmark Tests$secret_tests_list\n\n### System Tests$system_tests_list"
+    echo "\n### Auth Benchmark Tests$auth_tests_list\n\n### Secret Benchmark Tests$secret_tests_list\n\n### System Tests$system_tests_list"
 }
 
 # Create the Markdown content
@@ -61,7 +61,9 @@ test \"approle_auth\" \"approle_auth_test1\" {
 - [Run](commands/run.md)
 - [Review](commands/review.md)
 
-## Benchmark Tests$(generate_tests_list)
+## Benchmark Tests
+Below is a list of all currently available benchmark tests
+$(generate_tests_list)
 
 ## Global Configuration Options
 - [Global Configuration Options](global-configs.md)
