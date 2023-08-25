@@ -1,4 +1,4 @@
-# GitHub Auth Benchmark `github_auth`
+# GitHub Auth Benchmark (`github_auth`)
 
 This benchmark will test GitHub Authentication to Vault. The primary required fields are `organization` and `token`.
 

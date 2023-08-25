@@ -29,7 +29,6 @@ test "approle_auth" "approle_auth_test1" {
 - [Review](commands/review.md)
 
 ## Benchmark Tests
-Below is a list of all currently available benchmark tests
 
 ### Auth Benchmark Tests
 - [Approle](tests/auth-approle.md)

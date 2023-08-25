@@ -1,4 +1,4 @@
-# Couchbase Secrets Engine Benchmark `couchbase_secret`
+# Couchbase Secrets Engine Benchmark (`couchbase_secret`)
 
 This benchmark will test the dynamic generation of Couchbase credentials.
 

@@ -1,4 +1,4 @@
-# MSSQL Secret Benchmark `mssql_secret`
+# MSSQL Secret Benchmark (`mssql_secret`)
 
 This benchmark will test the dynamic generation of MSSQL credentials.
 

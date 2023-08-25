@@ -5,9 +5,9 @@ This benchmark will test the dynamic generation of Azure credentials.
 
 ### Azure Configuration (`azure`)
 - `subscription_id` (`string: <required>`) - The subscription id for the Azure Active Directory.
-  This value can also be provided with the `VAULT_BENCHMARK_SUBSCRIPTION_ID` environment variable. 
+  This value can also be provided with the `VAULT_BENCHMARK_SUBSCRIPTION_ID` environment variable.
 - `tenant_id` (`string: <required>`) - The tenant id for the Azure Active Directory.
-  This value can also be provided with the `VAULT_BENCHMARK_TENANT_ID` environment variable. 
+  This value can also be provided with the `VAULT_BENCHMARK_TENANT_ID` environment variable.
 - `client_id` (`string:""`) - The OAuth2 client id to connect to Azure. This value can also be provided
   with the `VAULT_BENCHMARK_CLIENT_ID` environment variable. See [authentication](https://developer.hashicorp.com/vault/docs/secrets/azure#authentication) for more details.
 - `client_secret` (`string:""`) - The OAuth2 client secret to connect to Azure. This value can also be

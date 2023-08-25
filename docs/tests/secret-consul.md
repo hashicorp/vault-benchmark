@@ -1,4 +1,4 @@
-# Consul Secret Benchmark `consul_secret`
+# Consul Secret Benchmark (`consul_secret`)
 
 This benchmark will test the dynamic generation of Consul credentials.
 
