@@ -52,7 +52,7 @@ Below is a list of all currently available benchmark tests
 - [ElasticSearch](tests/secret-elasticsearch.md)
 - [GCP](tests/secret-gcp.md)
 - [GCP Impersonation](tests/secret-impersonate-gcp.md)
-- [KV](tests/secret-kv.md.md)
+- [KV](tests/secret-kv.md)
 - [LDAP (Dynamic)](tests/secret-ldap-dynamic.md)
 - [LDAP (Static)](tests/secret-ldap-static.md)
 - [MongoDB](tests/secret-mongo.md)
