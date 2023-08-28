@@ -12,8 +12,8 @@ name: generate_docs
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    tags:
+      - '*'
 
 env:
   PKG_NAME: "vault-benchmark"
