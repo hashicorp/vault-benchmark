@@ -1,4 +1,4 @@
-# KMIP Secrets Engine Benchmark (`kmip_secret`)
+# KMIP Secrets Engine Benchmark `(kmip_secret)`
 
 This benchmark will test the dynamic generation of KMIP credentials.
 
@@ -9,78 +9,78 @@ to `true` if you plan on running this benchmark multiple times.
 
 ### DB Connection Configuration `kmip`
 
-- `listen_addrs` (`list: ["127.0.0.1:5696"] || string`) - Address and port the
+- `listen_addrs` `(string: "127.0.0.1:5696")` - Address and port the
   KMIP server should listen on. Can be given as a JSON list or a
   comma-separated string list. If multiple values are given, all will be
   listened on.
-- `connection_timeout` (`int: 1 || string:"1s"`) - Duration in either an integer
+- `connection_timeout` `(int: 1)` - Duration in either an integer
   number of seconds (10) or an integer time unit (10s) within which connections
   must become ready.
-- `server_hostnames` (`list: ["localhost"] || string`) - Hostnames to include in
+- `server_hostnames` `(string: "localhost")` - Hostnames to include in
   the server's TLS certificate as SAN DNS names. The first will be used as the
   common name (CN).
-- `server_ips` (`list: [] || string`) - IPs to include in the server's TLS
+- `server_ips` `(string)` - IPs to include in the server's TLS
   certificate as SAN IP addresses. Localhost (IPv4 and IPv6) will be automatically
   included.
-- `tls_ca_key_type` (`string: "ec"`) - CA key type, `rsa` or `ec`.
-- `tls_ca_key_bits` (`int: 521`) - CA key bits, valid values depend on key type.
-- `tls_min_version` (`string: "tls12"`) - Minimum TLS version to accept.
-- `default_tls_client_key_type` (`string: "ec"`): - Client certificate key type,
+- `tls_ca_key_type` `(string: "ec")` - CA key type, `rsa` or `ec`.
+- `tls_ca_key_bits` `(int: 521)` - CA key bits, valid values depend on key type.
+- `tls_min_version` `(string: "tls12")` - Minimum TLS version to accept.
+- `default_tls_client_key_type` `(string: "ec")`: - Client certificate key type,
   `rsa` or `ec`.
-- `default_tls_client_key_bits` (`int: 521`): - Client certificate key bits, valid
+- `default_tls_client_key_bits` `(int: 521)`: - Client certificate key bits, valid
   values depend on key type.
-- `default_tls_client_ttl` (`int: 86400 || string:"24h"`) – Client certificate
+- `default_tls_client_ttl` `(int: 86400)` – Client certificate
   TTL in either an integer number of seconds (10) or an integer time unit (10s).
 
 ### Role Configuration `role`
 
-- `scope` (`string: <required>`) - Name of scope. This is part of the request URL.
-- `role` (`string: <required>`) - Name of role. This is part of the request URL.
-- `tls_client_key_type` (`string`): - Client certificate key type,
+- `scope` `(string)` - Name of scope. This is part of the request URL.
+- `role` `(string)` - Name of role. This is part of the request URL.
+- `tls_client_key_type` `(string)`: - Client certificate key type,
   `rsa` or `ec`. Overrides engine-wide default managed in `config` endpoint.
-- `tls_client_key_bits` (`int`): - Client certificate key bits, valid
+- `tls_client_key_bits` `(int)`: - Client certificate key bits, valid
   values depend on key type. Overrides engine-wide default managed in `config`
   endpoint.
-- `tls_client_ttl` (`int or string`) – Client certificate
+- `tls_client_ttl` `(int)` – Client certificate
   TTL in either an integer number of seconds (10) or an integer time unit (10s).
   Overrides engine-wide default managed in `config` endpoint.
-- `operation_none` (`bool: false`) - Remove all permissions
+- `operation_none` `(bool: false)` - Remove all permissions
   from this role. May not be specified with any other
   `operation_` params.
-- `operation_all` (`bool: false`) - Grant all permissions
+- `operation_all` `(bool: false)` - Grant all permissions
   to this role. May not be specified with any other
   `operation_` params.
-- `operation_activate` (`bool: false`) - Grant permission to use the KMIP
+- `operation_activate` `(bool: false)` - Grant permission to use the KMIP
   `Activate` operation.
-- `operation_add_attribute` (`bool: false`) - Grant permission to use the KMIP
+- `operation_add_attribute` `(bool: false)` - Grant permission to use the KMIP
   `Add Attribute` operation.
-- `operation_create` (`bool: false`) - Grant permission to use the KMIP
+- `operation_create` `(bool: false)` - Grant permission to use the KMIP
   `Create` operation.
-- `operation_decrypt` (`bool: false`) - Grant permission to use the KMIP
+- `operation_decrypt` `(bool: false)` - Grant permission to use the KMIP
   `Decrypt` operation.
-- `operation_destroy` (`bool: false`) - Grant permission to use the KMIP
+- `operation_destroy` `(bool: false)` - Grant permission to use the KMIP
   `Destroy` operation.
-- `operation_discover_versions` (`bool: false`) - Grant permission to use the KMIP
+- `operation_discover_versions` `(bool: false)` - Grant permission to use the KMIP
   `Discover Versions` operation.
-- `operation_encrypt` (`bool: false`) - Grant permission to use the KMIP
+- `operation_encrypt` `(bool: false)` - Grant permission to use the KMIP
   `Encrypt` operation.
-- `operation_get` (`bool: false`) - Grant permission to use the KMIP
+- `operation_get` `(bool: false)` - Grant permission to use the KMIP
   `Get` operation.
-- `operation_get_attribute_list` (`bool: false`) - Grant permission to use the KMIP
+- `operation_get_attribute_list` `(bool: false)` - Grant permission to use the KMIP
   `Get Attribute List` operation.
-- `operation_get_attributes` (`bool: false`) - Grant permission to use the KMIP
+- `operation_get_attributes` `(bool: false)` - Grant permission to use the KMIP
   `Get Attributes` operation.
-- `operation_import` (`bool: false`) - Grant permission to use the KMIP
+- `operation_import` `(bool: false)` - Grant permission to use the KMIP
   `Import` operation.
-- `operation_locate` (`bool: false`) - Grant permission to use the KMIP
+- `operation_locate` `(bool: false)` - Grant permission to use the KMIP
   `Locate` operation.
-- `operation_query` (`bool: false`) - Grant permission to use the KMIP
+- `operation_query` `(bool: false)` - Grant permission to use the KMIP
   `Query` operation.
-- `operation_register` (`bool: false`) - Grant permission to use the KMIP
+- `operation_register` `(bool: false)` - Grant permission to use the KMIP
   `Register` operation.
-- `operation_rekey` (`bool: false`) - Grant permission to use the KMIP
+- `operation_rekey` `(bool: false)` - Grant permission to use the KMIP
   `Rekey` operation.
-- `operation_revoke` (`bool: false`) - Grant permission to use the KMIP
+- `operation_revoke` `(bool: false)` - Grant permission to use the KMIP
   `Revoke` operation.
 
 ## Example Configuration

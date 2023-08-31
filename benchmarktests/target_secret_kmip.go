@@ -46,41 +46,41 @@ type KMIPSecretTestConfig struct {
 
 type KMIPConnectionConfig struct {
 	ListenAddrs             string `hcl:"listen_addrs,optional"`
-	ConnectionTimeout       string `hcl:"connection_timeout,optional"`
+	ConnectionTimeout       int    `hcl:"connection_timeout,optional"`
 	ServerHostnames         string `hcl:"server_hostnames,optional"`
 	SeverIPs                string `hcl:"server_ips,optional"`
 	TLSCAKeyType            string `hcl:"tls_ca_key_type,optional"`
-	TLSCAKeyBits            string `hcl:"tls_ca_key_bits,optional"`
+	TLSCAKeyBits            int    `hcl:"tls_ca_key_bits,optional"`
 	TLSMinVersion           string `hcl:"tls_min_version,optional"`
 	DefaultTLSClientKeyType string `hcl:"default_tls_client_key_type,optional"`
-	DefaultTLSClientKeyBits string `hcl:"default_tls_client_key_bits,optional"`
-	DefaultTLSClientTTL     string `hcl:"default_tls_client_ttl,optional"`
+	DefaultTLSClientKeyBits int    `hcl:"default_tls_client_key_bits,optional"`
+	DefaultTLSClientTTL     int    `hcl:"default_tls_client_ttl,optional"`
 }
 
 type KMIPRoleConfig struct {
 	Scope                     string `hcl:"scope,optional"`
 	Role                      string `hcl:"role,optional"`
 	TLSClientKeyType          string `hcl:"tls_client_key_type,optional"`
-	TLSClientKeyBits          string `hcl:"tls_client_key_bits,optional"`
-	TLSClientKeyTTL           string `hcl:"tls_client_key_ttl,optional"`
-	OperationNone             string `hcl:"operation_none,optional"`
-	OperationAll              string `hcl:"operation_all,optional"`
-	OperationActive           string `hcl:"operation_active,optional"`
-	OperationAddAttribute     string `hcl:"operation_add_attribute,optional"`
-	OperationCreate           string `hcl:"operation_create,optional"`
-	OperationDecrypt          string `hcl:"operation_decrypt,optional"`
-	OperationDestroy          string `hcl:"operation_destroy,optional"`
-	OperationDiscoverVersions string `hcl:"operation_discover_versions,optional"`
-	OperationEncrypt          string `hcl:"operation_encrypt,optional"`
-	OperationGet              string `hcl:"operation_get,optional"`
-	OperationGetAttributeList string `hcl:"operation_get_attribute_list,optional"`
-	OperationGetAttributes    string `hcl:"operation_get_attributes,optional"`
-	OperationImport           string `hcl:"operation_import,optional"`
-	OperationLocate           string `hcl:"operation_locate,optional"`
-	OperationQuery            string `hcl:"operation_query,optional"`
-	OperationRegister         string `hcl:"operation_register,optional"`
-	OperationRekey            string `hcl:"operation_rekey,optional"`
-	OperationRevoke           string `hcl:"operation_revoke,optional"`
+	TLSClientKeyBits          int    `hcl:"tls_client_key_bits,optional"`
+	TLSClientKeyTTL           int    `hcl:"tls_client_key_ttl,optional"`
+	OperationNone             bool   `hcl:"operation_none,optional"`
+	OperationAll              bool   `hcl:"operation_all,optional"`
+	OperationActive           bool   `hcl:"operation_active,optional"`
+	OperationAddAttribute     bool   `hcl:"operation_add_attribute,optional"`
+	OperationCreate           bool   `hcl:"operation_create,optional"`
+	OperationDecrypt          bool   `hcl:"operation_decrypt,optional"`
+	OperationDestroy          bool   `hcl:"operation_destroy,optional"`
+	OperationDiscoverVersions bool   `hcl:"operation_discover_versions,optional"`
+	OperationEncrypt          bool   `hcl:"operation_encrypt,optional"`
+	OperationGet              bool   `hcl:"operation_get,optional"`
+	OperationGetAttributeList bool   `hcl:"operation_get_attribute_list,optional"`
+	OperationGetAttributes    bool   `hcl:"operation_get_attributes,optional"`
+	OperationImport           bool   `hcl:"operation_import,optional"`
+	OperationLocate           bool   `hcl:"operation_locate,optional"`
+	OperationQuery            bool   `hcl:"operation_query,optional"`
+	OperationRegister         bool   `hcl:"operation_register,optional"`
+	OperationRekey            bool   `hcl:"operation_rekey,optional"`
+	OperationRevoke           bool   `hcl:"operation_revoke,optional"`
 }
 
 func (k *KMIPTest) ParseConfig(body hcl.Body) error {
