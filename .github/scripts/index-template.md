@@ -8,7 +8,7 @@
 
 # Global vault-benchmark config options
 
-vault_addr = \"<http://127.0.0.1:8200\>"
+vault_addr = \"<http://127.0.0.1:8200>\"
 vault_token = \"root\"
 vault_namespace=\"root\"
 duration = \"2s\"
