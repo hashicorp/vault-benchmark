@@ -1,4 +1,4 @@
-# Elasticsearch Secret Configuration Options
+# Elasticsearch Secrets Engine Benchmark (`elasticsearch_secret`)
 
 This benchmark will test the dynamic generation of Elasticsearch credentials.
 

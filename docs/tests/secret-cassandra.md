@@ -1,4 +1,4 @@
-# Cassandra Secrets Engine Benchmark `cassandra_secret`
+# Cassandra Secrets Engine Benchmark (`cassandra_secret`)
 
 This benchmark will test the dynamic generation of Cassandra credentials.
 

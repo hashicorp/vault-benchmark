@@ -1,4 +1,4 @@
-# AWS Secrets Engine Benchmark
+# AWS Secrets Engine Benchmark (`aws_secret`)
 
 This benchmark will test the dynamic generation of AWS credentials.
 

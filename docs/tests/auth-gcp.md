@@ -1,4 +1,4 @@
-# Google Cloud Platform Auth Benchmark `gcp_auth`
+# Google Cloud Platform Auth Benchmark (`gcp_auth`)
 
 This benchmark will test GC Authentication to Vault. The primary required fields are `credentials`, `name` and `type`.
 

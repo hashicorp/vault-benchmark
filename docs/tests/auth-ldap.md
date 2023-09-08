@@ -1,4 +1,4 @@
-# LDAP Auth Benchmark `ldap_auth`
+# LDAP Auth Benchmark (`ldap_auth`)
 
 This benchmark will test LDAP Authentication to Vault. The primary required fields are `url` and `groupdn` depending on the LDAP environment setup and desired connection method.
 

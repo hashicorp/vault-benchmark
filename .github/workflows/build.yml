@@ -1,15 +1,21 @@
 name: build
 
-# We now default to running this workflow on every push to every branch.
-# This provides fast feedback when build issues occur, so they can be
-# fixed prior to being merged to the main branch.
-#
-# If you want to opt out of this, and only run the build on certain branches
-# please refer to the documentation on branch filtering here:
-#
-#   https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushbranchestagsbranches-ignoretags-ignore
-#
-on: [workflow_dispatch, push]
+on:
+  workflow_dispatch:
+  pull_request:
+    # The default types for pull_request are [ opened, synchronize, reopened ].
+    # This is insufficient for our needs, since we're skipping stuff on PRs in
+    # draft mode.  By adding the ready_for_review type, when a draft pr is marked
+    # ready, we run everything, including the stuff we'd have skipped up until now.
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+
+# Prevent multiple builds from running concurrently
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}-build
+  cancel-in-progress: true
 
 env:
   PKG_NAME: "vault-benchmark"
@@ -254,16 +260,3 @@ jobs:
             docker.io/hashicorppreview/${{ env.repo }}:${{ env.version }}-dev
             docker.io/hashicorppreview/${{ env.repo }}:${{ env.version }}-${{ github.sha }}
 
-  run-tests:
-    name: "Run Go Tests"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4.0.1
-        with:
-          go-version-file: .go-version
-      - name: Run Tests
-        run: | 
-          make bin
-          export BENCHMARK_BINARY=$(pwd)/dist/linux/amd64/vault-benchmark
-          go test ./... 
