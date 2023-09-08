@@ -2,7 +2,17 @@
 
 [Full Changelog](https://github.com/hashicorp/vault-benchmark/compare/v0.1.0...HEAD)
 
-## [v0.2.0](https://github.com/hashicorp/vault-benchmark/tree/v0.2.0)
+## [Unreleased](https://github.com/hashicorp/vault-benchmark/tree/HEAD)
+
+### Features
+
+- Add MongoDB Atlas Secrets Engine Method [\#153](https://github.com/hashicorp/vault-benchmark/pull/153)
+
+### Improvements
+
+- Automate Index.md Generation [\#159](https://github.com/hashicorp/vault-benchmark/pull/159)
+
+## [v0.2.0](https://github.com/hashicorp/vault-benchmark/tree/v0.2.0) (August 23, 2023)
 
 ### Features
 
