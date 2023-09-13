@@ -15,6 +15,11 @@ extract_title() {
     echo "$title"
 }
 
+# Strip "docs/" from the file path
+strip_docs() {
+    echo "$1" | sed -E "s/^docs\///"
+}
+
 # Function to generate the list of benchmark tests
 generate_tests_list() {
     auth_tests_list=""
@@ -22,8 +27,9 @@ generate_tests_list() {
     system_tests_list=""
     for test_file in $(ls -1 docs/tests/* | sort); do
         if [[ -f "$test_file" ]]; then
+            test_file_link=$(strip_docs "$test_file")
             test_name=$(basename "$test_file")
-            test_link="[$(extract_title "$test_file")]($test_file)"
+            test_link="[$(extract_title "$test_file")]($test_file_link)"
             if [[ "$test_name" == *"auth"* ]]; then
                 auth_tests_list+="\n- $test_link"
             elif [[ "$test_name" == *"secret"* ]]; then
