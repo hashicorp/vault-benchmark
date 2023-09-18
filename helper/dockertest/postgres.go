@@ -33,7 +33,6 @@ func CreatePostgresContainer(t *testing.T) (func(), string) {
 	}
 
 	svc, err := runner.Start(ctx, true, false)
-
 	if err != nil {
 		t.Fatalf("Error starting postgres container: %s", err)
 	}
