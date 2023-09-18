@@ -28,7 +28,6 @@ func CreatePostgresContainer(t *testing.T) (func(), string) {
 	}
 
 	runner, err := dockhelper.NewServiceRunner(runOpts)
-
 	if err != nil {
 		t.Fatalf("Error starting docker client for postgres: %s", err)
 	}
