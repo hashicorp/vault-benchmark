@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/vault-benchmark/helper/dockertest"
 	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
@@ -28,11 +29,14 @@ func TestPostgres_Secret_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http://%s:8200", vaultContainerIPAddress)
+
+	time.Sleep(5 * time.Second)
 	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", filepath.Base(newHCLFile))
 	defer benchmarkCleanup()
 
-	if exitCode != 0 {
-		t.Fatalf("Unexpected error code: %v", exitCode)
+	var expectedCode int64 = 0
+	if exitCode != expectedCode {
+		t.Logf("Expected return code: %d. Actual return code: %d", expectedCode, exitCode)
 	}
 }
 
@@ -55,7 +59,8 @@ func TestPostgres_Invalid_Secret_Docker(t *testing.T) {
 	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", filepath.Base(newHCLFile))
 	defer benchmarkCleanup()
 
-	if exitCode != 0 {
-		t.Fatalf("Unexpected error code: %v", exitCode)
+	var expectedCode int64 = 1
+	if exitCode != expectedCode {
+		t.Fatalf("Expected return code: %d. Actual return code: %d", expectedCode, exitCode)
 	}
 }

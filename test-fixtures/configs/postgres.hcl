@@ -9,7 +9,7 @@ test "postgresql_secret" "postgres_test_1" {
     weight = 100
     config {
         db_connection {
-            connection_url = "postgresql://username:password@<container_addr>:5432/postgres"
+            connection_url = "postgresql://{{username}}:{{password}}@<container_addr>:5432/postgres"
             username = "username"
             password = "password"
         }
