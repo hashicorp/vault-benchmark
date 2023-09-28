@@ -35,7 +35,7 @@ func TestPostgres_Secret_Docker(t *testing.T) {
 	defer benchmarkCleanup()
 
 	var expectedCode int64 = 0
-	if exitCode != int64(expectedCode) {
+	if exitCode != expectedCode {
 		t.Logf("Expected return code: %d. Actual return code: %d", expectedCode, exitCode)
 	}
 }
@@ -60,7 +60,7 @@ func TestPostgres_Invalid_Secret_Docker(t *testing.T) {
 	defer benchmarkCleanup()
 
 	var expectedCode int64 = 1
-	if exitCode != int64(expectedCode) {
+	if exitCode != expectedCode {
 		t.Fatalf("Expected return code: %d. Actual return code: %d", expectedCode, exitCode)
 	}
 }
