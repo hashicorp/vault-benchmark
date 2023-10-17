@@ -8,22 +8,22 @@
 
 # Global vault-benchmark config options
 
-vault_addr = \"<http://127.0.0.1:8200>\"
-vault_token = \"root\"
-vault_namespace=\"root\"
-duration = \"2s\"
-report_mode = \"terse\"
+vault_addr = "http://127.0.0.1:8200"
+vault_token = "root"
+vault_namespace="root"
+duration = "2s"
+report_mode = "terse"
 random_mounts = true
 cleanup = true
 
 # Test definitions and configuration
 
-test \"approle_auth\" \"approle_auth_test1\" {
+test "approle_auth" "approle_auth_test1" {
     weight = 100
     config {
         role {
-            role_name = \"benchmark-role\"
-            token_ttl=\"2m\"
+            role_name = "benchmark-role"
+            token_ttl="2m"
         }
     }
 }
