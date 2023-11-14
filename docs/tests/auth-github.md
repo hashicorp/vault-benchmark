@@ -40,15 +40,3 @@ test "github_auth" "github_auth1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=github.hcl
-2023-07-25T11:49:39.203-0400 [INFO]  vault-benchmark: setting up targets
-2023-07-25T11:49:39.216-0400 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-07-25T11:49:42.359-0400 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op         count  rate       throughput  mean          95th%         99th%         successRatio
-gh_auth_1  31     13.071887  9.864511    833.218959ms  994.991385ms  999.354042ms  100.00%
-```

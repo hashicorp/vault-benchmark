@@ -26,7 +26,7 @@ This benchmark will test the dynamic generation of AWS credentials.
   authenticated user running the AWS credential generation and PolicyName is the name of the Role for which the
   credential is being generated for:
 
-  ```
+  ```markdown
   {{ if (eq .Type "STS") }}
       {{ printf "vault-%s-%s" (unix_time) (random 20) | truncate 32 }}
   {{ else }}
@@ -98,16 +98,4 @@ test "aws_secret" "aws_test_1" {
         }
     }
 }
-```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-07-12T13:38:16.988-0400 [INFO]  vault-benchmark: setting up targets
-2023-07-12T13:38:17.006-0400 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-07-12T13:38:22.015-0400 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op          count  rate       throughput  mean          95th%       99th%         successRatio
-aws_test_1  31     10.364516  6.188835    1.288887342s  3.2954248s  3.666330125s  100.00%
 ```

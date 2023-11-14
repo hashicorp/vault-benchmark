@@ -225,18 +225,3 @@ test "transit_decrypt" "transit_decrypt_test_1" {
 }
 
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-09-07T15:09:08.692-0400 [INFO]  vault-benchmark: setting up targets
-2023-09-07T15:09:09.606-0400 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-09-07T15:09:11.609-0400 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op                      count  rate         throughput   mean        95th%       99th%       successRatio
-transit_decrypt_test_1  2158   1079.463900  1078.130128  2.914565ms  3.823562ms  5.052019ms  100.00%
-transit_encrypt_test_1  2177   1089.316034  1088.447301  1.622277ms  2.404953ms  3.433451ms  100.00%
-transit_sign_test_1     2112   1055.813825  1054.825166  2.996794ms  3.924258ms  5.151446ms  100.00%
-transit_verify_test_1   2100   1050.706644  1049.699568  1.80163ms   2.645798ms  3.645347ms  100.00%
-```

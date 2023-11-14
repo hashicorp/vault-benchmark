@@ -1,9 +1,11 @@
 # Azure Secrets Engine Benchmark (`azure_secret`)
+
 This benchmark will test the dynamic generation of Azure credentials.
 
 ## Benchmark Configuration Parameters
 
 ### Azure Configuration (`azure`)
+
 - `subscription_id` (`string: <required>`) - The subscription id for the Azure Active Directory.
   This value can also be provided with the `VAULT_BENCHMARK_SUBSCRIPTION_ID` environment variable.
 - `tenant_id` (`string: <required>`) - The tenant id for the Azure Active Directory.
@@ -20,6 +22,7 @@ This benchmark will test the dynamic generation of Azure credentials.
   rotate-root generates a new client secret. Uses [duration format strings](https://developer.hashicorp.com/vault/docs/concepts/duration-format).
 
 ### Azure Role (`role`)
+
 - `role` (`string: "benchmark-role"`) - Name of role.
 - `azure_roles` (`string: ""`) - List of Azure roles to be assigned to the generated service
   principal. The array must be in JSON format, properly escaped as a string. See [roles docs](https://developer.hashicorp.com/vault/docs/secrets/azure#roles)
@@ -58,16 +61,4 @@ test "azure_secret" "azure_secret1" {
         }
     }
 }
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-07-17T11:58:45.488-0500 [INFO]  vault-benchmark: setting up targets
-2023-07-17T11:58:46.039-0500 [INFO]  vault-benchmark: starting benchmarks: duration=10s
-2023-07-17T11:58:59.040-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op             count  rate      throughput  mean          95th%         99th%         successRatio
-azure_secret1  47     4.602720  3.615952    2.495158143s  2.854567126s  3.008034917s  100.00%
 ```

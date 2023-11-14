@@ -56,15 +56,3 @@ test "redis_dynamic_secret" "redis_dynamic_secret_1" {
   }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-25T11:27:49.323-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-25T11:27:49.345-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-25T11:27:51.349-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op                      count  rate         throughput   mean        95th%       99th%        successRatio
-redis_dynamic_secret_1  4922   2460.722400  2456.618212  4.065801ms  5.248935ms  10.719219ms  100.00%
-```

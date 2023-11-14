@@ -141,15 +141,3 @@ test "gcp_auth" "gcp_auth1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=gcp.hcl
-2023-07-10T18:45:34.066-0500 [INFO]  vault-benchmark: setting up targets
-2023-07-10T18:45:34.375-0500 [INFO]  vault-benchmark: starting benchmarks: duration=10s
-2023-07-10T18:45:44.747-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op           count  rate      throughput  mean          95th%         99th%         successRatio
-gcp_secret1  10     1.110981  1.067072    735.430229ms  1.148094333s  1.148094333s  100.00%
-```

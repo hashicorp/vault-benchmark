@@ -139,15 +139,3 @@ test "ldap_auth" "ldap_auth_test1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T18:11:50.901-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T18:11:50.918-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T18:11:52.920-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op               count  rate         throughput  mean        95th%       99th%       successRatio
-ldap_auth_test1  13345  6671.750122  0.000000    1.495695ms  2.128745ms  3.542841ms  100.00%
-```

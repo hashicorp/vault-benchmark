@@ -807,15 +807,3 @@ test "pki_sign" "pki_sign_test1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate         throughput   mean       95th%       99th%       successRatio
-pki_sign_test1  10759  2151.124964  2149.133615  4.64791ms  6.081656ms  8.258573ms  100.00%
-```

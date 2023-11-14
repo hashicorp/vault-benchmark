@@ -54,16 +54,3 @@ test "mysql_secret" "mysql_test_1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-27T20:22:44.803-0400 [INFO]  vault-benchmark: setting up targets
-2023-04-27T20:22:44.858-0400 [INFO]  vault-benchmark: starting benchmarks: duration=1s
-2023-04-27T20:22:45.981-0400 [INFO]  vault-benchmark: cleaning up targets
-2023-04-27T20:22:50.774-0400 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op              count  rate       throughput  mean          95th%         99th%         successRatio
-mysql_secret_1  94     93.214668  83.761150   114.236245ms  187.749698ms  188.590625ms  100.00%
-```

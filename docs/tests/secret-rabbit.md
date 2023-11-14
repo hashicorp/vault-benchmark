@@ -10,15 +10,3 @@ This benchmark will test RabbitMQ secret engine operations. In order to use this
     "vhosts": "{\"/\":{\"write\": \".*\", \"read\": \".*\"}}"
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 10s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op             count  rate        throughput  mean         95th%        99th%        successRatio
-rabbit_test_1  796    795.692431  791.605698  12.585419ms  23.516021ms  29.575085ms  100.00%
-```

@@ -102,15 +102,3 @@ test "approle_auth" "approle_test1" {
   }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T13:02:59.943-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T13:02:59.993-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T13:03:01.994-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op              count  rate         throughput   mean        95th%       99th%       successRatio
-approle_test1  8794   4396.873590  4394.241423  2.273698ms  3.164222ms  4.351606ms  100.00%
-```

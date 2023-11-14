@@ -242,15 +242,3 @@ test "ssh_sign" "ssh_sign_test1" {
 ```
 
 Additional configuration examples can be found in the [ssh configuration directory](/example-configs/ssh/).
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate        throughput  mean         95th%        99th%        successRatio
-ssh_sign_test1  4589   917.639190  915.430105  10.905496ms  13.797087ms  15.231341ms  100.00%
-```

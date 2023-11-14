@@ -38,17 +38,4 @@ test "nomad_secret" "nomad_test_1" {
         }
     }
 }
-
-```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-06-01T09:41:27.096-0500 [INFO]  vault-benchmark: setting up targets
-2023-06-01T09:41:27.102-0500 [INFO]  vault-benchmark: starting benchmarks: duration=5s
-2023-06-01T09:41:32.311-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op            count  rate       throughput  mean          95th%         99th%         successRatio
-nomad_test_1  177    35.057995  33.990891   290.850018ms  375.292712ms  451.573602ms  100.00%
 ```

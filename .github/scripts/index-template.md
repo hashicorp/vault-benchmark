@@ -29,6 +29,12 @@ test "approle_auth" "approle_auth_test1" {
 }
 ```
 
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
+```
+
 ## Subcommands
 
 - [Run](commands/run.md)

@@ -56,15 +56,3 @@ test "mongodb_atlas_secret" "mongodb_atlas_secret_test_1" {
     }
 }
 ```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-08-14T12:52:45.035-0400 [INFO]  vault-benchmark: setting up targets
-2023-08-14T12:52:45.040-0400 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-08-14T12:52:49.222-0400 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op                           count  rate      throughput  mean          95th%         99th%         successRatio
-mongodb_atlas_secret_test_1  21     9.873511  5.021741    1.618011815s  2.137313314s  2.152995625s  100.00%
-```
