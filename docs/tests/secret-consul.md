@@ -82,15 +82,3 @@ test "consul_secret" "consul_test_1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-27T12:57:07.469-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-27T12:57:07.476-0500 [INFO]  vault-benchmark: starting benchmarks: duration=5s
-2023-04-27T12:57:12.479-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op             count  rate         throughput   mean        95th%       99th%        successRatio
-consul_test_1  12463  2492.488399  2491.245115  4.007578ms  6.123533ms  17.388957ms  100.00%
-```

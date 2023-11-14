@@ -793,15 +793,3 @@ test "pki_issue" "pki_issue_test1" {
   }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op               count  rate       throughput  mean          95th%         99th%         successRatio
-pki_issue_test1  257    51.218560  46.586545   201.743774ms  455.520239ms  560.106407ms  100.00%
-```

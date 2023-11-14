@@ -59,15 +59,3 @@ test "elasticsearch_secret" "elasticsearch_test_1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-05-01T12:57:50.575-0500 [INFO]  vault-benchmark: setting up targets
-2023-05-01T12:57:50.713-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-05-01T12:57:52.902-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op                   count  rate       throughput  mean          95th%        99th%         successRatio
-elasticsearch_test1  107    52.860797  48.892726   197.742375ms  291.00526ms  382.716563ms  100.00%
-```

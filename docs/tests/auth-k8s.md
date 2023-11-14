@@ -110,13 +110,6 @@ data:
 ```bash
 $ kubectl apply -f vault-benchmark-job.yaml
 $ kubectl logs -f vault-benchmark-qzpw8
-2023-04-23T14:52:08.691Z [INFO]  vault-benchmark: setting up targets
-2023-04-23T14:52:08.723Z [INFO]  vault-benchmark: starting benchmarks: duration=10s
-2023-04-23T14:52:18.776Z [INFO]  vault-benchmark: cleaning up targets
-2023-04-23T14:52:41.282Z [INFO]  vault-benchmark: benchmark complete
-Target: http://vault:8200
-op               count  rate       throughput  mean          95th%         99th%         successRatio
-kube_auth_test1  742    74.199826  73.562084   135.621598ms  247.768836ms  368.735152ms  100.00%
 ```
 
 Please refer to the [Vault Kubernetes Auth Method](https://www.vaultproject.io/api-docs/auth/kubernetes) documentation for all available configuration options.

@@ -131,15 +131,3 @@ test "jwt_auth" "jwt_auth1" {
   }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T17:52:03.294-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T17:52:03.320-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T17:52:05.322-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op         count  rate         throughput   mean        95th%       99th%       successRatio
-jwt_auth1  8837   4418.525130  4416.285509  2.262041ms  3.135816ms  4.338269ms  100.00%
-```

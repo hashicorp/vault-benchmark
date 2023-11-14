@@ -29,16 +29,3 @@ test "kvv2_write" "kvv2_write_test" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-05-01T15:46:10.195-0500 [INFO]  vault-benchmark: setting up targets
-2023-05-01T15:46:14.295-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-05-01T15:46:16.297-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op               count  rate         throughput   mean        95th%       99th%       successRatio
-kvv2_read_test   7372   3685.483957  3684.373734  1.350193ms  1.932011ms  2.427874ms  100.00%
-kvv2_write_test  7476   3738.104588  3736.361605  1.3383ms    1.94206ms   2.438648ms  100.00%
-```

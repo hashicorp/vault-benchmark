@@ -251,15 +251,3 @@ test "ssh_issue" "ssh_issue_test1" {
         }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 5s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op               count  rate      throughput  mean          95th%         99th%         successRatio
-ssh_issue_test1  27     5.362763  3.370474    2.282482814s  4.071793559s  4.143636093s  100.00%
-```

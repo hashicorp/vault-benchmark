@@ -60,15 +60,3 @@ test "redis_static_secret" "redis_static_secret_1" {
   }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-25T11:19:42.638-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-25T11:19:42.658-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-25T11:19:44.663-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op                     count  rate         throughput   mean        95th%       99th%        successRatio
-redis_static_secret_1  4818   2408.666450  2404.376084  4.154177ms  4.843807ms  12.356863ms  100.00%
-```

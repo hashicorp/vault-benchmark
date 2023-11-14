@@ -1,7 +1,9 @@
 ## Run
+
 The `run` command will run a benchmark test using the provided configuration file.
 
 ### Command Options
+
 `-config` `(string: required)` - Path to a benchmark configuration file in [HCL](https://github.com/hashicorp/hcl) format.
 
 `-annotate` `(string: "")` - Comma-separated name=value pairs include in `bench_running` prometheus metric. Try name 'testname' for dashboard example.

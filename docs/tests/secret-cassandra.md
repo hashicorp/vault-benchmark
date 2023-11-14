@@ -99,15 +99,3 @@ test "cassandra_secret" "cassandra_secret_1" {
     }
 }
 ```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-27T13:36:04.553-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-27T13:36:04.768-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-27T13:36:07.662-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op                  count  rate       throughput  mean         95th%         99th%      successRatio
-cassandra_secret_1  34     16.635150  11.754942   739.57933ms  852.527624ms  859.465ms  100.00%
-```

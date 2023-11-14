@@ -5,6 +5,7 @@ This benchmark tests the performance of logins using the Azure auth method.
 ## Benchmark Configuration Parameters
 
 ### Azure Authentication Configuration (`config`)`
+
 - `tenant_id` `(string: <required>)` - The tenant id for the Azure Active Directory organization.
 - `resource` `(string: <required>)` - The resource URL for the application registered in Azure Active Directory.
   The value is expected to match the audience (`aud` claim) of the [JWT](https://developer.hashicorp.com/vault/api-docs/auth/azure#jwt)
@@ -17,6 +18,7 @@ This benchmark tests the performance of logins using the Azure auth method.
   This value can also be provided with the `VAULT_BENCHMARK_AZURE_CLIENT_SECRET` environment variable.
 
 ### Azure Role Configuration (`role`)`
+
 - `name` `(string: <required>)` - Name of the role.
 - `bound_service_principal_ids` `(array: [])` - The list of Service Principal IDs
   that login is restricted to.
@@ -66,6 +68,7 @@ This benchmark tests the performance of logins using the Azure auth method.
   time.
 
 ### Azure User Configuration (`user`)
+
 - `role` `(string: <required>)` - Name of the role against which the login is being
   attempted.
 - `jwt` `(string: <required>)` - Signed [JSON Web Token](https://tools.ietf.org/html/rfc7519) (JWT)
@@ -115,16 +118,4 @@ test "azure_auth" "azure_auth" {
     }
   }
 }
-```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-07-31T21:00:53.995-0500 [INFO]  vault-benchmark: setting up targets
-2023-07-31T21:00:54.012-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-07-31T21:00:57.172-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://localhost:8200
-op          count  rate      throughput  mean          95th%        99th%         successRatio
-azure_auth  19     9.377571  6.013464    1.488866416s  2.10584931s  2.171915292s  100.00%
 ```

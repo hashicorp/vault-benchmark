@@ -98,15 +98,3 @@ test "postgresql_secret" "postgres_test_1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-05-01T21:10:03.140-0500 [INFO]  vault-benchmark: setting up targets
-2023-05-01T21:10:03.222-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-05-01T21:10:05.282-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op               count  rate        throughput  mean         95th%        99th%        successRatio
-postgres_test_1  455    226.219503  220.930941  44.864053ms  63.980785ms  77.447877ms  100.00%
-```

@@ -54,15 +54,3 @@ test "aws_auth" "aws_test_1" {
     }
 }
 ```
-
-## Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-2023-04-26T17:52:03.294-0500 [INFO]  vault-benchmark: setting up targets
-2023-04-26T17:52:03.320-0500 [INFO]  vault-benchmark: starting benchmarks: duration=2s
-2023-04-26T17:52:05.322-0500 [INFO]  vault-benchmark: benchmark complete
-Target: http://127.0.0.1:8200
-op          count  rate      throughput  mean         95th%         99th%         successRatio
-aws_test_1  13     6.231426  3.808569    1.89813632s  2.160728904s  2.160794417s  100.00%
-```

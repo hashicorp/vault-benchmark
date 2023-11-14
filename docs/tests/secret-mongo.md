@@ -77,15 +77,3 @@ test "mongodb_secret" "mongodb_test_1" {
     }
 }
 ```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 10s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op              count  rate       throughput  mean          95th%         99th%         successRatio
-mongodb_test_1  473    47.284284  46.300585   213.963008ms  222.443684ms  228.1842ms  100.00%
-```

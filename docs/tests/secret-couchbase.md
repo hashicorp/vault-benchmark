@@ -98,15 +98,3 @@ test "couchbase_secret" "couchbase_test_1" {
     }
 }
 ```
-
-### Example Usage
-
-```bash
-$ vault-benchmark run -config=config.hcl
-Setting up targets...
-Starting benchmarks. Will run for 1s...
-Benchmark complete!
-Target: http://127.0.0.1:8200
-op                count  rate        throughput  mean         95th%         99th%         successRatio
-couchbase_test_1  109    108.336919  100.456417  97.007399ms  151.364911ms  172.702436ms  100.00%
-```
