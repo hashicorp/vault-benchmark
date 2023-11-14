@@ -1,0 +1,16 @@
+name: Add Hashicorp contributor label
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  add-hashicorp-contributor-label:
+    if: ${{ github.repository == 'hashicorp/vault-benchmark' && (github.event.pull_request.head.full_name == github.event.pull_request.base.full_name) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Add label to PR"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: gh pr edit $PR --add-label "hashicorp-contributed-pr"
