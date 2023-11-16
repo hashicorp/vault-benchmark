@@ -92,11 +92,11 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	t.logger = targetLogger.Named(t.target)
 
 	// Create test mount
-	t.logger.Debug(mountLogMessage("secrets", "kvv2", mountName))
-
 	if topLevelConfig.RandomMounts {
 		mountName += "-" + uuid.New().String()
 	}
+	
+	t.logger.Debug(mountLogMessage("secrets", "kvv2", mountName))
 	err := client.Sys().Mount(mountName, &api.MountInput{
 		Type: "kv",
 		Options: map[string]string{
@@ -114,7 +114,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 		_, err := client.KVv2(mountName).Put(context.Background(), secretName, map[string]any{"key": time.Now().Format(time.RFC3339)})
 		if err != nil {
-			return nil, fmt.Errorf("error setupping secrets: %w", err)
+			return nil, fmt.Errorf("error setting up secrets: %w", err)
 		}
 	}
 
