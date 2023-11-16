@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-hclog"
@@ -59,7 +60,7 @@ type SyncAWSTest struct {
 type SyncAWSTestConfig struct {
 	NumAssociations   int               `hcl:"num_associations,optional"`
 	DestinationType   string            `hcl:"destination_type"`
-	DestinationName   string            `hcl:"destination_name"`
+	DestinationName   string            `hcl:"destination_name,optional"`
 	DestinationConfig map[string]string `hcl:"destination_config,optional"`
 }
 
@@ -69,7 +70,8 @@ func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
 	}{
 		// Defaults
 		Config: &SyncAWSTestConfig{
-			NumAssociations:   1,
+			NumAssociations:   3,
+			DestinationName:   fmt.Sprintf("benchmark-test-%s", uuid.New().String()),
 			DestinationConfig: map[string]string{},
 		},
 	}
@@ -108,9 +110,9 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	// Create 1 secret to sync per association
 	for i := 0; i < t.config.NumAssociations; i++ {
 		secretName := fmt.Sprintf(secretNameFormat, i)
-		t.logger.Debug("creating secret on test mount", "mount", t.mount, "secret", secretName)
+		t.logger.Debug("creating secret on test mount", "mount", mountName, "secret", secretName)
 
-		_, err := client.KVv2(mountName).Put(context.Background(), secretName, map[string]any{"key": uuid.New().String()})
+		_, err := client.KVv2(mountName).Put(context.Background(), secretName, map[string]any{"key": time.Now().Format(time.RFC3339)})
 		if err != nil {
 			return nil, fmt.Errorf("error setupping secrets: %w", err)
 		}
@@ -242,7 +244,7 @@ func (t *SyncAWSTest) events(client *api.Client) vegeta.Target {
 			vaultNamespaceHeader: []string{client.Namespace()}},
 		Body: []byte(
 			fmt.Sprintf(`{"data": {"foo": "%s"}}`,
-				uuid.New().String(),
+				time.Now().Format(time.RFC3339),
 			),
 		),
 	}
