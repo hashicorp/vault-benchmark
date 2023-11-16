@@ -112,7 +112,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 		_, err := client.KVv2(mountName).Put(context.Background(), secretName, map[string]any{"key": uuid.New().String()})
 		if err != nil {
-			return nil, fmt.Errorf("error setupping secrets: %w", err)
+			return nil, fmt.Errorf("error setting up secrets: %w", err)
 		}
 	}
 
