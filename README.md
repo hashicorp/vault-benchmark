@@ -118,7 +118,7 @@ Documentation for `vault-benchmark` including usage and test configuration can b
 
 ### No Official Support
 
-Please note this is a community project. Hashicorp and Hashicorp Support do not offer any official support for the Vault-Benchmark project. If you encounter issues or have questions, we recommend reaching out to the community through the [GitHub issues](https://github.com/hashicorp/vault-benchmark/issues) page. Community members are often helpful and responsive.
+Please note this is a community project, with best effort support. Hashicorp and Hashicorp Support do not offer any official support for the Vault-Benchmark project. If you encounter issues or have questions, we recommend reaching out to the community through the [GitHub issues](https://github.com/hashicorp/vault-benchmark/issues) page. Community members are often helpful and responsive.
 
 ### Contributions Welcome!
 
