@@ -4,6 +4,7 @@
 package benchmarktests
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -139,6 +140,22 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
+	setupLogger := k.logger.Named(mountPath)
+
+	builder := &KVV2Test{
+		pathPrefix: "/v1/" + mountPath,
+		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		numKVs:     k.config.NumKVs,
+		kvSize:     k.config.KVSize,
+		logger:     k.logger,
+		action:     k.action,
+	}
+
+	if topLevelConfig.SkipSetup {
+		setupLogger.Info("skipping setup")
+		return builder, nil
+	}
+
 	k.logger.Trace(mountLogMessage("secrets", "kvv2", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "kv",
@@ -146,11 +163,9 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 			"version": "2",
 		},
 	})
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "path is already in use") {
 		return nil, fmt.Errorf("error mounting kv secrets engine: %v", err)
 	}
-
-	setupLogger := k.logger.Named(mountPath)
 
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -165,20 +180,14 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger.Trace("seeding secrets")
 	for i := 1; i <= k.config.NumKVs; i++ {
-		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
+		secret, err := client.Logical().WriteWithContext(context.Background(),
+			mountPath+"/data/secret-"+strconv.Itoa(i), secval)
 		if err != nil {
-			return nil, fmt.Errorf("error writing kv secret: %v", err)
+			return nil, fmt.Errorf("error writing kv secret: %v, +%v", err, secret)
 		}
 	}
 
-	return &KVV2Test{
-		pathPrefix: "/v1/" + mountPath,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-		numKVs:     k.config.NumKVs,
-		kvSize:     k.config.KVSize,
-		logger:     k.logger,
-		action:     k.action,
-	}, nil
+	return builder, nil
 }
 
 func (k *KVV2Test) Flags(fs *flag.FlagSet) {}

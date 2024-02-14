@@ -36,6 +36,8 @@ var (
 	_ cli.CommandAutocomplete = (*RunCommand)(nil)
 )
 
+var cachedTargets *benchmarktests.TargetMulti
+
 type RunCommand struct {
 	*BaseCommand
 	flagDuration         time.Duration
@@ -56,6 +58,8 @@ type RunCommand struct {
 	flagCleanup          bool
 	flagDebug            bool
 	flagDisableHTTP2     bool
+	flagSetupOnly        bool
+	flagSkipSetup        bool
 }
 
 func (r *RunCommand) Synopsis() string {
@@ -223,6 +227,20 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Force HTTP/1.1",
 	})
 
+	f.BoolVar(&BoolVar{
+		Name:    "setup_only",
+		Target:  &r.flagSetupOnly,
+		Default: false,
+		Usage:   "Do an initial setup run without running benchmarks.",
+	})
+
+	f.BoolVar(&BoolVar{
+		Name:    "skip_setup",
+		Target:  &r.flagSkipSetup,
+		Default: false,
+		Usage:   "Do run on a pre-existing setup.",
+	})
+
 	// Add any additional flags from tests
 	for _, vbTest := range benchmarktests.TestList {
 		vbTest().Flags(f.mainSet)
@@ -249,6 +267,18 @@ func (r *RunCommand) Run(args []string) int {
 	if r.flagVBCoreConfigPath == "" {
 		benchmarkLogger.Error("no config file location passed")
 		return 1
+	}
+
+	if r.flagSetupOnly {
+		benchmarkLogger.Info("running benchmark setup only")
+		r.flagRandomMounts = false
+		r.flagCleanup = false
+	}
+
+	if r.flagSkipSetup {
+		benchmarkLogger.Info("running benchmark without any setup")
+		r.flagRandomMounts = false
+		r.flagCleanup = false
 	}
 
 	conf := vbConfig.NewVaultBenchmarkCoreConfig()
@@ -427,17 +457,25 @@ func (r *RunCommand) Run(args []string) int {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
+
 	benchmarkLogger.Info("setting up targets")
 
 	topLevelConfig := benchmarktests.TopLevelTargetConfig{
 		Duration:     parsedDuration,
-		RandomMounts: conf.RandomMounts,
+		RandomMounts: conf.RandomMounts && !r.flagSkipSetup,
+		SkipSetup:    r.flagSkipSetup,
 	}
 
+	// TODO: setup step for re-use
 	tm, err := benchmarktests.BuildTargets(clients[0], conf.Tests, &benchmarkLogger, &topLevelConfig)
 	if err != nil {
 		benchmarkLogger.Error(fmt.Sprintf("target setup failed: %v", err))
 		return 1
+	}
+
+	if r.flagSetupOnly {
+		benchmarkLogger.Info("target setup complete!")
+		return 0
 	}
 
 	var l sync.Mutex

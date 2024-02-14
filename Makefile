@@ -47,8 +47,8 @@ build:
 
 .PHONY: image
 image:
-	CGO_ENABLED=0 GOARCH=$(ARCH) GOOS=linux go build -a -ldflags $(LDFLAGS) -o dist/linux/$(ARCH)/$(BIN_NAME) .
-	docker build --platform linux/$(ARCH) --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
+	CGO_ENABLED=0 GOARCH=$(GOARCH) GOOS=linux go build -a -ldflags $(LDFLAGS) -o dist/linux/$(GOARCH)/$(BIN_NAME) .
+	docker build --platform linux/$(GOARCH) --build-arg VERSION=$(VERSION) --no-cache -t $(IMAGE_TAG) -t $(LATEST_TAG) .
 
 .PHONY: clean
 clean:

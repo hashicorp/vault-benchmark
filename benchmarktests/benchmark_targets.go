@@ -24,6 +24,7 @@ import (
 type TopLevelTargetConfig struct {
 	Duration     time.Duration
 	RandomMounts bool
+	SkipSetup    bool
 }
 
 const (
