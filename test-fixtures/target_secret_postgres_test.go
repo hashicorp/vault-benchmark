@@ -36,7 +36,7 @@ func TestPostgres_Secret_Docker(t *testing.T) {
 
 	var expectedCode int64 = 0
 	if exitCode != expectedCode {
-		t.Logf("Expected return code: %d. Actual return code: %d", expectedCode, exitCode)
+		t.Fatalf("Expected return code: %d. Actual return code: %d", expectedCode, exitCode)
 	}
 }
 
