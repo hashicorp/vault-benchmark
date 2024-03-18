@@ -12,6 +12,8 @@
 
 `-debug` `(bool: false)` - Run vault-benchmark in Debug mode. The default is false.
 
+`-disable_http2` `(bool: false)` - Disables HTTP/2 on the Vault client. This prevents benchmark from multiplexing connections to a single Vault server over HTTP/2.
+
 `-duration` `(string: "10s")` - Test Duration.
 
 `-log_level` `(string: "INFO")` - Level to emit logs. Options are: INFO, WARN, DEBUG, TRACE. This can also be specified via the `VAULT_BENCHMARK_LOG_LEVEL` environment variable.
