@@ -49,7 +49,7 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 		DoNotAutoRemove: true,
 		Env:             []string{fmt.Sprintf("VAULT_ADDR=%s", vaultAddr), fmt.Sprintf("VAULT_TOKEN=%s", vaultToken)},
 		CopyFromTo:      volume,
-		Cmd:             []string{"/bin/vault-benchmark", "run", fmt.Sprintf("-config=/etc/%s", configFile)},
+		Cmd:             []string{"/bin/vault-benchmark", "run", fmt.Sprintf("-config=/etc/%s", configFile), "-cleanup=true"},
 	}
 
 	runner, err := dockhelper.NewServiceRunner(runOpts)

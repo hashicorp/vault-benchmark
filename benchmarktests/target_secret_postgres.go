@@ -201,6 +201,7 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   s.config.PostgreSQLRoleConfig.Name,
+		logger:     s.logger,
 	}, nil
 
 }
