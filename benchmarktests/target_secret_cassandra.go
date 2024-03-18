@@ -210,6 +210,7 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   c.config.CassandraRoleConfig.Name,
+		logger:     c.logger,
 	}, nil
 
 }
