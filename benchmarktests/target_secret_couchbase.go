@@ -193,6 +193,7 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   c.config.RoleConfig.Name,
+		logger:     c.logger,
 	}, nil
 }
 
