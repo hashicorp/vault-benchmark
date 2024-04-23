@@ -58,12 +58,14 @@ ARG TARGETOS TARGETARCH
 LABEL maintainer="Team Vault Customer Engineering <team-vault-customer-engineering@hashicorp.com>"
 LABEL version=$PRODUCT_VERSION
 LABEL revision=$PRODUCT_REVISION
+LABEL org.opencontainers.image.licenses="MPL-2.0"
 
 # Create a non-root user to run the software.
 RUN addgroup $PRODUCT_NAME && \
     adduser -S -G $PRODUCT_NAME $PRODUCT_NAME
 
 COPY dist/$TARGETOS/$TARGETARCH/$BIN_NAME /bin/
+COPY LICENSE /usr/share/doc/$PRODUCT_NAME/LICENSE.txt
 
 USER $PRODUCT_NAME
 CMD ["/bin/vault-benchmark"]

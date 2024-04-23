@@ -12,10 +12,10 @@ OS       = $(shell uname | tr [[:upper:]] [[:lower:]])
 PLATFORM = $(OS)/$(ARCH)
 DIST     = dist/$(PLATFORM)
 BIN      = $(DIST)/$(BIN_NAME)
+TARGET_DIR ?= dist/
 
 # Get latest revision (no dirty check for now).
 REVISION = $(shell git rev-parse HEAD)
-
 
 REGISTRY_NAME?=docker.io/hashicorp
 IMAGE_TAG?=$(REGISTRY_NAME)/$(PRODUCT_NAME):$(VERSION)
@@ -38,12 +38,13 @@ dockerbin: dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/linux/amd64/vault-benchmark
 
 PHONY: cleanupimages
-cleanupimages: 
+cleanupimages:
 	docker rmi $(BENCHMARK_IMAGES)
 
 .PHONY: build
 build:
 	@$(CURDIR)/scripts/crt-build.sh build
+	@cp $(CURDIR)/LICENSE $(TARGET_DIR)/LICENSE.txt
 
 .PHONY: image
 image:
