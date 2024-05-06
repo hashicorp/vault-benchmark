@@ -8,25 +8,31 @@
 
 # Global vault-benchmark config options
 
-vault_addr = \"<http://127.0.0.1:8200>\"
-vault_token = \"root\"
-vault_namespace=\"root\"
-duration = \"2s\"
-report_mode = \"terse\"
+vault_addr = "http://127.0.0.1:8200"
+vault_token = "root"
+vault_namespace="root"
+duration = "2s"
+report_mode = "terse"
 random_mounts = true
 cleanup = true
 
 # Test definitions and configuration
 
-test \"approle_auth\" \"approle_auth_test1\" {
+test "approle_auth" "approle_auth_test1" {
     weight = 100
     config {
         role {
-            role_name = \"benchmark-role\"
-            token_ttl=\"2m\"
+            role_name = "benchmark-role"
+            token_ttl="2m"
         }
     }
 }
+```
+
+## Example Usage
+
+```bash
+$ vault-benchmark run -config=config.hcl
 ```
 
 ## Subcommands
@@ -77,6 +83,7 @@ Below is a list of all currently available benchmark tests
 - [Redis Static Credential Benchmark (`redis_static_secret`)](tests/secret-redis-static.md)
 - [Signed SSH Secret Issue Configuration Options](tests/secret-ssh-issue.md)
 - [SSH Key Signing Configuration Options](tests/secret-ssh-sign.md)
+- [Secrets Sync Benchmark](tests/secret-sync.md)
 - [Transform Tokenization Configuration Options](tests/secret-transform-tokenization.md)
 - [Transit Secret Configuration Options](tests/secret-transit.md)
 
