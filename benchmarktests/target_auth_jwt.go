@@ -17,14 +17,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	sqjwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
-	"gopkg.in/square/go-jose.v2"
-	sqjwt "gopkg.in/square/go-jose.v2/jwt"
 )
 
 // Constants for test
