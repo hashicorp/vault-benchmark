@@ -4,6 +4,8 @@
 
 ## [Unreleased](https://github.com/hashicorp/vault-benchmark/tree/HEAD)
 
+## [v0.3.0](https://github.com/hashicorp/vault-benchmark/tree/v0.3.0) (May 6, 2024)
+
 ### Features
 
 - Add MongoDB Atlas Secrets Engine Method [\#153](https://github.com/hashicorp/vault-benchmark/pull/153)
