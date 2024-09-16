@@ -145,7 +145,7 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	a.logger.Trace(mountLogMessage("secrets", "aws", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type:     "aws",
-		SealWrap: a.config.SealWrap,
+		SealWrap: a.sealWrap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error mounting aws secrets engine: %v", err)
