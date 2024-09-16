@@ -61,7 +61,7 @@ func (k *KVV2Test) ParseConfig(body hcl.Body) error {
 		Config: &KVV2SecretTestConfig{
 			KVSize:   1,
 			NumKVs:   1000,
-			SealWrap: true,
+			SealWrap: false,
 		},
 	}
 
