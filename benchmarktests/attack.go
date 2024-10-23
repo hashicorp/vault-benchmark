@@ -10,11 +10,12 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-func Attack(tm *TargetMulti, client *api.Client, duration time.Duration, rps int, workers int) (*Reporter, error) {
+func Attack(tm *TargetMulti, client *api.Client, duration time.Duration, rps int, workers int, dnsCaching time.Duration) (*Reporter, error) {
 	rate := vegeta.Rate{Freq: rps, Per: time.Second}
 	opts := []func(*vegeta.Attacker){
 		vegeta.Workers(uint64(workers)),
 		vegeta.MaxWorkers(uint64(workers)),
+		vegeta.DNSCaching(dnsCaching),
 	}
 	if client != nil {
 		opts = append(opts, vegeta.Client(client.CloneConfig().HttpClient))

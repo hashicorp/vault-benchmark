@@ -44,6 +44,7 @@ type VaultBenchmarkCoreConfig struct {
 	Cleanup        bool                              `hcl:"cleanup,optional"`
 	Debug          bool                              `hcl:"debug,optional"`
 	DisableHTTP2   bool                              `hcl:"disable_http2,optional"`
+	DNSCaching     string                            `hcl:"dns_caching,optional"`
 }
 
 func NewVaultBenchmarkCoreConfig() *VaultBenchmarkCoreConfig {
