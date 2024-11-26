@@ -60,7 +60,7 @@ func (r *ReviewCommand) Flags() *FlagSets {
 		Completion: complete.PredictOr(
 			complete.PredictFiles("*.json"),
 		),
-		Usage: "Path to a vault-benchmark test configuration file.",
+		Usage: "Path to a vault-benchmark test results file.",
 	})
 
 	f.StringVar(&StringVar{
@@ -98,21 +98,28 @@ func (r *ReviewCommand) Run(args []string) int {
 		return 1
 	}
 
-	rpt, err := benchmarktests.FromReader(fReader)
+	rpts, err := benchmarktests.FromReader(fReader)
 	if err != nil {
 		r.UI.Error(fmt.Sprintf("error reading report: %v", err))
-	}
-	switch r.flagReportMode {
-	case "json":
-		err = fmt.Errorf("asked to report JSON on JSON input")
-	case "terse":
-		err = rpt.ReportTerse(os.Stdout)
-	case "verbose":
-		err = rpt.ReportVerbose(os.Stdout)
-	}
-	if err != nil {
-		r.UI.Error(fmt.Sprintf("error writing report: %v", err))
 		return 1
+	}
+	if len(rpts) == 0 {
+		r.UI.Error("results file contains no valid reports")
+		return 1
+	}
+	for _, rpt := range rpts {
+		switch r.flagReportMode {
+		case "json":
+			err = fmt.Errorf("asked to report JSON on JSON input")
+		case "verbose":
+			err = rpt.ReportVerbose(os.Stdout)
+		case "terse":
+			err = rpt.ReportTerse(os.Stdout)
+		}
+		if err != nil {
+			r.UI.Error(fmt.Sprintf("error writing report: %v", err))
+			return 1
+		}
 	}
 	return 0
 }
