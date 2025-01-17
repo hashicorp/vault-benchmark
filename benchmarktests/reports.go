@@ -37,11 +37,29 @@ type Reporter struct {
 }
 
 func FromReader(r io.Reader) (*Reporter, error) {
-	d := json.NewDecoder(r)
-	m := make(map[string]*vegeta.Metrics)
-	if err := d.Decode(&m); err != nil {
+	// Read the JSON document
+	jsonBytes, err := io.ReadAll(r)
+	if err != nil {
 		return nil, err
 	}
+
+	// Get the JSON document's `metrics` key
+	var jsonData map[string]json.RawMessage
+	if err := json.Unmarshal(jsonBytes, &jsonData); err != nil {
+		return nil, err
+	}
+
+	raw, ok := jsonData["metrics"]
+	if !ok {
+		return nil, fmt.Errorf("missing metrics key in JSON document")
+	}
+
+	// Unmarshal the `metrics` key into a map of string (test names) to results
+	m := make(map[string]*vegeta.Metrics)
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+
 	rpt := newReporter(&TargetMulti{}, nil)
 	rpt.metrics = m
 	return rpt, nil
