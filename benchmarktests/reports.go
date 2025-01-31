@@ -36,15 +36,25 @@ type Reporter struct {
 	metrics    map[string]*vegeta.Metrics
 }
 
-func FromReader(r io.Reader) (*Reporter, error) {
+type JSONReport struct {
+	TargetAddr string                     `json:"target_addr"`
+	Metrics    map[string]*vegeta.Metrics `json:"metrics"`
+}
+
+func FromReader(r io.Reader) ([]*Reporter, error) {
 	d := json.NewDecoder(r)
-	m := make(map[string]*vegeta.Metrics)
-	if err := d.Decode(&m); err != nil {
-		return nil, err
+	var reporters []*Reporter
+	for d.More() {
+		var unmarshaled JSONReport
+		if err := d.Decode(&unmarshaled); err != nil {
+			return nil, fmt.Errorf("could not decode report JSON (index %d): %w", len(reporters), err)
+		}
+		rpt := newReporter(&TargetMulti{}, nil)
+		rpt.clientAddr = unmarshaled.TargetAddr
+		rpt.metrics = unmarshaled.Metrics
+		reporters = append(reporters, rpt)
 	}
-	rpt := newReporter(&TargetMulti{}, nil)
-	rpt.metrics = m
-	return rpt, nil
+	return reporters, nil
 }
 
 func newReporter(tm *TargetMulti, client *api.Client) *Reporter {
@@ -83,12 +93,11 @@ func (r *Reporter) Close() {
 }
 
 func (r *Reporter) ReportJSON(w io.Writer) error {
-	jsonReport := map[string]interface{}{
-		"target_addr": r.clientAddr,
-		"metrics":     r.metrics,
-	}
 	j := json.NewEncoder(w)
-	return j.Encode(jsonReport)
+	return j.Encode(&JSONReport{
+		TargetAddr: r.clientAddr,
+		Metrics:    r.metrics,
+	})
 }
 
 func (r *Reporter) ReportVerbose(w io.Writer) error {
