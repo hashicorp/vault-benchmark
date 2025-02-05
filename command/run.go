@@ -38,6 +38,7 @@ var (
 
 type RunCommand struct {
 	*BaseCommand
+	flagDNSCaching       time.Duration
 	flagDuration         time.Duration
 	flagPPROFInterval    time.Duration
 	flagVaultAddr        string
@@ -223,6 +224,13 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Force HTTP/1.1",
 	})
 
+	f.DurationVar(&DurationVar{
+		Name:    "dns_caching",
+		Target:  &r.flagDNSCaching,
+		Default: 0,
+		Usage:   "DNS Cache Duration. Set to 0 for forever and -1 for disabled.",
+	})
+
 	// Add any additional flags from tests
 	for _, vbTest := range benchmarktests.TestList {
 		vbTest().Flags(f.mainSet)
@@ -275,6 +283,11 @@ func (r *RunCommand) Run(args []string) int {
 			benchmarkLogger.Error("error parsing pprof interval from configuration", "error", hclog.Fmt("%v", err))
 			return 1
 		}
+	}
+
+	parsedDnsCaching, err := time.ParseDuration(conf.DNSCaching)
+	if err != nil {
+		benchmarkLogger.Error("error parsing dns cache duration from configuration", "error", hclog.Fmt("%v", err))
 	}
 
 	if (!conf.RandomMounts) && (conf.Cleanup) {
@@ -459,7 +472,7 @@ func (r *RunCommand) Run(args []string) int {
 				l.Unlock()
 			}
 
-			rpt, err := benchmarktests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers)
+			rpt, err := benchmarktests.Attack(tm, client, parsedDuration, conf.RPS, conf.Workers, parsedDnsCaching)
 			if err != nil {
 				benchmarkLogger.Error("attack error", "err", hclog.Fmt("%v", err))
 				os.Exit(1)
@@ -623,6 +636,13 @@ func (r *RunCommand) applyConfigOverrides(f *FlagSets, config *vbConfig.VaultBen
 		Default: false,
 	})
 	config.DisableHTTP2 = r.flagDisableHTTP2
+
+	r.setDurationFlag(f, config.DNSCaching, &DurationVar{
+		Name:    "dns_caching",
+		Target:  &r.flagDNSCaching,
+		Default: 0,
+	})
+	config.DNSCaching = r.flagDNSCaching.String()
 }
 
 func (r *RunCommand) setBoolFlag(f *FlagSets, configVal bool, fVar *BoolVar) {
