@@ -41,11 +41,13 @@ type AWSAuth struct {
 	header     http.Header
 	config     *AWSAuthTestConfig
 	logger     hclog.Logger
+	sealWrap   bool
 }
 
 type AWSAuthTestConfig struct {
 	AWSAuthConfig     *AWSAuthConfig     `hcl:"auth,block"`
 	AWSTestUserConfig *AWSTestUserConfig `hcl:"test_user,block"`
+	SealWrap          bool               `hcl:"seal_wrap,optional"`
 }
 
 type AWSAuthConfig struct {
@@ -100,6 +102,7 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 				SecretKey: os.Getenv(AWSAuthSecretKey),
 			},
 			AWSTestUserConfig: &AWSTestUserConfig{},
+			SealWrap:          a.config.SealWrap,
 		},
 	}
 
@@ -162,7 +165,8 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	// Create AWS Auth mount
 	a.logger.Trace(mountLogMessage("auth", "aws", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
-		Type: "aws",
+		Type:     "aws",
+		SealWrap: a.config.SealWrap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error enabling aws: %v", err)
