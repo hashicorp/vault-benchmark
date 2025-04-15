@@ -1,6 +1,7 @@
 module github.com/hashicorp/vault-benchmark
 
 go 1.23
+toolchain go1.24.1
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
@@ -25,7 +26,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/sethvargo/go-password v0.2.0
 	github.com/tsenart/vegeta/v12 v12.8.4
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/oauth2 v0.10.0
 	google.golang.org/api v0.130.0
 )
