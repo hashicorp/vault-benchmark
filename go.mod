@@ -1,6 +1,7 @@
 module github.com/hashicorp/vault-benchmark
 
 go 1.23
+toolchain go1.24.1
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
@@ -25,7 +26,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/sethvargo/go-password v0.2.0
 	github.com/tsenart/vegeta/v12 v12.8.4
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.36.0
 	golang.org/x/oauth2 v0.10.0
 	google.golang.org/api v0.130.0
 )
@@ -96,10 +97,10 @@ require (
 	github.com/zclconf/go-cty v1.13.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	google.golang.org/appengine v1.6.7 // indirect
