@@ -68,6 +68,13 @@ type TransitConfigKeys struct {
 	AutoRotatePeriod     string `hcl:"auto_rotate_period,optional"`
 	ManagedKeyName       string `hcl:"managed_key_name,optional"`
 	ManagedKeyID         string `hcl:"managed_key_id,optional"`
+	// extend struct definition to support PQC keys 
+	// https://developer.hashicorp.com/vault/api-docs/secret/transit#parameter_set
+	ParameterSet         string `hcl:"parameter_set,optional"`
+	// https://developer.hashicorp.com/vault/api-docs/secret/transit#hybrid_key_type_ec
+    	HybridKeyTypeEC      string `hcl:"hybrid_key_type_ec,optional"`
+	// https://developer.hashicorp.com/vault/api-docs/secret/transit#hybrid_key_type_pqc
+    	HybridKeyTypePQC     string `hcl:"hybrid_key_type_pqc,optional"`
 }
 
 // /transit/sign/:name
