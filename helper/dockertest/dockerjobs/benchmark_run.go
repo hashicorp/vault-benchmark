@@ -76,6 +76,21 @@ func CreateVaultBenchmarkContainer(t *testing.T, vaultAddr string, vaultToken st
 	}
 
 	cleanup := func() {
+		// Only capture container logs if there was a failure
+		if exitCode != 0 {
+			logs, err := runner.DockerAPI.ContainerLogs(ctx, service.Container.ID, types.ContainerLogsOptions{
+				ShowStdout: false,
+				ShowStderr: true,
+				Tail:       "50", // Limit to the last 50 lines of logs
+			})
+			if err == nil {
+				logData, _ := io.ReadAll(logs)
+				if len(logData) > 0 {
+					t.Logf("Logs:\n%s", string(logData))
+				}
+				logs.Close()
+			}
+		}
 		err := runner.DockerAPI.ContainerRemove(ctx, service.Container.ID, types.ContainerRemoveOptions{Force: true})
 		if err != nil {
 			t.Fatalf("Error removing vault container: %s", err)
