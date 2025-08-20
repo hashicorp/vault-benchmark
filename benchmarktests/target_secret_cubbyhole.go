@@ -22,11 +22,8 @@ const (
 	CubbyholeSecretWriteTestType   = "cubbyhole_write"
 	CubbyholeSecretReadTestMethod  = "GET"
 	CubbyholeSecretWriteTestMethod = "POST"
-	
-	// Performance optimization constants
-	cubbyholePathPrefix = "/v1/cubbyhole"
-	defaultCubbyholeData = `{"foo":"bar"}` // Compact JSON for better performance
-	defaultSecretPath = "my-path"
+	CubbyholePathPrefix            = "/v1/cubbyhole"
+	DefaultSecretPath              = "my-path"
 )
 
 func init() {
@@ -46,8 +43,7 @@ type CubbyholeTest struct {
 	config     *CubbyholeSecretTestConfig
 	action     string
 	logger     hclog.Logger
-	baseURL    string // Pre-computed base URL for performance
-	writeBody  []byte // Pre-computed JSON body for write operations
+	baseURL    string
 }
 
 type CubbyholeSecretTestConfig struct {
@@ -61,7 +57,7 @@ func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 		Config *CubbyholeSecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &CubbyholeSecretTestConfig{
-			Path: defaultSecretPath,
+			Path: DefaultSecretPath,
 		},
 	}
 
@@ -71,12 +67,12 @@ func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 	if c.config.Path == "" {
-		c.config.Path = defaultSecretPath // Set default if empty instead of error
+		c.config.Path = DefaultSecretPath // Set default if empty instead of error
 	}
 	return nil
 }
 
-func (c *CubbyholeTest) read(client *api.Client) vegeta.Target {
+func (c *CubbyholeTest) read() vegeta.Target {
 	return vegeta.Target{
 		Method: CubbyholeSecretReadTestMethod,
 		URL:    c.baseURL,
@@ -84,11 +80,11 @@ func (c *CubbyholeTest) read(client *api.Client) vegeta.Target {
 	}
 }
 
-func (c *CubbyholeTest) write(client *api.Client) vegeta.Target {
+func (c *CubbyholeTest) write() vegeta.Target {
 	return vegeta.Target{
 		Method: CubbyholeSecretWriteTestMethod,
 		URL:    c.baseURL,
-		Body:   c.writeBody,
+		Body:   []byte(`{"foo": "bar"}`),
 		Header: c.header,
 	}
 }
@@ -96,9 +92,9 @@ func (c *CubbyholeTest) write(client *api.Client) vegeta.Target {
 func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
 	switch c.action {
 	case "write":
-		return c.write(client)
+		return c.write()
 	default:
-		return c.read(client)
+		return c.read()
 	}
 }
 
@@ -134,7 +130,6 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	default:
 		c.logger = targetLogger.Named(CubbyholeSecretReadTestType)
 	}
-
 	// Generate a unique secret key if randomization is requested
 	secretPath := c.config.Path
 	if topLevelConfig.RandomMounts {
@@ -144,7 +139,6 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 		}
 		secretPath = fmt.Sprintf("%s-%s", c.config.Path, randomSuffix)
 	}
-
 	setupLogger := c.logger.Named("cubbyhole")
 
 	// Cubbyhole is built-in at /cubbyhole/, no mounting required
@@ -157,7 +151,6 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	secretData := map[string]interface{}{
 		"foo": "bar",
 	}
-
 	_, err := client.Logical().Write(secretDataPath, secretData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing cubbyhole secret: %v", err)
@@ -166,20 +159,16 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	// Update the config with the potentially randomized secret key
 	configCopy := *c.config
 	configCopy.Path = secretPath
-
-	// Pre-compute URL and body for performance optimization
-	baseURL := fmt.Sprintf("%s%s/%s", client.Address(), cubbyholePathPrefix, secretPath)
-	writeBody := []byte(defaultCubbyholeData)
+	baseURL := fmt.Sprintf("%s%s/%s", client.Address(), CubbyholePathPrefix, secretPath)
 
 	return &CubbyholeTest{
-		pathPrefix: cubbyholePathPrefix,
+		pathPrefix: CubbyholePathPrefix,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		secretPath: "cubbyhole",
 		action:     c.action,
 		config:     &configCopy,
 		logger:     c.logger,
 		baseURL:    baseURL,
-		writeBody:  writeBody,
 	}, nil
 }
 
