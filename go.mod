@@ -5,7 +5,7 @@ go 1.23
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/docker/docker v24.0.9+incompatible
-	github.com/go-jose/go-jose/v3 v3.0.3
+	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-gcp-common v0.8.0
