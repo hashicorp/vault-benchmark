@@ -64,6 +64,7 @@ Below is a list of all currently available benchmark tests
 - [Cassandra Secrets Engine Benchmark (`cassandra_secret`)](tests/secret-cassandra.md)
 - [Consul Secret Benchmark (`consul_secret`)](tests/secret-consul.md)
 - [Couchbase Secrets Engine Benchmark (`couchbase_secret`)](tests/secret-couchbase.md)
+- [Cubbyhole Secrets Engine Benchmark (`cubbyhole_secret`)](tests/secret-cubbyhole.md)
 - [Elasticsearch Secrets Engine Benchmark (`elasticsearch_secret`)](tests/secret-elasticsearch.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-gcp.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-impersonate-gcp.md)
