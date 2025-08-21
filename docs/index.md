@@ -86,6 +86,7 @@ Below is a list of all currently available benchmark tests
 - [Secrets Sync Benchmark](tests/secret-sync.md)
 - [Transform Tokenization Configuration Options](tests/secret-transform-tokenization.md)
 - [Transit Secret Configuration Options](tests/secret-transit.md)
+- [InfluxDB Secrets Engine Benchmark (`influxdb_secret`)](tests/secret-influxdb.md)
 
 ### System Tests
 
