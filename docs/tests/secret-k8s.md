@@ -169,3 +169,5 @@ test "kubernetes_secret" "k8s_advanced_test" {
     }
 }
 ```
+
+ The configuration options can be found in the [Kubernetes secrets engine (API) documentation](https://developer.hashicorp.com/vault/api-docs/secret/kubernetes). 
