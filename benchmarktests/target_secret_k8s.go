@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -176,23 +177,20 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 	}
 
 	// Prepare request body for credential generation
-	// Default namespace to the first allowed namespace or "default"
+	// Default namespace to a randomly selected allowed namespace or "default"
 	namespace := "default"
 	if len(config.KubernetesRoleConfig.AllowedKubernetesNamespaces) > 0 {
-		// If "*" is allowed, use "default", otherwise use the first allowed namespace
-		if config.KubernetesRoleConfig.AllowedKubernetesNamespaces[0] != "*" {
-			namespace = config.KubernetesRoleConfig.AllowedKubernetesNamespaces[0]
+		allowedNS := config.KubernetesRoleConfig.AllowedKubernetesNamespaces
+		// If "*" is allowed, any namespace can be used, so use "default"
+		// Otherwise randomly pick from the explicitly allowed namespaces
+		if allowedNS[0] != "*" {
+			namespace = allowedNS[rand.Intn(len(allowedNS))]
 		}
 	}
 
 	// Build request body for credential generation
 	requestBody := map[string]interface{}{
 		"kubernetes_namespace": namespace,
-	}
-
-	// Add optional TTL if specified
-	if config.KubernetesRoleConfig.TokenDefaultTTL != "" {
-		requestBody["ttl"] = config.KubernetesRoleConfig.TokenDefaultTTL
 	}
 
 	// Add optional audiences if specified

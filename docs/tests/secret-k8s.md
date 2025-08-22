@@ -156,7 +156,7 @@ test "kubernetes_secret" "k8s_advanced_test" {
             kubernetes_role_type = "Role"
             token_default_ttl = "30m"
             token_max_ttl = "2h"
-            name_template = "vault-{{.DisplayName}}-{{.RoleName}}-{{.Token.ID}}"
+            name_template = "vault-{{.RoleName | lowercase}}-{{random 6 | lowercase}}"
             extra_annotations = {
                 "vault.io/managed-by" = "vault-benchmark"
                 "app.kubernetes.io/created-by" = "vault"
