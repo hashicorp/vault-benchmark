@@ -5,3 +5,4 @@ dist/
 
 # IDE specific stuff
 .idea/
+.vscode/
