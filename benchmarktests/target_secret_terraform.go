@@ -23,7 +23,6 @@ const (
 	TerraformSecretTestType   = "terraform_secret"
 	TerraformSecretTestMethod = "GET"
 	TerraformTokenEnvVar      = VaultBenchmarkEnvVarPrefix + "TERRAFORM_TOKEN"
-	TerraformAddressEnvVar    = VaultBenchmarkEnvVarPrefix + "TERRAFORM_ADDRESS"
 )
 
 func init() {
