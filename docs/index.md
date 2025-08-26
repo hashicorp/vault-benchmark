@@ -67,6 +67,7 @@ Below is a list of all currently available benchmark tests
 - [Elasticsearch Secrets Engine Benchmark (`elasticsearch_secret`)](tests/secret-elasticsearch.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-gcp.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-impersonate-gcp.md)
+- [InfluxDB Secrets Engine Benchmark (`influxdb_secret`)](tests/secret-influxdb.md)
 - [KVV1 and KVV2 Secret Benchmark](tests/secret-kv.md)
 - [LDAP Dynamic Secret Benchmark `ldap_dynamic_secret`](tests/secret-ldap-dynamic.md)
 - [LDAP Static Secret Benchmark `ldap_static_secret`](tests/secret-ldap-static.md)
@@ -86,7 +87,6 @@ Below is a list of all currently available benchmark tests
 - [Secrets Sync Benchmark](tests/secret-sync.md)
 - [Transform Tokenization Configuration Options](tests/secret-transform-tokenization.md)
 - [Transit Secret Configuration Options](tests/secret-transit.md)
-- [InfluxDB Secrets Engine Benchmark (`influxdb_secret`)](tests/secret-influxdb.md)
 
 ### System Tests
 
