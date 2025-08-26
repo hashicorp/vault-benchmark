@@ -6,7 +6,7 @@ This benchmark will test the dynamic generation of HCP Terraform (Terraform Clou
 
 ### Terraform Configuration `terraform`
 
-- `address` `(string: "https://app.terraform.io")` – Specifies the address of the Terraform Cloud server. If using Terraform Enterprise, provide as `"protocol://host:port"`. The default is `https://app.terraform.io` for HCP Terraform. This can also be provided via the `VAULT_BENCHMARK_TERRAFORM_ADDRESS` environment variable.
+- `address` `(string: "https://app.terraform.io")` – Specifies the address of the Terraform Cloud server. If using Terraform Enterprise, provide as `"protocol://host:port"`. The default is `https://app.terraform.io` for HCP Terraform.
 - `token` `(string: "")` – Specifies the HCP Terraform authentication token to use. This token must have the needed permissions to manage all Organization, Team, and User tokens desired for this mount. This can also be provided via the `VAULT_BENCHMARK_TERRAFORM_TOKEN` environment variable.
 
 ### Role Configuration `role`
@@ -101,9 +101,9 @@ test "terraform_secret" "tf_env_test" {
     weight = 100
     config {
         terraform {
-            # address and token will be read from environment variables:
-            # VAULT_BENCHMARK_TERRAFORM_ADDRESS
+            # token will be read from environment variable:
             # VAULT_BENCHMARK_TERRAFORM_TOKEN
+            # address defaults to https://app.terraform.io
         }
         role {
             name = "benchmark-env-role"
@@ -117,27 +117,6 @@ test "terraform_secret" "tf_env_test" {
 }
 ```
 
-### Terraform Enterprise
-
-```hcl
-test "terraform_secret" "tfe_test" {
-    weight = 100
-    config {
-        terraform {
-            address = "https://terraform.example.com"
-            token = "your-tfe-api-token"
-        }
-        role {
-            name = "benchmark-tfe-role"
-            user_id = "user-1234567890abcdef"
-            credential_type = "user"
-            description = "Vault benchmark TFE role"
-            ttl = "1h"
-            max_ttl = "8h"
-        }
-    }
-}
-```
 
 ## Prerequisites
 
@@ -164,6 +143,5 @@ curl -s \
 ## Environment Variables
 
 - `VAULT_BENCHMARK_TERRAFORM_TOKEN` - HCP Terraform API token
-- `VAULT_BENCHMARK_TERRAFORM_ADDRESS` - HCP Terraform server address (defaults to https://app.terraform.io)
 
 Details about the configuration options can be found in the [HCP Terraform secrets engine (API) documentation](https://developer.hashicorp.com/vault/api-docs/secret/terraform).
