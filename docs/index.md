@@ -82,6 +82,7 @@ Below is a list of all currently available benchmark tests
 - [RabbitMQ Secret Configuration Options](tests/secret-rabbit.md)
 - [Redis Dynamic Credential Benchmark (`redis_dynamic_secret`)](tests/secret-redis-dynamic.md)
 - [Redis Static Credential Benchmark (`redis_static_secret`)](tests/secret-redis-static.md)
+- [Redshift Database Secret Engine Benchmark `redshift_secret`](tests/secret-redshift.md)
 - [Signed SSH Secret Issue Configuration Options](tests/secret-ssh-issue.md)
 - [SSH Key Signing Configuration Options](tests/secret-ssh-sign.md)
 - [Secrets Sync Benchmark](tests/secret-sync.md)
