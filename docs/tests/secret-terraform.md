@@ -145,3 +145,18 @@ curl -s \
 - `VAULT_BENCHMARK_TERRAFORM_TOKEN` - HCP Terraform API token
 
 Details about the configuration options can be found in the [HCP Terraform secrets engine (API) documentation](https://developer.hashicorp.com/vault/api-docs/secret/terraform).
+
+
+## Example Usage 
+```bash
+$ vault-benchmark run -config config.hcl
+2025-08-27T14:24:30.270+0530 [INFO]  vault-benchmark: setting up targets
+2025-08-27T14:24:31.640+0530 [INFO]  vault-benchmark: starting benchmarks: duration=10s
+2025-08-27T14:24:41.920+0530 [INFO]  vault-benchmark: cleaning up targets
+2025-08-27T14:24:42.831+0530 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op            count  rate      throughput  mean          95th%         99th%         successRatio
+tf_org_test   4      0.666590  0.666279    2.957145ms    4.424833ms    4.424833ms    100.00%
+tf_team_test  3      0.333320  0.323309    593.03118ms   1.217960291s  1.217960291s  100.00%
+tf_user_test  3      0.499990  0.478096    555.919569ms  1.123598541s  1.123598541s  100.00% 
+```
