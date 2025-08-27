@@ -171,3 +171,18 @@ test "kubernetes_secret" "k8s_advanced_test" {
 ```
 
  The configuration options can be found in the [Kubernetes secrets engine (API) documentation](https://developer.hashicorp.com/vault/api-docs/secret/kubernetes). 
+
+
+ ## Example Usage 
+```bash
+$ vault-benchmark run -config config.hcl
+2025-08-27T14:37:07.899+0530 [INFO]  vault-benchmark: setting up targets
+2025-08-27T14:37:07.910+0530 [INFO]  vault-benchmark: starting benchmarks: duration=10s
+2025-08-27T14:37:19.932+0530 [INFO]  vault-benchmark: cleaning up targets
+2025-08-27T14:37:33.126+0530 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op                  count  rate      throughput  mean          95th%         99th%         successRatio
+k8s_generated_test  34     3.264565  2.923198    2.342706252s  3.551997507s  3.606461375s  100.00%
+k8s_role_test       35     3.563824  2.911546    965.629922ms  2.203236771s  2.2086525s    100.00%
+k8s_sa_test         30     3.055175  3.054268    5.551508ms    14.067ms      14.590334ms   100.00%
+```
