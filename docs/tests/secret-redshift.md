@@ -97,6 +97,19 @@ test "redshift_secret" "redshift_benchmark" {
 }
 ```
 
+
+## Example Usage 
+```bash
+$ ./vault-benchmark run -config=config.hcl
+2025-08-26T13:24:32.524+0530 [INFO]  vault-benchmark: setting up targets
+2025-08-26T13:24:34.597+0530 [INFO]  vault-benchmark: starting benchmarks: duration=10s
+2025-08-26T13:25:14.460+0530 [INFO]  vault-benchmark: cleaning up targets
+2025-08-26T13:25:52.009+0530 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op                  count  rate      throughput  mean           95th%        99th%          successRatio
+redshift_benchmark  14     1.380391  0.352098    18.490525377s  29.5539708s  29.619659792s  100.00%
+```
+
 ## Important Notes
 
 1. **Plugin Name**: Always use `redshift-database-plugin`, not `postgresql-database-plugin`
