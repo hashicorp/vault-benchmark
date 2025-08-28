@@ -5,6 +5,14 @@ container {
   dependencies = true
   alpine_secdb = true
   secrets      = true
+  triage {
+    suppress {
+      vulnerabilities = [
+        "CVE-2025-46394", // busybox@1.37.0-r18
+        "CVE-2024-58251", // busybox@1.37.0-r18
+      ]
+    }
+  }
 }
 
 binary {
