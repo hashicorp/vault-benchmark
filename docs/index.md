@@ -78,6 +78,7 @@ Below is a list of all currently available benchmark tests
 - [MSSQL Secret Benchmark (`mssql_secret`)](tests/secret-mssql.md)
 - [MySQL Secret Benchmark `mysql_secret`](tests/secret-mysql.md)
 - [Nomad Secrets Engine Benchmark](tests/secret-nomad.md)
+- [Oracle Database Secrets Engine Benchmark (`oracle_secret`)](tests/secret-oracle.md)
 - [PKI Secret Configuration Options](tests/secret-pki-issue.md)
 - [PKI Sign Secret Configuration Options](tests/secret-pki-sign.md)
 - [Postgresql Secrets Engine Benchmark `postgresql_secret`](tests/secret-postgresql.md)
