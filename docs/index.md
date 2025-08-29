@@ -69,6 +69,8 @@ Below is a list of all currently available benchmark tests
 - [Elasticsearch Secrets Engine Benchmark (`elasticsearch_secret`)](tests/secret-elasticsearch.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-gcp.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-impersonate-gcp.md)
+- [HCP Terraform Secrets Engine Benchmark (`terraform_secret`)](tests/secret-terraform.md)
+- [Kubernetes Secrets Engine Benchmark (`kubernetes_secret`)](tests/secret-k8s.md)
 - [KVV1 and KVV2 Secret Benchmark](tests/secret-kv.md)
 - [LDAP Dynamic Secret Benchmark `ldap_dynamic_secret`](tests/secret-ldap-dynamic.md)
 - [LDAP Static Secret Benchmark `ldap_static_secret`](tests/secret-ldap-static.md)
@@ -86,6 +88,7 @@ Below is a list of all currently available benchmark tests
 - [Signed SSH Secret Issue Configuration Options](tests/secret-ssh-issue.md)
 - [SSH Key Signing Configuration Options](tests/secret-ssh-sign.md)
 - [Secrets Sync Benchmark](tests/secret-sync.md)
+- [Totp Secrets Engine Benchmark (`totp_secret`)](tests/secret-totp.md)
 - [Transform Tokenization Configuration Options](tests/secret-transform-tokenization.md)
 - [Transit Secret Configuration Options](tests/secret-transit.md)
 
