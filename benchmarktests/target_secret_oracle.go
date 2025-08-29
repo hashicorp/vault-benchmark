@@ -103,7 +103,6 @@ func (o *OracleSecret) ParseConfig(body hcl.Body) error {
 			OracleRoleConfig: &OracleRoleConfig{
 				Name:                 "benchmark-role",
 				DBName:               "benchmark-oracle",
-				CreationStatements:   "CREATE USER {{username}} IDENTIFIED BY \"{{password}}\"; GRANT CONNECT TO {{username}}; GRANT CREATE SESSION TO {{username}};",
 				RevocationStatements: "DROP USER {{username}} CASCADE;",
 			},
 		},
@@ -122,6 +121,10 @@ func (o *OracleSecret) ParseConfig(body hcl.Body) error {
 
 	if o.config.OracleDBConfig.Password == "" {
 		return fmt.Errorf("no oracle password provided but required")
+	}
+
+	if o.config.OracleRoleConfig.CreationStatements == "" {
+		return fmt.Errorf("creation_statements is required but not provided")
 	}
 
 	return nil
