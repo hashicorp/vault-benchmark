@@ -56,6 +56,7 @@ Below is a list of all currently available benchmark tests
 - [Kubernetes Auth Benchmark](tests/auth-k8s.md)
 - [LDAP Auth Benchmark (`ldap_auth`)](tests/auth-ldap.md)
 - [Okta Auth Benchmark (`okta_auth`)](tests/auth-okta.md)
+- [RADIUS Auth Benchmark (`radius_auth`)](tests/auth-radius.md)
 - [Userpass Auth Benchmark (`userpass_auth`)](tests/auth-userpass.md)
 
 ### Secret Benchmark Tests
