@@ -22,7 +22,6 @@ import (
 
 // Constants for test
 const (
-	SnowflakeSecretTestType        = "snowflake_secret"
 	SnowflakeDynamicSecretTestType = "snowflake_dynamic_secret"
 	SnowflakeStaticSecretTestType  = "snowflake_static_secret"
 	SnowflakeSecretTestMethod      = "GET"
@@ -36,18 +35,8 @@ const (
 
 func init() {
 	// "Register" these tests to the main test registry
-	TestList[SnowflakeSecretTestType] = func() BenchmarkBuilder { return &SnowflakeSecret{} }
 	TestList[SnowflakeDynamicSecretTestType] = func() BenchmarkBuilder { return &SnowflakeDynamicSecret{} }
 	TestList[SnowflakeStaticSecretTestType] = func() BenchmarkBuilder { return &SnowflakeStaticSecret{} }
-}
-
-// Snowflake Secret Test Struct (Legacy - for backward compatibility)
-type SnowflakeSecret struct {
-	pathPrefix string
-	roleName   string
-	header     http.Header
-	config     *SnowflakeSecretTestConfig
-	logger     hclog.Logger
 }
 
 // Snowflake Dynamic Secret Test Struct
@@ -55,7 +44,7 @@ type SnowflakeDynamicSecret struct {
 	pathPrefix string
 	roleName   string
 	header     http.Header
-	config     *SnowflakeSecretTestConfig
+	config     *SnowflakeDynamicSecretTestConfig
 	logger     hclog.Logger
 }
 
@@ -68,8 +57,8 @@ type SnowflakeStaticSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type SnowflakeSecretTestConfig struct {
+// Dynamic Secret Config Struct
+type SnowflakeDynamicSecretTestConfig struct {
 	SnowflakeDBConfig   *SnowflakeDBConfig   `hcl:"db_connection,block"`
 	SnowflakeRoleConfig *SnowflakeRoleConfig `hcl:"role,block"`
 }
@@ -82,29 +71,20 @@ type SnowflakeStaticSecretTestConfig struct {
 
 // Snowflake DB Config
 type SnowflakeDBConfig struct {
-	Name                   string   `hcl:"name,optional"`
-	PluginName             string   `hcl:"plugin_name,optional"`
-	PluginVersion          string   `hcl:"plugin_version,optional"`
-	VerifyConnection       *bool    `hcl:"verify_connection,optional"`
-	AllowedRoles           []string `hcl:"allowed_roles,optional"`
-	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
-	PasswordPolicy         string   `hcl:"password_policy,optional"`
-	ConnectionURL          string   `hcl:"connection_url"`
-	MaxOpenConnections     int      `hcl:"max_open_connections,optional"`
-	MaxIdleConnections     int      `hcl:"max_idle_connections,optional"`
-	MaxConnectionLifetime  string   `hcl:"max_connection_lifetime,optional"`
-	Username               string   `hcl:"username,optional"`
-	Password               string   `hcl:"password,optional"`
-	UsernameTemplate       string   `hcl:"username_template,optional"`
-	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
-	PrivateKey             string   `hcl:"private_key,optional"`
-	PrivateKeyPassword     string   `hcl:"private_key_password,optional"`
-	Account                string   `hcl:"account,optional"`
-	Warehouse              string   `hcl:"warehouse,optional"`
-	Database               string   `hcl:"database,optional"`
-	Schema                 string   `hcl:"schema,optional"`
-	Role                   string   `hcl:"role,optional"`
-	Region                 string   `hcl:"region,optional"`
+	Name               string   `hcl:"name,optional"`
+	PluginName         string   `hcl:"plugin_name,optional"`
+	VerifyConnection   *bool    `hcl:"verify_connection,optional"`
+	AllowedRoles       []string `hcl:"allowed_roles,optional"`
+	ConnectionURL      string   `hcl:"connection_url"`
+	Username           string   `hcl:"username,optional"`
+	Password           string   `hcl:"password,optional"`
+	PrivateKey         string   `hcl:"private_key,optional"`
+	PrivateKeyPassword string   `hcl:"private_key_password,optional"`
+	Account            string   `hcl:"account,optional"`
+	Warehouse          string   `hcl:"warehouse,optional"`
+	Database           string   `hcl:"database,optional"`
+	Schema             string   `hcl:"schema,optional"`
+	Role               string   `hcl:"role,optional"`
 }
 
 // Snowflake Role Config (Dynamic)
@@ -115,9 +95,6 @@ type SnowflakeRoleConfig struct {
 	MaxTTL               string `hcl:"max_ttl,optional"`
 	CreationStatements   string `hcl:"creation_statements"`
 	RevocationStatements string `hcl:"revocation_statements,optional"`
-	RollbackStatements   string `hcl:"rollback_statements,optional"`
-	RenewStatements      string `hcl:"renew_statements,optional"`
-	RotationStatements   string `hcl:"rotation_statements,optional"`
 	CredentialType       string `hcl:"credential_type,optional"`
 	CredentialConfig     string `hcl:"credential_config,optional"`
 }
@@ -133,156 +110,14 @@ type SnowflakeStaticRoleConfig struct {
 	CredentialConfig   string `hcl:"credential_config,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
-func (s *SnowflakeSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
-	testConfig := &struct {
-		Config *SnowflakeSecretTestConfig `hcl:"config,block"`
-	}{
-		Config: &SnowflakeSecretTestConfig{
-			SnowflakeDBConfig: &SnowflakeDBConfig{
-				Name:               "benchmark-snowflake",
-				AllowedRoles:       []string{"benchmark-role"},
-				PluginName:         "snowflake-database-plugin",
-				Username:           os.Getenv(SnowflakeUsernameEnvVar),
-				Password:           os.Getenv(SnowflakePasswordEnvVar),
-				PrivateKey:         os.Getenv(SnowflakePrivateKeyEnvVar),
-				PrivateKeyPassword: os.Getenv(SnowflakePrivateKeyPassEnvVar),
-				Account:            os.Getenv(SnowflakeAccountEnvVar),
-				VerifyConnection:   &[]bool{false}[0], // Default to false to avoid connection issues
-			},
-			SnowflakeRoleConfig: &SnowflakeRoleConfig{
-				Name:   "benchmark-role",
-				DBName: "benchmark-snowflake",
-			},
-		},
-	}
-
-	diags := gohcl.DecodeBody(body, nil, testConfig)
-	if diags.HasErrors() {
-		return fmt.Errorf("error decoding to struct: %v", diags)
-	}
-	s.config = testConfig.Config
-
-	// Validate required fields
-	if s.config.SnowflakeDBConfig.Username == "" {
-		return fmt.Errorf("no snowflake username provided but required")
-	}
-
-	// Validate authentication method - either password or private key is required
-	hasPassword := s.config.SnowflakeDBConfig.Password != ""
-	hasPrivateKey := s.config.SnowflakeDBConfig.PrivateKey != ""
-
-	if !hasPassword && !hasPrivateKey {
-		return fmt.Errorf("no snowflake password or private key provided but one is required")
-	}
-
-	// If using key pair authentication, account is typically required
-	if hasPrivateKey && s.config.SnowflakeDBConfig.Account == "" {
-		return fmt.Errorf("snowflake account identifier is required when using private key authentication")
-	}
-
-	return nil
-}
-
-func (s *SnowflakeSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: SnowflakeSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
-		Header: s.header,
-	}
-}
-
-func (s *SnowflakeSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (s *SnowflakeSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     SnowflakeSecretTestMethod,
-		pathPrefix: s.pathPrefix,
-	}
-}
-
-func (s *SnowflakeSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	var err error
-	secretPath := mountName
-	s.logger = targetLogger.Named(SnowflakeSecretTestType)
-
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
-	}
-
-	// Create Database Secret Mount
-	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
-	err = client.Sys().Mount(secretPath, &api.MountInput{
-		Type: "database",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error mounting db secrets engine: %v", err)
-	}
-
-	setupLogger := s.logger.Named(secretPath)
-
-	// Decode DB Config struct into mapstructure to pass with request
-	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(s.config.SnowflakeDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
-	}
-
-	// Set up db
-	setupLogger.Trace(writingLogMessage("snowflake db config"), "name", s.config.SnowflakeDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing snowflake db config: %v", err)
-	}
-
-	// Decode Role Config struct into mapstructure to pass with request
-	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(s.config.SnowflakeRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	// Create Role
-	setupLogger.Trace(writingLogMessage("snowflake role"), "name", s.config.SnowflakeRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", s.config.SnowflakeRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing snowflake role %q: %v", s.config.SnowflakeRoleConfig.Name, err)
-	}
-
-	return &SnowflakeSecret{
-		pathPrefix: "/v1/" + secretPath,
-		header:     generateHeader(client),
-		roleName:   s.config.SnowflakeRoleConfig.Name,
-		logger:     s.logger,
-	}, nil
-
-}
-
-func (s *SnowflakeSecret) Flags(fs *flag.FlagSet) {}
-
 // ===== SnowflakeDynamicSecret Implementation =====
 
 func (s *SnowflakeDynamicSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
 	testConfig := &struct {
-		Config *SnowflakeSecretTestConfig `hcl:"config,block"`
+		Config *SnowflakeDynamicSecretTestConfig `hcl:"config,block"`
 	}{
-		Config: &SnowflakeSecretTestConfig{
+		Config: &SnowflakeDynamicSecretTestConfig{
 			SnowflakeDBConfig: &SnowflakeDBConfig{
 				Name:               "benchmark-snowflake-dynamic",
 				AllowedRoles:       []string{"benchmark-dynamic-role"},
