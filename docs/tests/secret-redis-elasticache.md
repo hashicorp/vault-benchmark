@@ -86,24 +86,6 @@ test "redis_elasticache_secret" "redis_elasticache_test" {
 ## Example Usage with Environment Variables
 
 ```hcl
-test "redis_elasticache_secret" "redis_elasticache_env_test" {
-    weight = 100
-    config {
-        db_connection {
-            name = "my-redis-elasticache"
-            url = "primary-endpoint.my-cluster.xxx.yyy.cache.amazonaws.com:6379"
-            region = "us-west-2"
-            allowed_roles = ["vault-*"]
-        }
-        
-        static_role {
-            name = "env-elasticache-role"
-            db_name = "my-redis-elasticache"
-            rotation_period = "30m"
-        }
-    }
-}
-
 test "redis_elasticache_secret" "elasticache_benchmark" {
     weight = 100
     config {
