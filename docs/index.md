@@ -86,6 +86,7 @@ Below is a list of all currently available benchmark tests
 - [Postgresql Secrets Engine Benchmark `postgresql_secret`](tests/secret-postgresql.md)
 - [RabbitMQ Secret Configuration Options](tests/secret-rabbit.md)
 - [Redis Dynamic Credential Benchmark (`redis_dynamic_secret`)](tests/secret-redis-dynamic.md)
+- [Redis ElastiCache Benchmark (`redis_elasticache_secret`)](tests/secret-redis-elasticache.md)
 - [Redis Static Credential Benchmark (`redis_static_secret`)](tests/secret-redis-static.md)
 - [Signed SSH Secret Issue Configuration Options](tests/secret-ssh-issue.md)
 - [SSH Key Signing Configuration Options](tests/secret-ssh-sign.md)
