@@ -89,6 +89,7 @@ Below is a list of all currently available benchmark tests
 - [Redis Dynamic Credential Benchmark (`redis_dynamic_secret`)](tests/secret-redis-dynamic.md)
 - [Redis Static Credential Benchmark (`redis_static_secret`)](tests/secret-redis-static.md)
 - [Signed SSH Secret Issue Configuration Options](tests/secret-ssh-issue.md)
+- [Snowflake Secrets Engine Benchmark (`snowflake_secret`)](tests/secret-snowflake.md)
 - [SSH Key Signing Configuration Options](tests/secret-ssh-sign.md)
 - [Secrets Sync Benchmark](tests/secret-sync.md)
 - [Totp Secrets Engine Benchmark (`totp_secret`)](tests/secret-totp.md)
