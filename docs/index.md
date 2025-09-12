@@ -71,6 +71,7 @@ Below is a list of all currently available benchmark tests
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-gcp.md)
 - [GCP KMS Secrets Engine Benchmark (`gcpkms_encrypt`, `gcpkms_decrypt`, `gcpkms_sign`, `gcpkms_verify`, `gcpkms_reencrypt`)](tests/secret-gcpkms.md)
 - [GCP Secrets Engine Benchmark (`gcp_secret`)](tests/secret-impersonate-gcp.md)
+- [HanaDB Secret Benchmark `hanadb_secret`](tests/secret-hanadb.md)
 - [HCP Terraform Secrets Engine Benchmark (`terraform_secret`)](tests/secret-terraform.md)
 - [Kubernetes Secrets Engine Benchmark (`kubernetes_secret`)](tests/secret-k8s.md)
 - [KVV1 and KVV2 Secret Benchmark](tests/secret-kv.md)
