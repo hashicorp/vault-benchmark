@@ -58,13 +58,14 @@ Before running this benchmark:
 
 1. **LDAP Server**: Set up an LDAP server (OpenLDAP, Active Directory, etc.)
 2. **DB2 Configuration**: Configure DB2 to authenticate users via LDAP groups
-3. **LDAP Schema**: Ensure proper user and group structure in LDAP
-4. **Network Access**: Verify connectivity between Vault, LDAP, and DB2
+3. **Network Connectivity**: Ensure LDAP and DB2 servers are running on the same network for seamless integration.
+4. **LDAP Schema**: Ensure proper user and group structure in LDAP
+5. **Network Access**: Verify connectivity between Vault, LDAP, and DB2
 
 ## Related Tests
 
-- Use `target_secret_ldap_dynamic` for dynamic LDAP user creation
-- Use `target_secret_ldap_static` for static LDAP credential rotation
+- Use `ldap_dynamic_secret` for dynamic LDAP user creation
+- Use `ldap_static_secret` for static LDAP credential rotation
 - Both can be configured to work with DB2's LDAP authentication system
 
 ## Notes
