@@ -10,7 +10,7 @@ This benchmark will test the dynamic generation of HanaDB credentials.
 - `plugin_name` `(string: "hana-database-plugin")` - Specifies the name of the plugin to use for this connection.
 - `plugin_version` `(string: "")` - Specifies the semantic version of the plugin to use for this connection.
 - `verify_connection` `(bool: true)` - Specifies if the connection is verified during initial configuration. Defaults to true.
-- `allowed_roles` `(list: ["benchmark_role"])` - List of the roles allowed to use this connection.
+- `allowed_roles` `(list: ["benchmark-role"])` - List of the roles allowed to use this connection.
 - `root_rotation_statements` `(list: [])` - Specifies the database statements to be executed to rotate the root user's credentials.
 - `password_policy` `(string: "")` - The name of the password policy to use when generating passwords for this database. If not specified, this will use a default policy defined as: 20 characters with at least 1 uppercase, 1 lowercase, 1 number, and 1 dash character.
 - `connection_url` `(string: <required>)` - Specifies the HanaDB DSN. This field can be templated and supports passing the username and password parameters in the following format `{{field_name}}`. A templated connection URL is required when using root credential rotation.
@@ -53,4 +53,15 @@ test "hanadb_secret" "hanadb_test_1" {
         }
     }
 }
+```
+## Example Usage
+```bash
+$ vault-benchmark run -config=config.hcl
+2025-09-11T16:58:34.337+0530 [INFO]  vault-benchmark: setting up targets
+2025-09-11T16:58:34.398+0530 [INFO]  vault-benchmark: starting benchmarks: duration=30s
+2025-09-11T16:59:07.976+0530 [INFO]  vault-benchmark: cleaning up targets
+2025-09-11T17:00:07.978+0530 [INFO]  vault-benchmark: benchmark complete
+Target: http://127.0.0.1:8200
+op                   count  rate      throughput  mean          95th%         99th%         successRatio
+hanadb_test_1        119    3.922046  3.543970    2.685889187s  3.020129931s  3.126356589s  100.00%
 ```
