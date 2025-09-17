@@ -95,6 +95,7 @@ Below is a list of all currently available benchmark tests
 - [SSH Key Signing Configuration Options](tests/secret-ssh-sign.md)
 - [Secrets Sync Benchmark](tests/secret-sync.md)
 - [Totp Secrets Engine Benchmark (`totp_secret`)](tests/secret-totp.md)
+- [Transform FPE Configuration Options](tests/secret-transform-fpe.md)
 - [Transform Tokenization Configuration Options](tests/secret-transform-tokenization.md)
 - [Transit Secret Configuration Options](tests/secret-transit.md)
 
