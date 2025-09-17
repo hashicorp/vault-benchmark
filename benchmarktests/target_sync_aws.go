@@ -95,7 +95,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	if topLevelConfig.RandomMounts {
 		mountName += "-" + uuid.New().String()
 	}
-	
+
 	t.logger.Debug(mountLogMessage("secrets", "kvv2", mountName))
 	err := client.Sys().Mount(mountName, &api.MountInput{
 		Type: "kv",
