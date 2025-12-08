@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -48,8 +49,9 @@ type KVV1Test struct {
 }
 
 type KVV1SecretTestConfig struct {
-	KVSize int `hcl:"kvsize,optional"`
-	NumKVs int `hcl:"numkvs,optional"`
+	SetupDelay string `hcl:"setup_delay,optional"`
+	KVSize     int    `hcl:"kvsize,optional"`
+	NumKVs     int    `hcl:"numkvs,optional"`
 }
 
 func (k *KVV1Test) ParseConfig(body hcl.Body) error {
@@ -57,8 +59,9 @@ func (k *KVV1Test) ParseConfig(body hcl.Body) error {
 		Config *KVV1SecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &KVV1SecretTestConfig{
-			KVSize: 1,
-			NumKVs: 1000,
+			SetupDelay: "1s",
+			KVSize:     1,
+			NumKVs:     1000,
 		},
 	}
 
@@ -144,6 +147,13 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	setupLogger := k.logger.Named(mountPath)
+
+	// Avoid slow mount setup, seen when waiting for replication in performance replica scenario
+	delay, err := time.ParseDuration(k.config.SetupDelay)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing duration: %v", err)
+	}
+	time.Sleep(delay)
 
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{
