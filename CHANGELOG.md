@@ -4,6 +4,17 @@
 
 ## [Unreleased](https://github.com/hashicorp/vault-benchmark/tree/HEAD)
 
+## [v0.4.1](https://github.com/hashicorp/vault-benchmark/tree/v0.4.1) (Dec 29, 2025)
+
+### Features
+
+- See https://github.com/hashicorp/vault-benchmark/releases/tag/v0.4.0
+
+### Improvements
+
+- Updated runc to v1.2.8
+- Updated containerd to v1.7.29
+
 ## [v0.3.0](https://github.com/hashicorp/vault-benchmark/tree/v0.3.0) (May 6, 2024)
 
 ### Features
