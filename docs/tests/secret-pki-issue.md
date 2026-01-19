@@ -778,8 +778,10 @@ Additional configuration examples can be found in the [pki configuration directo
 ```hcl
 test "pki_issue" "pki_issue_test1" {
   weight = 100
+
   config {
-      setup_delay="2s"
+      setup_delay = "2s"
+
       root_ca {
         common_name = "benchmark.test"
       }

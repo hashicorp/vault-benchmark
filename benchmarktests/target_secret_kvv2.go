@@ -48,8 +48,9 @@ type KVV2Test struct {
 }
 
 type KVV2SecretTestConfig struct {
-	KVSize int `hcl:"kvsize,optional"`
-	NumKVs int `hcl:"numkvs,optional"`
+	SetupDelay string `hcl:"setup_delay,optional"`
+	KVSize     int    `hcl:"kvsize,optional"`
+	NumKVs     int    `hcl:"numkvs,optional"`
 }
 
 func (k *KVV2Test) ParseConfig(body hcl.Body) error {
@@ -57,8 +58,9 @@ func (k *KVV2Test) ParseConfig(body hcl.Body) error {
 		Config *KVV2SecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &KVV2SecretTestConfig{
-			KVSize: 1,
-			NumKVs: 1000,
+			SetupDelay: "1s",
+			KVSize:     1,
+			NumKVs:     1000,
 		},
 	}
 
@@ -151,6 +153,15 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	setupLogger := k.logger.Named(mountPath)
+
+	// Avoid slow mount setup, seen when waiting for replication in performance replica scenario:
+	// URL: PUT $VAULT_ADDR/v1/2fea16ca-42d1-d3a5-d02e-6d1a01d0347e/data/secret-1
+	// Code: 404. Errors: * no handler for route "2fea16ca-42d1-d3a5-d02e-6d1a01d0347e/data/secret-1". route entry not found.
+	delay, err := time.ParseDuration(k.config.SetupDelay)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing duration: %v", err)
+	}
+	time.Sleep(delay)
 
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{
