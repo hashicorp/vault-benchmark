@@ -45,11 +45,13 @@ type KVV2Test struct {
 	numKVs     int
 	kvSize     int
 	logger     hclog.Logger
+	sealWrap   bool
 }
 
 type KVV2SecretTestConfig struct {
-	KVSize int `hcl:"kvsize,optional"`
-	NumKVs int `hcl:"numkvs,optional"`
+	KVSize   int  `hcl:"kvsize,optional"`
+	NumKVs   int  `hcl:"numkvs,optional"`
+	SealWrap bool `hcl:"sealWrap,optional"`
 }
 
 func (k *KVV2Test) ParseConfig(body hcl.Body) error {
@@ -57,8 +59,9 @@ func (k *KVV2Test) ParseConfig(body hcl.Body) error {
 		Config *KVV2SecretTestConfig `hcl:"config,block"`
 	}{
 		Config: &KVV2SecretTestConfig{
-			KVSize: 1,
-			NumKVs: 1000,
+			KVSize:   1,
+			NumKVs:   1000,
+			SealWrap: false,
 		},
 	}
 
@@ -145,6 +148,7 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		Options: map[string]string{
 			"version": "2",
 		},
+		SealWrap: k.config.SealWrap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error mounting kv secrets engine: %v", err)
@@ -178,6 +182,7 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		kvSize:     k.config.KVSize,
 		logger:     k.logger,
 		action:     k.action,
+		sealWrap:   k.config.SealWrap,
 	}, nil
 }
 
