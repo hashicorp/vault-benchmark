@@ -110,7 +110,9 @@ func ParseConfig(hclBuf []byte, pathName string, configStruct *VaultBenchmarkCor
 				return err
 			}
 			vbTest.Builder = currBuilder
-			vbTest.PathPrefix = currBuilder.GetTargetInfo().GetPathPrefix()
+			if vbTest.PathPrefix == "" {
+				vbTest.PathPrefix = currBuilder.GetTargetInfo().GetPathPrefix()
+			}
 		} else {
 			return fmt.Errorf("invalid test type found: %v", vbTest.Type)
 		}
