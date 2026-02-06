@@ -74,6 +74,10 @@ type TargetInfo struct {
 	pathPrefix string
 }
 
+func (t TargetInfo) GetPathPrefix() string {
+	return t.pathPrefix
+}
+
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Target = bt.Builder.Target
 	tInfo := bt.Builder.GetTargetInfo()
