@@ -48,8 +48,9 @@ type KVV2Test struct {
 }
 
 type KVV2SecretTestConfig struct {
-	KVSize int `hcl:"kvsize,optional"`
-	NumKVs int `hcl:"numkvs,optional"`
+	KVSize          int  `hcl:"kvsize,optional"`
+	NumKVs          int  `hcl:"numkvs,optional"`
+	NoStoreMetadata bool `hcl:"no_store_metadata,optional"`
 }
 
 func (k *KVV2Test) ParseConfig(body hcl.Body) error {
@@ -151,6 +152,16 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	setupLogger := k.logger.Named(mountPath)
+
+	if k.config.NoStoreMetadata {
+		setupLogger.Trace("configuring no_store_metadata")
+		_, err = client.Logical().Write(mountPath+"/config", map[string]interface{}{
+			"no_store_metadata": true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error configuring kv secrets engine: %v", err)
+		}
+	}
 
 	secval := map[string]interface{}{
 		"data": map[string]interface{}{

@@ -10,6 +10,7 @@ This benchmark tests the performance of KVV1 and/or KVV2.  It writes a set numbe
 then this many keys will be written during the setup phase.  The read operations
 will read from these keys, and the write operations overwrite them.
 - `kvsize` `(int: 1)`:  the size of the key and value to write.
+- `no_store_metadata` `(bool: false)` **(KVV2 only)**: if `true`, configures the KV v2 secrets engine with `no_store_metadata`, which disables storing metadata separately and can improve write performance.
 
 ## Example Configuration
 
