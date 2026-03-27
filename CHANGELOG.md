@@ -7,6 +7,7 @@
 ### Features
 
 - Add `no_store_metadata` support for KVV2 benchmark tests
+- Add `no_store_metadata` support for PKI issue role config
 
 ## [v0.4.1](https://github.com/hashicorp/vault-benchmark/tree/v0.4.1) (Dec 29, 2025)
 
