@@ -6,3 +6,10 @@ dist/
 # IDE specific stuff
 .idea/
 .vscode/
+
+# Vault benchmark test configs (contain sensitive tokens/addresses)
+fpe-test*.hcl
+
+# Test results and logs (may contain sensitive cluster information)
+results/
+*.log
