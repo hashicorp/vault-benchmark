@@ -30,3 +30,24 @@ test "kvv2_write" "kvv2_write_test" {
     }
 }
 ```
+
+### Example with `no_store_metadata`
+
+```hcl
+test "kvv2_read" "kvv2_read_test" {
+    weight = 50
+    config {
+        numkvs           = 100
+        no_store_metadata = true
+    }
+}
+
+test "kvv2_write" "kvv2_write_test" {
+    weight = 50
+    config {
+        numkvs            = 10
+        kvsize            = 1000
+        no_store_metadata = true
+    }
+}
+```
