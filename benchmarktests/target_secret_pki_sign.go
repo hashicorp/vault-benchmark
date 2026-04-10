@@ -221,6 +221,7 @@ type pkiSignRoleConfig struct {
 	PostalCode                   string   `hcl:"postal_code,optional"`
 	GenerateLease                bool     `hcl:"generate_lease,optional"`
 	NoStore                      bool     `hcl:"no_store,optional"`
+	NoStoreMetadata              bool     `hcl:"no_store_metadata,optional"`
 	RequireCN                    *bool    `hcl:"require_cn,optional"`
 	PolicyIdentifiers            []string `hcl:"policy_identifiers,optional"`
 	BasicConstrainsValidForNonCA bool     `hcl:"basic_constraints_valid_for_non_ca,optional"`

@@ -669,6 +669,10 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   for certificates that are non-sensitive, or extremely short-lived. This
   option implies a value of `false` for `generate_lease`.
 
+- `no_store_metadata` `(bool: false)` - If set, metadata about certificates
+  issued against this role will not be stored in the storage backend. This can
+  improve performance when issuing large numbers of certificates.
+
 - `require_cn` `(bool: true)` - If set to false, makes the `common_name` field
   optional while generating a certificate.
 
