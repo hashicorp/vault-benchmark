@@ -66,7 +66,7 @@ type MySQLDBConfig struct {
 	MaxConnectionLifetime  string   `hcl:"max_connection_lifetime,optional"`
 	UsernameTemplate       string   `hcl:"username_template,optional"`
 	TLSCertificateKey      string   `hcl:"tls_certificate_key,optional"`
-	TLSCACertificate       string   `hcl:"tls_ca_certificate,optional"`
+	TLSCACertificate       string   `hcl:"tls_ca,optional"`
 	TLSServerName          string   `hcl:"tls_server_name,optional"`
 	TLSSkipVerify          bool     `hcl:"tls_skip_verify,optional"`
 }
