@@ -6,3 +6,6 @@ dist/
 # IDE specific stuff
 .idea/
 .vscode/
+
+# local Prometheus TSDB data files 
+/data
