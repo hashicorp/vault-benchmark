@@ -30,11 +30,12 @@ func init() {
 // IdentityPopulation creates a static identity entity dataset during Setup.
 // The attack phase is intentionally trivial in this MVP.
 type IdentityPopulation struct {
-	config *IdentityPopulationConfig
-	logger hclog.Logger
+	pathPrefix string
+	header    http.Header
+	config    *IdentityPopulationConfig
+	logger    hclog.Logger
 
 	entityIDs []string
-	header    http.Header
 
 	count int
 }
@@ -79,26 +80,29 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 }
 
 func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+	// Identity is a built-in path, so this target does not create a mount.
+	// The interface requires these args for all targets.
 	_ = mountName
 	_ = topLevelConfig
 
 	i.logger = targetLogger.Named(IdentityPopulationTestType)
+	i.pathPrefix = "/v1/sys/health"
 	i.header = generateHeader(client)
 	i.entityIDs = make([]string, 0, i.config.EntityCount)
 
 	start := time.Now()
-	i.logger.Info("entity population start", "requested", i.config.EntityCount, "prefix", i.config.NamePrefix, "step", i.config.ProgressInterval)
+	i.logger.Info("entity population start", "total", i.config.EntityCount)
 
 	for idx := 1; idx <= i.config.EntityCount; idx++ {
 		entityName := i.entityName(idx)
 
 		entityPath := filepath.ToSlash("identity/entity/name/" + entityName)
-		sec, err := client.Logical().Write(entityPath, map[string]interface{}{})
+		_, err := client.Logical().Write(entityPath, map[string]any{})
 		if err != nil {
 			return nil, fmt.Errorf("error creating entity %q: %w", entityName, err)
 		}
-		_ = sec
 
+		// The create-by-name endpoint can return data=nil, so read back to get id.
 		readSec, err := client.Logical().Read(entityPath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading entity %q after create: %w", entityName, err)
@@ -122,16 +126,17 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		i.count = idx
 
 		if idx%i.config.ProgressInterval == 0 || idx == i.config.EntityCount {
-			i.logger.Info("entity population progress", fmt.Sprintf("%d/%d", idx, i.config.EntityCount), "elapsed", time.Since(start).String())
+			i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", idx, i.config.EntityCount))
 		}
 	}
 
-	i.logger.Info("entity population complete", "progress", fmt.Sprintf("%d/%d", i.count, i.config.EntityCount), "elapsed", time.Since(start).String())
+	i.logger.Info("entity population", "complete", fmt.Sprintf("%d/%d", i.count, i.config.EntityCount), "elapsed", time.Since(start).String())
 
 	return &IdentityPopulation{
+		pathPrefix: i.pathPrefix,
+		header:     i.header,
 		config:    i.config,
 		logger:    i.logger,
-		header:    i.header,
 		entityIDs: i.entityIDs,
 		count:     i.count,
 	}, nil
@@ -141,7 +146,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 func (i *IdentityPopulation) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: IdentityPopulationTestMethod,
-		URL:    client.Address() + "/v1/sys/health",
+		URL:    client.Address() + i.pathPrefix,
 		Header: i.header,
 	}
 }
@@ -155,7 +160,7 @@ func (i *IdentityPopulation) Cleanup(client *api.Client) error {
 func (i *IdentityPopulation) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     IdentityPopulationTestMethod,
-		pathPrefix: "/v1/sys/health",
+		pathPrefix: i.pathPrefix,
 	}
 }
 
