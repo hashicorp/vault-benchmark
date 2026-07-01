@@ -7,5 +7,6 @@ dist/
 .idea/
 .vscode/
 
-# local Prometheus TSDB data files 
+# hidden metadata files 
 /data
+.DS_Store

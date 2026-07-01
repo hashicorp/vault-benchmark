@@ -31,9 +31,9 @@ func init() {
 // The attack phase is intentionally trivial in this MVP.
 type IdentityPopulation struct {
 	pathPrefix string
-	header    http.Header
-	config    *IdentityPopulationConfig
-	logger    hclog.Logger
+	header     http.Header
+	config     *IdentityPopulationConfig
+	logger     hclog.Logger
 
 	entityIDs []string
 
@@ -135,10 +135,10 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	return &IdentityPopulation{
 		pathPrefix: i.pathPrefix,
 		header:     i.header,
-		config:    i.config,
-		logger:    i.logger,
-		entityIDs: i.entityIDs,
-		count:     i.count,
+		config:     i.config,
+		logger:     i.logger,
+		entityIDs:  i.entityIDs,
+		count:      i.count,
 	}, nil
 }
 
