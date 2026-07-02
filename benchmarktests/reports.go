@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -103,14 +102,16 @@ func (r *Reporter) ReportJSON(w io.Writer) error {
 func (r *Reporter) ReportVerbose(w io.Writer) error {
 	sections := make([]string, 0, len(r.metrics))
 	for name := range r.metrics {
+		if name == "total" {
+			continue
+		}
 		sections = append(sections, name)
 	}
-	sort.Slice(sections, func(i, j int) bool {
-		if sections[i] == "total" {
-			return true
-		}
-		return sections[i] < sections[j]
-	})
+	natSort(sections)
+	// The aggregate "total" summary is most useful at the top of the report.
+	if _, ok := r.metrics["total"]; ok {
+		sections = append([]string{"total"}, sections...)
+	}
 	for _, name := range sections {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, name)
@@ -127,20 +128,18 @@ func (r *Reporter) ReportTerse(w io.Writer) error {
 	fmt.Fprintf(tw, "op\tcount\trate\tthroughput\tmean\t95th%%\t99th%%\tsuccessRatio\n")
 	const fmtstr = "%s\t%d\t%f\t%f\t%s\t%s\t%s\t%.2f%%\n"
 
-	metricNames := make([]string, 0)
+	metricNames := make([]string, 0, len(r.metrics))
 	for name := range r.metrics {
+		if name == "total" {
+			continue
+		}
 		metricNames = append(metricNames, name)
 	}
-
-	sort.Slice(metricNames, func(i, j int) bool {
-		return metricNames[i] < metricNames[j]
-	})
+	natSort(metricNames)
 
 	for _, name := range metricNames {
 		m := r.metrics[name]
-		if name != "total" {
-			fmt.Fprintf(tw, fmtstr, name, m.Requests, m.Rate, m.Throughput, m.Latencies.Mean, m.Latencies.P95, m.Latencies.P99, m.Success*100)
-		}
+		fmt.Fprintf(tw, fmtstr, name, m.Requests, m.Rate, m.Throughput, m.Latencies.Mean, m.Latencies.P95, m.Latencies.P99, m.Success*100)
 	}
 	tw.Flush()
 	return nil
