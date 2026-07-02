@@ -224,9 +224,8 @@ func IsFile(path string) (bool, error) {
 	return true, nil
 }
 
-// natLess reports whether a should sort before b using natural ordering, where
-// embedded runs of digits are compared by numeric value rather than
-// lexicographically. This makes "test2" sort before "test11".
+// natLess reports whether a should sort before b using natural ordering
+// rather than lexicographically, resulting in "test2" before "test11".
 func natLess(a, b string) bool {
 	i, j := 0, 0
 	for i < len(a) && j < len(b) {
@@ -273,8 +272,7 @@ func natLess(a, b string) bool {
 	return len(a)-i < len(b)-j
 }
 
-// natSort sorts a slice of strings in place using natural ordering (see
-// natLess).
+// natSort sorts a slice of strings in place using natural ordering
 func natSort(s []string) {
 	sort.Slice(s, func(i, j int) bool {
 		return natLess(s[i], s[j])
