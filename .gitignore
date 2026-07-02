@@ -6,3 +6,7 @@ dist/
 # IDE specific stuff
 .idea/
 .vscode/
+
+# hidden metadata files 
+/data
+.DS_Store
