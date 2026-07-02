@@ -63,6 +63,10 @@ func newReporter(tm *TargetMulti, client *api.Client) *Reporter {
 	}
 	r := &Reporter{tm: tm, clientAddr: clientAddress}
 	r.metrics = make(map[string]*vegeta.Metrics, len(tm.targets)+1)
+	// TODO: "total" is a reserved key. A test named
+	// "total" would collide with this bucket and silently corrupt the aggregate
+	// (and be reported twice). Guard against it, e.g. reject the reserved name
+	// during config validation.
 	r.metrics["total"] = &vegeta.Metrics{}
 	for _, t := range tm.targets {
 		r.metrics[t.Name] = &vegeta.Metrics{}
@@ -108,15 +112,26 @@ func (r *Reporter) ReportVerbose(w io.Writer) error {
 		sections = append(sections, name)
 	}
 	natSort(sections)
-	// The aggregate "total" summary is most useful at the top of the report.
-	if _, ok := r.metrics["total"]; ok {
-		sections = append([]string{"total"}, sections...)
-	}
-	for _, name := range sections {
+
+	printSection := func(title, key string) error {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, name)
-		if err := vegeta.NewTextReporter(r.metrics[name]).Report(w); err != nil {
+		fmt.Fprintln(w, title)
+		if err := vegeta.NewTextReporter(r.metrics[key]).Report(w); err != nil {
 			return fmt.Errorf("report error: %v", err)
+		}
+		return nil
+	}
+
+	for _, name := range sections {
+		if err := printSection(name, name); err != nil {
+			return err
+		}
+	}
+	// The aggregate across all tests is shown last, labeled so it doesn't read
+	// as just another test named "total".
+	if _, ok := r.metrics["total"]; ok {
+		if err := printSection("TOTAL", "total"); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -126,7 +141,7 @@ func (r *Reporter) ReportTerse(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', tabwriter.StripEscape)
 	fmt.Fprintf(tw, "Target: %v\n", r.clientAddr)
 	fmt.Fprintf(tw, "op\tcount\trate\tthroughput\tmean\t95th%%\t99th%%\tsuccessRatio\n")
-	const fmtstr = "%s\t%d\t%f\t%f\t%s\t%s\t%s\t%.2f%%\n"
+	const fmtstr = "%s\t%d\t%.2f\t%.2f\t%s\t%s\t%s\t%.2f%%\n"
 
 	metricNames := make([]string, 0, len(r.metrics))
 	for name := range r.metrics {
@@ -137,9 +152,19 @@ func (r *Reporter) ReportTerse(w io.Writer) error {
 	}
 	natSort(metricNames)
 
+	printRow := func(label, key string) {
+		m := r.metrics[key]
+		fmt.Fprintf(tw, fmtstr, label, m.Requests, m.Rate, m.Throughput, m.Latencies.Mean, m.Latencies.P95, m.Latencies.P99, m.Success*100)
+	}
+
 	for _, name := range metricNames {
-		m := r.metrics[name]
-		fmt.Fprintf(tw, fmtstr, name, m.Requests, m.Rate, m.Throughput, m.Latencies.Mean, m.Latencies.P95, m.Latencies.P99, m.Success*100)
+		printRow(name, name)
+	}
+	// The aggregate across all tests is shown last, separated by a rule so it
+	// doesn't read as just another op named "total".
+	if _, ok := r.metrics["total"]; ok {
+		fmt.Fprintf(tw, "---\t---\t---\t---\t---\t---\t---\t---\n")
+		printRow("TOTAL", "total")
 	}
 	tw.Flush()
 	return nil
