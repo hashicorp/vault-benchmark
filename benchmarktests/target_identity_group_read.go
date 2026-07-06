@@ -33,13 +33,16 @@ type IdentityGroupRead struct {
 	config     *IdentityGroupReadConfig
 	groupIDs   []string
 	entityIDs  []string
+	authLinker *identityAuthLinkHelper
 	logger     hclog.Logger
 }
 
 type IdentityGroupReadConfig struct {
-	EntityCount int `hcl:"entity_count,optional"`
-	GroupCount  int `hcl:"group_count,optional"`
-	GroupSize   int `hcl:"group_size,optional"`
+	EntityCount   int    `hcl:"entity_count,optional"`
+	GroupCount    int    `hcl:"group_count,optional"`
+	GroupSize     int    `hcl:"group_size,optional"`
+	CreateAliases bool   `hcl:"create_aliases,optional"`
+	UserpassMount string `hcl:"userpass_mount,optional"`
 }
 
 func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
@@ -47,9 +50,11 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 		Config *IdentityGroupReadConfig `hcl:"config,block"`
 	}{
 		Config: &IdentityGroupReadConfig{
-			EntityCount: 1000,
-			GroupCount:  1000,
-			GroupSize:   10,
+			EntityCount:   1000,
+			GroupCount:    1000,
+			GroupSize:     10,
+			CreateAliases: true,
+			UserpassMount: "userpass",
 		},
 	}
 
@@ -70,6 +75,9 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 	if testConfig.Config.GroupSize > testConfig.Config.EntityCount {
 		return fmt.Errorf("group_size (%d) cannot be greater than entity_count (%d)", testConfig.Config.GroupSize, testConfig.Config.EntityCount)
 	}
+	if testConfig.Config.CreateAliases && testConfig.Config.UserpassMount == "" {
+		return fmt.Errorf("userpass_mount cannot be empty when create_aliases is true")
+	}
 
 	i.config = testConfig.Config
 	return nil
@@ -84,6 +92,14 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 
 	entityIDs := make([]string, 0, i.config.EntityCount)
 	groupIDs := make([]string, 0, i.config.GroupCount)
+	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
+		CreateAliases: i.config.CreateAliases,
+		UserpassMount: i.config.UserpassMount,
+		RandomMounts:  topLevelConfig != nil && topLevelConfig.RandomMounts,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	for idx := 0; idx < i.config.EntityCount; idx++ {
 		entityName := mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
@@ -102,6 +118,12 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 		}
 
 		entityIDs = append(entityIDs, entityID)
+
+		err = authLinker.createEntityAlias(client, entityName, entityID)
+		if err != nil {
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			return nil, err
+		}
 	}
 
 	for idx := 0; idx < i.config.GroupCount; idx++ {
@@ -133,6 +155,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 		config:     i.config,
 		groupIDs:   groupIDs,
 		entityIDs:  entityIDs,
+		authLinker: authLinker,
 		logger:     i.logger,
 	}, nil
 }
@@ -166,6 +189,15 @@ func (i *IdentityGroupRead) GetTargetInfo() TargetInfo {
 		method:     IdentityGroupReadTestMethod,
 		pathPrefix: i.pathPrefix,
 	}
+}
+
+// AliasEntityLinks returns a copy of alias name to entity ID linkages created in setup.
+func (i *IdentityGroupRead) AliasEntityLinks() map[string]string {
+	if i.authLinker == nil {
+		return map[string]string{}
+	}
+
+	return i.authLinker.aliasEntityLinksCopy()
 }
 
 func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string) error {

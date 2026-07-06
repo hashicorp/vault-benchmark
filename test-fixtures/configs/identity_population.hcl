@@ -6,12 +6,12 @@ report_mode = "terse"
 random_mounts = true
 cleanup = true
 
-test "identity_group_read" "identity_scale_read" {
+test "identity_population" "identity_population_aliases" {
   weight = 100
   config {
     entity_count = 1000
-    group_count = 1000
-    group_size = 10
+    name_prefix = "seed-entity"
+    progress_interval = 200
     create_aliases = true
     userpass_mount = "userpass"
   }

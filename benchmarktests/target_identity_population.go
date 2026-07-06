@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -35,7 +36,8 @@ type IdentityPopulation struct {
 	config     *IdentityPopulationConfig
 	logger     hclog.Logger
 
-	entityIDs []string
+	entityIDs  []string
+	authLinker *identityAuthLinkHelper
 
 	count int
 }
@@ -44,6 +46,8 @@ type IdentityPopulationConfig struct {
 	EntityCount      int    `hcl:"entity_count,optional"`
 	NamePrefix       string `hcl:"name_prefix,optional"`
 	ProgressInterval int    `hcl:"progress_interval,optional"`
+	CreateAliases    bool   `hcl:"create_aliases,optional"`
+	UserpassMount    string `hcl:"userpass_mount,optional"`
 }
 
 func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
@@ -54,6 +58,8 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 			EntityCount:      10000,
 			NamePrefix:       "seed-entity",
 			ProgressInterval: 1000,
+			CreateAliases:    true,
+			UserpassMount:    "userpass",
 		},
 	}
 
@@ -76,19 +82,32 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("name_prefix cannot be empty")
 	}
 
+	if strings.TrimSpace(i.config.UserpassMount) == "" {
+		return fmt.Errorf("userpass_mount cannot be empty")
+	}
+
 	return nil
 }
 
 func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	// Identity is a built-in path, so this target does not create a mount.
-	// The interface requires these args for all targets.
+	// Identity is a built-in path, so this target does not create a secret mount.
+	// The interface requires this arg for all targets.
 	_ = mountName
-	_ = topLevelConfig
 
 	i.logger = targetLogger.Named(IdentityPopulationTestType)
 	i.pathPrefix = "/v1/sys/health"
 	i.header = generateHeader(client)
 	i.entityIDs = make([]string, 0, i.config.EntityCount)
+
+	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
+		CreateAliases: i.config.CreateAliases,
+		UserpassMount: i.config.UserpassMount,
+		RandomMounts:  topLevelConfig != nil && topLevelConfig.RandomMounts,
+	})
+	if err != nil {
+		return nil, err
+	}
+	i.authLinker = authLinker
 
 	start := time.Now()
 	i.logger.Info("entity population start", "total", i.config.EntityCount)
@@ -123,6 +142,11 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		}
 
 		i.entityIDs = append(i.entityIDs, id)
+
+		if err := i.authLinker.createEntityAlias(client, entityName, id); err != nil {
+			return nil, err
+		}
+
 		i.count = idx
 
 		if idx%i.config.ProgressInterval == 0 || idx == i.config.EntityCount {
@@ -138,6 +162,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		config:     i.config,
 		logger:     i.logger,
 		entityIDs:  i.entityIDs,
+		authLinker: i.authLinker,
 		count:      i.count,
 	}, nil
 }
@@ -165,6 +190,15 @@ func (i *IdentityPopulation) GetTargetInfo() TargetInfo {
 }
 
 func (i *IdentityPopulation) Flags(fs *flag.FlagSet) {}
+
+// AliasEntityLinks returns a copy of alias name to entity ID linkages created in setup.
+func (i *IdentityPopulation) AliasEntityLinks() map[string]string {
+	if i.authLinker == nil {
+		return map[string]string{}
+	}
+
+	return i.authLinker.aliasEntityLinksCopy()
+}
 
 func (i *IdentityPopulation) entityName(idx int) string {
 	return fmt.Sprintf("%s-%06d", i.config.NamePrefix, idx)
