@@ -22,11 +22,9 @@ import (
 const (
 	IdentityPopulationTestType = "identity_population"
 
-	// identityPopulationNoWorkloadPath is a harmless placeholder the attack phase
-	// hits when link_userpass_auth is false. The benchmark runner always requires
-	// a target, but pure entity population is a setup-only workflow with no
-	// meaningful attack of its own, so we issue a cheap health check rather than
-	// invent load. Pair this target with another target for real workload.
+	// No-workload placeholder for the attack phase when link_userpass_auth is
+	// false. The runner always requires a target, but pure population has no
+	// attack of its own; pair this target with another for real load.
 	identityPopulationNoWorkloadPath = "/v1/sys/health"
 )
 
@@ -35,29 +33,16 @@ func init() {
 	TestList[IdentityPopulationTestType] = func() BenchmarkBuilder { return &IdentityPopulation{} }
 }
 
-// IdentityPopulation creates a static identity entity dataset during Setup.
-//
-// It has one intent-level flag, link_userpass_auth:
-//   - false (default): a setup-only population workflow. It seeds entities and
-//     nothing else; the attack phase is a no-workload placeholder (see
-//     identityPopulationNoWorkloadPath). Pair with another target for load.
-//   - true: it additionally makes the entities loginable (userpass user + entity
-//     alias) and drives login traffic in the attack phase, so benchmark traffic
-//     exercises Vault identity resolution end to end.
+// Identity Population Test Struct
 type IdentityPopulation struct {
 	pathPrefix string
 	method     string
 	header     http.Header
 	config     *IdentityPopulationConfig
 	logger     hclog.Logger
-
-	entityIDs []string
-
-	linkAuth  bool
-	mountPath string
-	password  string
-
-	count int
+	entityIDs  []string
+	linkAuth   bool
+	password   string
 }
 
 type IdentityPopulationConfig struct {
@@ -108,17 +93,14 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 }
 
 func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	// Identity is a built-in path, so this target does not create a secret mount.
-	// The interface requires this arg for all targets.
+	// Identity is a built-in path, so this target manages no secret mount;
+	// mountName is required by the interface but unused here.
 	_ = mountName
 
 	i.logger = targetLogger.Named(IdentityPopulationTestType)
 	i.header = generateHeader(client)
 	i.entityIDs = make([]string, 0, i.config.EntityCount)
 
-	// A single flag drives the whole identity-auth workflow: creating the
-	// userpass user and the entity alias are implementation details of making
-	// an entity loginable, not independent knobs.
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
 		CreateAliases: i.config.LinkUserpassAuth,
 		CreateUsers:   i.config.LinkUserpassAuth,
@@ -147,18 +129,9 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 			return nil, fmt.Errorf("error reading entity %q after create: %w", entityName, err)
 		}
 
-		if readSec == nil || readSec.Data == nil {
-			return nil, fmt.Errorf("empty response reading entity %q after create", entityName)
-		}
-
-		val, ok := readSec.Data["id"]
-		if !ok {
-			return nil, fmt.Errorf("missing id for entity %q", entityName)
-		}
-
-		id, ok := val.(string)
-		if !ok || id == "" {
-			return nil, fmt.Errorf("invalid id for entity %q", entityName)
+		id, err := identityIDFromResponse(readSec)
+		if err != nil {
+			return nil, fmt.Errorf("error reading id for entity %q: %w", entityName, err)
 		}
 
 		i.entityIDs = append(i.entityIDs, id)
@@ -167,17 +140,14 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 			return nil, err
 		}
 
-		i.count = idx
-
 		if idx%i.config.ProgressInterval == 0 || idx == i.config.EntityCount {
 			i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", idx, i.config.EntityCount))
 		}
 	}
 
-	i.logger.Info("entity population", "complete", fmt.Sprintf("%d/%d", i.count, i.config.EntityCount), "elapsed", time.Since(start).String())
+	i.logger.Info("entity population complete", "total", i.config.EntityCount, "elapsed", time.Since(start).String())
 
-	// Default: setup-only population. The attack phase is a no-workload
-	// placeholder because the runner always requires a target.
+	// Default to setup-only: no-workload placeholder attack.
 	population := &IdentityPopulation{
 		method:     "GET",
 		pathPrefix: identityPopulationNoWorkloadPath,
@@ -185,13 +155,11 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		config:     i.config,
 		logger:     i.logger,
 		entityIDs:  i.entityIDs,
-		count:      i.count,
 	}
 
 	if i.config.LinkUserpassAuth {
-		// One-shot smoke check proving the user->alias->entity mapping resolves.
-		// A bare userpass login always returns some entity id (Vault auto-creates
-		// one), so this must compare against the expected id to be meaningful.
+		// A bare userpass login always resolves to some entity, so validate
+		// against the expected id to confirm the alias mapping is correct.
 		firstUser := i.entityName(1)
 		if err := i.validateLoginResolution(client, authLinker, firstUser, i.entityIDs[0]); err != nil {
 			return nil, err
@@ -199,7 +167,6 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		i.logger.Info("login resolution validated", "user", firstUser, "entity_id", i.entityIDs[0])
 
 		population.linkAuth = true
-		population.mountPath = authLinker.mountPath()
 		population.password = authLinker.password()
 		population.method = "POST"
 		population.pathPrefix = "/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath()))
@@ -208,13 +175,8 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	return population, nil
 }
 
-// validateLoginResolution logs in as user and confirms the login resolves to the
-// expected entity.
-//
-// Purpose: verify alias mapping correctness (user -> alias -> entity is wired up).
-// Not: exhaustively validate all generated users. This is a single fail-fast
-// smoke check on one representative user; broad login coverage is the attack
-// phase's job.
+// validateLoginResolution logs in as one user and confirms it resolves to the
+// expected entity, a fail-fast check that the alias mapping is wired correctly.
 func (i *IdentityPopulation) validateLoginResolution(client *api.Client, authLinker *identityAuthLinkHelper, user, expectedEntityID string) error {
 	loginPath := filepath.ToSlash(filepath.Join("auth", authLinker.mountPath(), "login", user))
 	secret, err := client.Logical().Write(loginPath, map[string]any{
@@ -234,10 +196,8 @@ func (i *IdentityPopulation) validateLoginResolution(client *api.Client, authLin
 	return nil
 }
 
-// Target drives login traffic against the generated users when link_userpass_auth
-// is enabled, so benchmark traffic exercises identity resolution. Otherwise this
-// is a setup-only population workflow and the attack is a no-workload placeholder
-// (see identityPopulationNoWorkloadPath); pair with another target for real load.
+// Target sends userpass logins against generated users when link_userpass_auth
+// is enabled; otherwise it hits the no-workload placeholder.
 func (i *IdentityPopulation) Target(client *api.Client) vegeta.Target {
 	if !i.linkAuth {
 		return vegeta.Target{

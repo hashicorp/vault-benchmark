@@ -14,8 +14,7 @@ import (
 )
 
 // identityAuthLinkConfig configures how identity setup links generated entities
-// to a userpass auth mount. Its sole job is to make entities loginable by
-// creating an entity alias and (optionally) the matching userpass user.
+// to a userpass auth mount so they become loginable.
 type identityAuthLinkConfig struct {
 	CreateAliases bool
 	CreateUsers   bool
@@ -38,8 +37,7 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 		createUsers:   cfg.CreateUsers,
 	}
 
-	// The userpass mount is needed to resolve aliases and/or to create login
-	// users. If neither is requested, there is nothing to set up.
+	// Nothing to link unless aliases or users are requested.
 	if !cfg.CreateAliases && !cfg.CreateUsers {
 		return helper, nil
 	}
@@ -72,9 +70,8 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 	return helper, nil
 }
 
-// linkEntityAuth links an entity to the userpass mount so it can be logged in
-// as: it creates an entity alias and, when CreateUsers is set, the matching
-// userpass user. The alias name and username are both the entity name.
+// linkEntityAuth creates the entity alias and, when CreateUsers is set, the
+// matching userpass user. The alias name and username are both the entity name.
 func (h *identityAuthLinkHelper) linkEntityAuth(client *api.Client, name string, entityID string) error {
 	if h.createAliases {
 		_, err := client.Logical().Write("identity/entity-alias", map[string]any{
@@ -100,12 +97,10 @@ func (h *identityAuthLinkHelper) linkEntityAuth(client *api.Client, name string,
 	return nil
 }
 
-// mountPath returns the resolved userpass auth mount path (e.g. "userpass").
 func (h *identityAuthLinkHelper) mountPath() string {
 	return h.userpassMountPath
 }
 
-// password returns the shared password assigned to created userpass users.
 func (h *identityAuthLinkHelper) password() string {
 	return h.userPassword
 }

@@ -91,6 +91,9 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 
 	entityIDs := make([]string, 0, i.config.EntityCount)
 	groupIDs := make([]string, 0, i.config.GroupCount)
+	// TODO: this target creates aliases but never logs in, so the alias mapping
+	// is unexercised by its own traffic. Revisit whether create_aliases belongs
+	// here or should be dropped.
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
 		CreateAliases: i.config.CreateAliases,
 		UserpassMount: i.config.UserpassMount,
