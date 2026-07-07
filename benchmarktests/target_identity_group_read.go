@@ -33,7 +33,6 @@ type IdentityGroupRead struct {
 	config     *IdentityGroupReadConfig
 	groupIDs   []string
 	entityIDs  []string
-	authLinker *identityAuthLinkHelper
 	logger     hclog.Logger
 }
 
@@ -119,7 +118,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 
 		entityIDs = append(entityIDs, entityID)
 
-		err = authLinker.createEntityAlias(client, entityName, entityID)
+		err = authLinker.linkEntityAuth(client, entityName, entityID)
 		if err != nil {
 			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
 			return nil, err
@@ -155,7 +154,6 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 		config:     i.config,
 		groupIDs:   groupIDs,
 		entityIDs:  entityIDs,
-		authLinker: authLinker,
 		logger:     i.logger,
 	}, nil
 }
@@ -189,15 +187,6 @@ func (i *IdentityGroupRead) GetTargetInfo() TargetInfo {
 		method:     IdentityGroupReadTestMethod,
 		pathPrefix: i.pathPrefix,
 	}
-}
-
-// AliasEntityLinks returns a copy of alias name to entity ID linkages created in setup.
-func (i *IdentityGroupRead) AliasEntityLinks() map[string]string {
-	if i.authLinker == nil {
-		return map[string]string{}
-	}
-
-	return i.authLinker.aliasEntityLinksCopy()
 }
 
 func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string) error {

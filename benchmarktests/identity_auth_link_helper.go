@@ -5,37 +5,51 @@ package benchmarktests
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
+	"github.com/sethvargo/go-password/password"
 )
 
+// identityAuthLinkConfig configures how identity setup links generated entities
+// to a userpass auth mount. Its sole job is to make entities loginable by
+// creating an entity alias and (optionally) the matching userpass user.
 type identityAuthLinkConfig struct {
 	CreateAliases bool
+	CreateUsers   bool
 	UserpassMount string
 	RandomMounts  bool
 }
 
 type identityAuthLinkHelper struct {
 	createAliases bool
+	createUsers   bool
+	userPassword  string
 
 	userpassMountPath string
 	userpassAccessor  string
-
-	aliasIDs        []string
-	aliasToEntityID map[string]string
 }
 
 func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (*identityAuthLinkHelper, error) {
 	helper := &identityAuthLinkHelper{
-		createAliases:   cfg.CreateAliases,
-		aliasIDs:        make([]string, 0),
-		aliasToEntityID: make(map[string]string),
+		createAliases: cfg.CreateAliases,
+		createUsers:   cfg.CreateUsers,
 	}
 
-	if !cfg.CreateAliases {
+	// The userpass mount is needed to resolve aliases and/or to create login
+	// users. If neither is requested, there is nothing to set up.
+	if !cfg.CreateAliases && !cfg.CreateUsers {
 		return helper, nil
+	}
+
+	if helper.createUsers {
+		generated, err := password.Generate(64, 10, 0, false, true)
+		if err != nil {
+			return nil, fmt.Errorf("error generating userpass password: %w", err)
+		}
+		helper.userPassword = generated
 	}
 
 	authMountPath := normalizeAuthMountPath(cfg.UserpassMount)
@@ -58,39 +72,42 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 	return helper, nil
 }
 
-func (h *identityAuthLinkHelper) createEntityAlias(client *api.Client, aliasName string, entityID string) error {
-	if !h.createAliases {
-		return nil
-	}
-
-	aliasResp, err := client.Logical().Write("identity/entity-alias", map[string]any{
-		"name":           aliasName,
-		"canonical_id":   entityID,
-		"mount_accessor": h.userpassAccessor,
-	})
-	if err != nil {
-		return fmt.Errorf("error creating alias for entity alias name %q: %w", aliasName, err)
-	}
-
-	if aliasResp != nil && aliasResp.Data != nil {
-		if rawAliasID, ok := aliasResp.Data["id"]; ok {
-			if aliasID, ok := rawAliasID.(string); ok && aliasID != "" {
-				h.aliasIDs = append(h.aliasIDs, aliasID)
-			}
+// linkEntityAuth links an entity to the userpass mount so it can be logged in
+// as: it creates an entity alias and, when CreateUsers is set, the matching
+// userpass user. The alias name and username are both the entity name.
+func (h *identityAuthLinkHelper) linkEntityAuth(client *api.Client, name string, entityID string) error {
+	if h.createAliases {
+		_, err := client.Logical().Write("identity/entity-alias", map[string]any{
+			"name":           name,
+			"canonical_id":   entityID,
+			"mount_accessor": h.userpassAccessor,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating entity alias %q: %w", name, err)
 		}
 	}
 
-	h.aliasToEntityID[aliasName] = entityID
+	if h.createUsers {
+		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		_, err := client.Logical().Write(userPath, map[string]any{
+			"password": h.userPassword,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating userpass user %q: %w", name, err)
+		}
+	}
+
 	return nil
 }
 
-func (h *identityAuthLinkHelper) aliasEntityLinksCopy() map[string]string {
-	links := make(map[string]string, len(h.aliasToEntityID))
-	for alias, entityID := range h.aliasToEntityID {
-		links[alias] = entityID
-	}
+// mountPath returns the resolved userpass auth mount path (e.g. "userpass").
+func (h *identityAuthLinkHelper) mountPath() string {
+	return h.userpassMountPath
+}
 
-	return links
+// password returns the shared password assigned to created userpass users.
+func (h *identityAuthLinkHelper) password() string {
+	return h.userPassword
 }
 
 func ensureUserpassMountAccessor(client *api.Client, mountPath string) (string, string, error) {
