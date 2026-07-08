@@ -91,9 +91,10 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 
 	entityIDs := make([]string, 0, i.config.EntityCount)
 	groupIDs := make([]string, 0, i.config.GroupCount)
-	// TODO: this target creates aliases but never logs in, so the alias mapping
-	// is unexercised by its own traffic. Revisit whether create_aliases belongs
-	// here or should be dropped.
+	// When create_aliases is set, aliases are validated at setup via a
+	// single-sample login probe (below); note the read workload itself does not
+	// exercise aliases. Whether create_aliases belongs here long-term is the
+	// deferred dataset-vs-workload question.
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
 		CreateAliases: i.config.CreateAliases,
 		UserpassMount: i.config.UserpassMount,
@@ -103,8 +104,12 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 		return nil, err
 	}
 
+	firstEntityName := ""
 	for idx := 0; idx < i.config.EntityCount; idx++ {
 		entityName := mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
+		if idx == 0 {
+			firstEntityName = entityName
+		}
 		resp, err := client.Logical().Write("identity/entity", map[string]interface{}{
 			"name": entityName,
 		})
@@ -126,6 +131,14 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
 			return nil, err
 		}
+	}
+
+	if i.config.CreateAliases && len(entityIDs) > 0 {
+		if err := authLinker.validateLoginResolution(client, firstEntityName, entityIDs[0]); err != nil {
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			return nil, err
+		}
+		i.logger.Info("login resolution validated", "user", firstEntityName, "entity_id", entityIDs[0])
 	}
 
 	for idx := 0; idx < i.config.GroupCount; idx++ {

@@ -97,6 +97,52 @@ func (h *identityAuthLinkHelper) linkEntityAuth(client *api.Client, name string,
 	return nil
 }
 
+// validateLoginResolution performs a single-sample, fail-fast check that the
+// entity <-> alias <-> user wiring is correct: it logs in as the userpass user
+// named after the entity and confirms the resulting token resolves to
+// expectedEntityID. When users were not provisioned in the main loop (e.g. an
+// alias-only dataset), it creates one probe user for this entity so the alias
+// mapping can still be validated.
+func (h *identityAuthLinkHelper) validateLoginResolution(client *api.Client, name, expectedEntityID string) error {
+	if h.userpassAccessor == "" {
+		return fmt.Errorf("cannot validate login resolution: no userpass mount configured")
+	}
+
+	if h.userPassword == "" {
+		generated, err := password.Generate(64, 10, 0, false, true)
+		if err != nil {
+			return fmt.Errorf("error generating validation password: %w", err)
+		}
+		h.userPassword = generated
+	}
+
+	if !h.createUsers {
+		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		if _, err := client.Logical().Write(userPath, map[string]any{
+			"password": h.userPassword,
+		}); err != nil {
+			return fmt.Errorf("error creating validation user %q: %w", name, err)
+		}
+	}
+
+	loginPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "login", name))
+	secret, err := client.Logical().Write(loginPath, map[string]any{
+		"password": h.userPassword,
+	})
+	if err != nil {
+		return fmt.Errorf("login resolution check failed for user %q: %w", name, err)
+	}
+	if secret == nil || secret.Auth == nil {
+		return fmt.Errorf("login resolution check for user %q returned no auth data", name)
+	}
+	if secret.Auth.EntityID != expectedEntityID {
+		return fmt.Errorf("login for user %q resolved to entity %q, expected %q",
+			name, secret.Auth.EntityID, expectedEntityID)
+	}
+
+	return nil
+}
+
 func (h *identityAuthLinkHelper) mountPath() string {
 	return h.userpassMountPath
 }

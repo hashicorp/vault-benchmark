@@ -161,7 +161,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		// A bare userpass login always resolves to some entity, so validate
 		// against the expected id to confirm the alias mapping is correct.
 		firstUser := i.entityName(1)
-		if err := i.validateLoginResolution(client, authLinker, firstUser, i.entityIDs[0]); err != nil {
+		if err := authLinker.validateLoginResolution(client, firstUser, i.entityIDs[0]); err != nil {
 			return nil, err
 		}
 		i.logger.Info("login resolution validated", "user", firstUser, "entity_id", i.entityIDs[0])
@@ -173,27 +173,6 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	}
 
 	return population, nil
-}
-
-// validateLoginResolution logs in as one user and confirms it resolves to the
-// expected entity, a fail-fast check that the alias mapping is wired correctly.
-func (i *IdentityPopulation) validateLoginResolution(client *api.Client, authLinker *identityAuthLinkHelper, user, expectedEntityID string) error {
-	loginPath := filepath.ToSlash(filepath.Join("auth", authLinker.mountPath(), "login", user))
-	secret, err := client.Logical().Write(loginPath, map[string]any{
-		"password": authLinker.password(),
-	})
-	if err != nil {
-		return fmt.Errorf("login resolution check failed for user %q: %w", user, err)
-	}
-	if secret == nil || secret.Auth == nil {
-		return fmt.Errorf("login resolution check for user %q returned no auth data", user)
-	}
-	if secret.Auth.EntityID != expectedEntityID {
-		return fmt.Errorf("login for user %q resolved to entity %q, expected %q",
-			user, secret.Auth.EntityID, expectedEntityID)
-	}
-
-	return nil
 }
 
 // Target sends userpass logins against generated users when link_userpass_auth
