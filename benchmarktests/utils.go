@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -220,4 +222,59 @@ func IsFile(path string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// natLess reports whether a should sort before b using natural ordering
+// rather than lexicographically, resulting in "test2" before "test11".
+func natLess(a, b string) bool {
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		aDigit := a[i] >= '0' && a[i] <= '9'
+		bDigit := b[j] >= '0' && b[j] <= '9'
+
+		switch {
+		case aDigit && bDigit:
+			// Consume the full digit run from each string.
+			startA, startB := i, j
+			for i < len(a) && a[i] >= '0' && a[i] <= '9' {
+				i++
+			}
+			for j < len(b) && b[j] >= '0' && b[j] <= '9' {
+				j++
+			}
+
+			// Compare by numeric value, ignoring leading zeros.
+			numA := strings.TrimLeft(a[startA:i], "0")
+			numB := strings.TrimLeft(b[startB:j], "0")
+			if len(numA) != len(numB) {
+				return len(numA) < len(numB)
+			}
+			if numA != numB {
+				return numA < numB
+			}
+			// Equal value: fewer leading zeros sorts first for stability.
+			if (i - startA) != (j - startB) {
+				return (i - startA) < (j - startB)
+			}
+		case aDigit != bDigit:
+			// A numeric segment sorts before a non-numeric one.
+			return aDigit
+		default:
+			if a[i] != b[j] {
+				return a[i] < b[j]
+			}
+			i++
+			j++
+		}
+	}
+
+	// Whichever string has characters remaining is the longer one.
+	return len(a)-i < len(b)-j
+}
+
+// natSort sorts a slice of strings in place using natural ordering
+func natSort(s []string) {
+	sort.Slice(s, func(i, j int) bool {
+		return natLess(s[i], s[j])
+	})
 }
