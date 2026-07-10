@@ -136,7 +136,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 
 		i.entityIDs = append(i.entityIDs, id)
 
-		if err := authLinker.linkEntityAuth(client, entityName, id); err != nil {
+		if err := authLinker.linkEntity(client, entityName, id); err != nil {
 			return nil, err
 		}
 
@@ -161,7 +161,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		// A bare userpass login always resolves to some entity, so validate
 		// against the expected id to confirm the alias mapping is correct.
 		firstUser := i.entityName(1)
-		if err := authLinker.validateLoginResolution(client, firstUser, i.entityIDs[0]); err != nil {
+		if err := authLinker.validateLogin(client, firstUser, i.entityIDs[0]); err != nil {
 			return nil, err
 		}
 		i.logger.Info("login resolution validated", "user", firstUser, "entity_id", i.entityIDs[0])

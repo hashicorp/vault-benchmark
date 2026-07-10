@@ -13,6 +13,20 @@ import (
 	"github.com/sethvargo/go-password/password"
 )
 
+// TODO(refactor-pr): drop per-member auth/userpass qualifiers — the file and type
+// carry that context once, so members can assume it. Rename map:
+//   - file  identity_auth_link_helper.go     -> identity_linker.go
+//   - type  identityAuthLinkHelper           -> identityLinker
+//   - type  identityAuthLinkConfig           -> identityLinkerConfig
+//   - func  newIdentityAuthLinkHelper        -> newIdentityLinker
+//   - func  ensureUserpassMountAccessor      -> ensureMount
+//   - func  normalizeAuthMountPath           -> normalizeMountPath
+//   - flip struct declaration order: primary struct before its Config struct
+//   - add a short type doc comment on identityLinker
+//   - reconcile getter/field name collision: mountPath()/password() force the longer
+//     userpassMountPath/userPassword fields — either rename the getters or let
+//     same-package callers read the fields directly, then shorten the fields
+
 // identityAuthLinkConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.
 type identityAuthLinkConfig struct {
@@ -37,18 +51,15 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 		createUsers:   cfg.CreateUsers,
 	}
 
-	// Nothing to link unless aliases or users are requested.
 	if !cfg.CreateAliases && !cfg.CreateUsers {
 		return helper, nil
 	}
 
-	if helper.createUsers {
-		generated, err := password.Generate(64, 10, 0, false, true)
-		if err != nil {
-			return nil, fmt.Errorf("error generating userpass password: %w", err)
-		}
-		helper.userPassword = generated
+	generated, err := generatePassword()
+	if err != nil {
+		return nil, fmt.Errorf("error generating userpass password: %w", err)
 	}
+	helper.userPassword = generated
 
 	authMountPath := normalizeAuthMountPath(cfg.UserpassMount)
 	if cfg.RandomMounts {
@@ -70,9 +81,22 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 	return helper, nil
 }
 
-// linkEntityAuth creates the entity alias and, when CreateUsers is set, the
-// matching userpass user. The alias name and username are both the entity name.
-func (h *identityAuthLinkHelper) linkEntityAuth(client *api.Client, name string, entityID string) error {
+// linkEntity creates the userpass user (when CreateUsers is set) and then the
+// entity alias that connects it (when CreateAliases is set). Both are named after
+// the entity (1:1), which callers rely on to derive usernames from an index
+// without storing a lookup map.
+func (h *identityAuthLinkHelper) linkEntity(client *api.Client, name, entityID string) error {
+	if h.createUsers {
+		// filepath.Join+ToSlash: build the path portably (forward slashes) even on Windows.
+		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		_, err := client.Logical().Write(userPath, map[string]any{
+			"password": h.userPassword,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating userpass user %q: %w", name, err)
+		}
+	}
+
 	if h.createAliases {
 		_, err := client.Logical().Write("identity/entity-alias", map[string]any{
 			"name":           name,
@@ -84,36 +108,16 @@ func (h *identityAuthLinkHelper) linkEntityAuth(client *api.Client, name string,
 		}
 	}
 
-	if h.createUsers {
-		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
-		_, err := client.Logical().Write(userPath, map[string]any{
-			"password": h.userPassword,
-		})
-		if err != nil {
-			return fmt.Errorf("error creating userpass user %q: %w", name, err)
-		}
-	}
-
 	return nil
 }
 
-// validateLoginResolution performs a single-sample, fail-fast check that the
-// entity <-> alias <-> user wiring is correct: it logs in as the userpass user
-// named after the entity and confirms the resulting token resolves to
-// expectedEntityID. When users were not provisioned in the main loop (e.g. an
-// alias-only dataset), it creates one probe user for this entity so the alias
-// mapping can still be validated.
-func (h *identityAuthLinkHelper) validateLoginResolution(client *api.Client, name, expectedEntityID string) error {
+// validateLogin is a single-sample, fail-fast check: it logs in as
+// one user and confirms the token resolves to expectedEntityID. For alias-only
+// datasets it first creates a throwaway probe user, since there is otherwise no
+// credential to log in with.
+func (h *identityAuthLinkHelper) validateLogin(client *api.Client, name, expectedEntityID string) error {
 	if h.userpassAccessor == "" {
 		return fmt.Errorf("cannot validate login resolution: no userpass mount configured")
-	}
-
-	if h.userPassword == "" {
-		generated, err := password.Generate(64, 10, 0, false, true)
-		if err != nil {
-			return fmt.Errorf("error generating validation password: %w", err)
-		}
-		h.userPassword = generated
 	}
 
 	if !h.createUsers {
@@ -135,6 +139,7 @@ func (h *identityAuthLinkHelper) validateLoginResolution(client *api.Client, nam
 	if secret == nil || secret.Auth == nil {
 		return fmt.Errorf("login resolution check for user %q returned no auth data", name)
 	}
+
 	if secret.Auth.EntityID != expectedEntityID {
 		return fmt.Errorf("login for user %q resolved to entity %q, expected %q",
 			name, secret.Auth.EntityID, expectedEntityID)
@@ -191,6 +196,12 @@ func ensureUserpassMountAccessor(client *api.Client, mountPath string) (string, 
 	}
 
 	return authMount.Accessor, authMountPath, nil
+}
+
+// generatePassword returns a strong throwaway password shared by every
+// generated user: 64 chars, 10 digits, no symbols, repeats allowed.
+func generatePassword() (string, error) {
+	return password.Generate(64, 10, 0, false, true)
 }
 
 func normalizeAuthMountPath(path string) string {

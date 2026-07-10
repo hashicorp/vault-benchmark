@@ -27,6 +27,11 @@ func init() {
 	TestList[IdentityGroupReadTestType] = func() BenchmarkBuilder { return &IdentityGroupRead{} }
 }
 
+// TODO(refactor-pr):
+//   - rename cleanupCreatedIdentityResources -> cleanupIdentityResources
+//   - add package/target docs (missing; standup item)
+//   - rename target once it becomes the generalist weighted identity-lifecycle target
+
 type IdentityGroupRead struct {
 	pathPrefix string
 	header     http.Header
@@ -126,7 +131,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 
 		entityIDs = append(entityIDs, entityID)
 
-		err = authLinker.linkEntityAuth(client, entityName, entityID)
+		err = authLinker.linkEntity(client, entityName, entityID)
 		if err != nil {
 			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
 			return nil, err
@@ -134,7 +139,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	}
 
 	if i.config.CreateAliases && len(entityIDs) > 0 {
-		if err := authLinker.validateLoginResolution(client, firstEntityName, entityIDs[0]); err != nil {
+		if err := authLinker.validateLogin(client, firstEntityName, entityIDs[0]); err != nil {
 			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
 			return nil, err
 		}

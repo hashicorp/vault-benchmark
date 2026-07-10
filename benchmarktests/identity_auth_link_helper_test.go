@@ -30,7 +30,7 @@ func newTestClient(t *testing.T, addr string) *api.Client {
 	return client
 }
 
-// fakeUserpass serves the minimal userpass surface validateLoginResolution
+// fakeUserpass serves the minimal userpass surface validateLogin
 // touches: user creation returns 204, and login returns the response the test
 // configures. It records whether the probe user was created.
 func fakeUserpass(t *testing.T, loginStatus int, loginBody string, userCreated *bool) *httptest.Server {
@@ -106,7 +106,7 @@ func TestValidateLoginResolution(t *testing.T) {
 				userpassAccessor:  "auth_userpass_00000000",
 			}
 
-			err := helper.validateLoginResolution(client, "check-user", wantEntity)
+			err := helper.validateLogin(client, "check-user", wantEntity)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
@@ -125,9 +125,10 @@ func TestValidateLoginResolution(t *testing.T) {
 
 // TestValidateLoginResolution_ProvisionsProbeUser covers the alias-only path
 // (createUsers=false, as identity_group_read uses): a probe user must be
-// created before the login check runs.
+// created before the login check runs, using the helper's existing password.
 func TestValidateLoginResolution_ProvisionsProbeUser(t *testing.T) {
 	const wantEntity = "entity-abc"
+	const wantPassword = "pre-generated-password"
 
 	userCreated := false
 	server := fakeUserpass(t, http.StatusOK,
@@ -137,18 +138,19 @@ func TestValidateLoginResolution_ProvisionsProbeUser(t *testing.T) {
 	client := newTestClient(t, server.URL)
 	helper := &identityAuthLinkHelper{
 		createUsers:       false,
+		userPassword:      wantPassword,
 		userpassMountPath: "userpass",
 		userpassAccessor:  "auth_userpass_00000000",
 	}
 
-	if err := helper.validateLoginResolution(client, "check-user", wantEntity); err != nil {
+	if err := helper.validateLogin(client, "check-user", wantEntity); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !userCreated {
 		t.Fatalf("expected a probe user to be created when createUsers is false")
 	}
-	if helper.userPassword == "" {
-		t.Fatalf("expected a password to be generated for the probe user")
+	if helper.userPassword != wantPassword {
+		t.Fatalf("validate must not clobber the helper password: got %q, want %q", helper.userPassword, wantPassword)
 	}
 }
 
@@ -156,7 +158,7 @@ func TestValidateLoginResolution_ProvisionsProbeUser(t *testing.T) {
 // mount was configured.
 func TestValidateLoginResolution_NoMount(t *testing.T) {
 	helper := &identityAuthLinkHelper{}
-	err := helper.validateLoginResolution(nil, "check-user", "entity-abc")
+	err := helper.validateLogin(nil, "check-user", "entity-abc")
 	if err == nil {
 		t.Fatalf("expected error when no userpass mount is configured")
 	}
