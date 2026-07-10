@@ -191,7 +191,7 @@ func (i *IdentityPopulation) Target(client *api.Client) vegeta.Target {
 		Method: i.method,
 		URL:    client.Address() + i.pathPrefix + "/login/" + user,
 		Header: i.header,
-		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, i.password)),
+		Body:   fmt.Appendf(nil, `{"password": "%s"}`, i.password),
 	}
 }
 
