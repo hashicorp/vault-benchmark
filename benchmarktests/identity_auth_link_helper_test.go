@@ -6,6 +6,7 @@ package benchmarktests
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,7 +55,7 @@ func fakeUserpass(t *testing.T, loginStatus int, loginBody string, userCreated *
 	}))
 }
 
-func TestValidateLoginResolution(t *testing.T) {
+func TestValidateLogin(t *testing.T) {
 	const wantEntity = "entity-abc"
 
 	tests := []struct {
@@ -123,10 +124,10 @@ func TestValidateLoginResolution(t *testing.T) {
 	}
 }
 
-// TestValidateLoginResolution_ProvisionsProbeUser covers the alias-only path
-// (createUsers=false, as identity_group_read uses): a probe user must be
-// created before the login check runs, using the helper's existing password.
-func TestValidateLoginResolution_ProvisionsProbeUser(t *testing.T) {
+// TestValidateLogin_ProvisionsProbeUser covers the alias-only path
+// (createUsers=false, as identity_group_read uses): a probe user must be created
+// before the login check, reusing the helper's password.
+func TestValidateLogin_ProvisionsProbeUser(t *testing.T) {
 	const wantEntity = "entity-abc"
 	const wantPassword = "pre-generated-password"
 
@@ -154,9 +155,8 @@ func TestValidateLoginResolution_ProvisionsProbeUser(t *testing.T) {
 	}
 }
 
-// TestValidateLoginResolution_NoMount guards the fail-fast when no userpass
-// mount was configured.
-func TestValidateLoginResolution_NoMount(t *testing.T) {
+// TestValidateLogin_NoMount guards the fail-fast when no userpass mount exists.
+func TestValidateLogin_NoMount(t *testing.T) {
 	helper := &identityAuthLinkHelper{}
 	err := helper.validateLogin(nil, "check-user", "entity-abc")
 	if err == nil {
@@ -199,6 +199,32 @@ func TestSampleIndices(t *testing.T) {
 					t.Fatalf("k=%d: index[%d]=%d, want %d", k, want, got, want+1)
 				}
 			}
+		}
+	})
+
+	t.Run("varies across calls and covers the range", func(t *testing.T) {
+		// The checks above pass even for a fixed [1..k] result, so confirm the
+		// sample is actually random: results must differ between calls and reach
+		// beyond the first k into the upper range.
+		const n, k = 1000, 50
+		baseline := sampleIndices(n, k)
+		varied, reachedUpperRange := false, false
+		for trial := 0; trial < 10; trial++ {
+			got := sampleIndices(n, k)
+			if !slices.Equal(got, baseline) {
+				varied = true
+			}
+			for _, idx := range got {
+				if idx > n/2 {
+					reachedUpperRange = true
+				}
+			}
+		}
+		if !varied {
+			t.Fatal("identical results across calls; not sampling randomly")
+		}
+		if !reachedUpperRange {
+			t.Fatalf("no index above %d across trials; not sampling across the range", n/2)
 		}
 	})
 }

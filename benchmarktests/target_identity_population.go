@@ -38,8 +38,17 @@ func init() {
 	TestList[IdentityPopulationTestType] = func() BenchmarkBuilder { return &IdentityPopulation{} }
 }
 
-// TODO(refactor-pr): rename the name_prefix default "seed-entity" -> "entity"
-// (cosmetic; the "seed-" is redundant for a general-purpose population target).
+// TODO(refactor-pr):
+//   - rename name_prefix default "seed-entity" -> "entity"
+//   - decouple user count from entity_count (optional users arg; today 1:1 pins
+//     bcrypt cost to entity_count)
+//   - warn (don't guard) when link_auth=false at weight<100 (no-op Target is just
+//     sys/health noise; link_auth=true at partial weight is a valid mix)
+//   shared with identity_group_read:
+//   - parallelize entity creation with a bounded worker pool (setup is serial)
+//   - allow cleanup with deterministic mounts (identity cleanup never deletes the
+//     userpass mount, unlike the global run.go:280 guard assumes)
+//   - consolidate with identity_group_read once renamed
 
 // Identity Population Test Struct
 type IdentityPopulation struct {
@@ -48,7 +57,6 @@ type IdentityPopulation struct {
 	header     http.Header
 	config     *IdentityPopulationConfig
 	logger     hclog.Logger
-	linkAuth   bool
 	loginBody  []byte
 }
 
@@ -206,7 +214,6 @@ func (i *IdentityPopulation) buildAttack(client *api.Client, authLinker *identit
 		return nil, fmt.Errorf("error encoding login request body: %w", err)
 	}
 
-	population.linkAuth = true
 	population.loginBody = loginBody
 	population.method = "POST"
 	population.pathPrefix = "/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath()))
@@ -217,7 +224,7 @@ func (i *IdentityPopulation) buildAttack(client *api.Client, authLinker *identit
 // Target sends userpass logins against generated users when link_auth
 // is enabled; otherwise it hits the no-workload placeholder.
 func (i *IdentityPopulation) Target(client *api.Client) vegeta.Target {
-	if !i.linkAuth {
+	if !i.config.LinkAuth {
 		return vegeta.Target{
 			Method: i.method,
 			URL:    client.Address() + i.pathPrefix,

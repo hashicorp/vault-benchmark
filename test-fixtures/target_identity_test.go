@@ -11,9 +11,8 @@ import (
 	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
 )
 
-// TestIdentityGroupRead_Docker runs the identity_group_read fixture, which sets
-// create_aliases = true. A zero exit code means setup (including the alias
-// login-resolution validation) succeeded against a real Vault.
+// TestIdentityGroupRead_Docker runs the create_aliases=true fixture; exit 0
+// means setup and the sampled login-resolution validation passed against Vault.
 func TestIdentityGroupRead_Docker(t *testing.T) {
 	t.Parallel()
 
@@ -31,9 +30,8 @@ func TestIdentityGroupRead_Docker(t *testing.T) {
 	}
 }
 
-// TestIdentityPopulation_Docker runs the identity_population fixture, which sets
-// link_auth = true. A zero exit code means setup (including the
-// login-resolution validation) succeeded against a real Vault.
+// TestIdentityPopulation_Docker runs the link_auth=true fixture; exit 0 means
+// setup and the sampled login-resolution validation passed against Vault.
 func TestIdentityPopulation_Docker(t *testing.T) {
 	t.Parallel()
 

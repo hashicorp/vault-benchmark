@@ -14,21 +14,17 @@ import (
 	"github.com/sethvargo/go-password/password"
 )
 
-// TODO(refactor-pr): drop per-member auth/userpass qualifiers — the file and type
-// carry that context once, so members can assume it. Rename map:
-//   - file  identity_auth_link_helper.go     -> identity_linker.go
-//   - type  identityAuthLinkHelper           -> identityLinker
-//   - type  identityAuthLinkConfig           -> identityLinkerConfig
-//   - func  newIdentityAuthLinkHelper        -> newIdentityLinker
-//   - func  ensureUserpassMountAccessor      -> ensureMount
-//   - func  normalizeAuthMountPath           -> normalizeMountPath
-//   - flip struct declaration order: primary struct before its Config struct
-//   - add a short type doc comment on identityLinker
-//   - reconcile getter/field name collision: mountPath()/password() force the longer
-//     userpassMountPath/userPassword fields — either rename the getters or let
-//     same-package callers read the fields directly, then shorten the fields
-//   - relocate identityIDFromResponse (currently in group_read) into this file;
-//     it is shared by both identity targets
+// TODO(refactor-pr): drop redundant auth/userpass qualifiers (file + type already
+// carry that context). Rename map:
+//   - file identity_auth_link_helper.go -> identity_linker.go (and _test.go)
+//   - type identityAuthLinkHelper -> identityLinker; identityAuthLinkConfig -> identityLinkerConfig
+//   - func newIdentityAuthLinkHelper -> newIdentityLinker
+//   - func ensureUserpassMountAccessor -> ensureMount; normalizeAuthMountPath -> normalizeMountPath
+// Also:
+//   - swap primary struct before its Config; add a type doc comment
+//   - resolve getter/field collision (mountPath()/password() force the longer
+//     userpassMountPath/userPassword fields)
+//   - move identityIDFromResponse (currently in group_read) here; it's shared
 
 // identityAuthLinkConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.

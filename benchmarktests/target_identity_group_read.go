@@ -29,8 +29,16 @@ func init() {
 
 // TODO(refactor-pr):
 //   - rename cleanupCreatedIdentityResources -> cleanupIdentityResources
+//   - rename script/struct to a generalist weighted identity-lifecycle target
 //   - add package/target docs
-//   - rename script name to a generalist weighted identity-lifecycle target
+//   - clean up Setup: extract create/validate phases + single deferred rollback
+//     (mirror target_identity_population)
+//   - move identityIDFromResponse into the helper
+//   shared with identity_population:
+//   - parallelize entity creation with a bounded worker pool (setup is serial)
+//   - allow cleanup with deterministic mounts (identity cleanup never deletes the
+//     userpass mount, unlike the global run.go:280 guard assumes)
+//   - consolidate with identity_population once renamed
 
 type IdentityGroupRead struct {
 	pathPrefix    string
@@ -105,10 +113,8 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	entityNames := make([]string, 0, i.config.EntityCount)
 	groupIDs := make([]string, 0, i.config.GroupCount)
 	var probeUsers []string
-	// When create_aliases is set, aliases are validated at setup via sampled
-	// login probes (below); note the read workload itself does not exercise
-	// aliases. Whether create_aliases belongs here long-term is the deferred
-	// dataset-vs-workload question.
+	// When create_aliases is set, each entity is linked to a userpass alias and a
+	// sample of those links is validated by login below.
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
 		CreateAliases: i.config.CreateAliases,
 		UserpassMount: i.config.UserpassMount,
@@ -150,10 +156,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 		// checks against its expected id to confirm the alias mapping. Alias-only
 		// mode has no users to log in as, so validateLogin creates a throwaway
 		// probe user per sample; track them so Cleanup can remove them.
-		sampleCount := i.config.ValidationSamples
-		if sampleCount > len(entityIDs) {
-			sampleCount = len(entityIDs)
-		}
+		sampleCount := min(i.config.ValidationSamples, len(entityIDs))
 
 		for _, idx := range sampleIndices(len(entityIDs), sampleCount) {
 			name := entityNames[idx-1]
