@@ -4,6 +4,7 @@
 package benchmarktests
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -47,9 +48,8 @@ type IdentityPopulation struct {
 	header     http.Header
 	config     *IdentityPopulationConfig
 	logger     hclog.Logger
-	entityIDs  []string
 	linkAuth   bool
-	password   string
+	loginBody  []byte
 }
 
 type IdentityPopulationConfig struct {
@@ -111,7 +111,6 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 
 	i.logger = targetLogger.Named(IdentityPopulationTestType)
 	i.header = generateHeader(client)
-	i.entityIDs = make([]string, 0, i.config.EntityCount)
 
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
 		CreateAliases: i.config.LinkAuth,
@@ -123,9 +122,21 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		return nil, err
 	}
 
+	entityIDs, err := i.createEntities(client, authLinker)
+	if err != nil {
+		return nil, err
+	}
+
+	return i.buildAttack(client, authLinker, entityIDs)
+}
+
+// createEntities creates EntityCount entities, linking each to a userpass user
+// and alias when LinkAuth is set, and returns their ids in creation order.
+func (i *IdentityPopulation) createEntities(client *api.Client, authLinker *identityAuthLinkHelper) ([]string, error) {
 	start := time.Now()
 	i.logger.Info("entity population start", "total", i.config.EntityCount, "link_auth", i.config.LinkAuth)
 
+	entityIDs := make([]string, 0, i.config.EntityCount)
 	for idx := 1; idx <= i.config.EntityCount; idx++ {
 		entityName := i.entityName(idx)
 
@@ -146,7 +157,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 			return nil, fmt.Errorf("error reading id for entity %q: %w", entityName, err)
 		}
 
-		i.entityIDs = append(i.entityIDs, id)
+		entityIDs = append(entityIDs, id)
 
 		if err := authLinker.linkEntity(client, entityName, id); err != nil {
 			return nil, err
@@ -158,8 +169,13 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	}
 
 	i.logger.Info("entity population complete", "total", i.config.EntityCount, "elapsed", time.Since(start).String())
+	return entityIDs, nil
+}
 
-	// Default to setup-only: no-workload placeholder attack.
+// buildAttack returns the benchmark for the attack phase. Without LinkAuth it is
+// a no-workload placeholder; with it, links are first validated by sampled logins
+// and the attack drives real userpass logins.
+func (i *IdentityPopulation) buildAttack(client *api.Client, authLinker *identityAuthLinkHelper, entityIDs []string) (BenchmarkBuilder, error) {
 	population := &IdentityPopulation{
 		method:     "GET",
 		pathPrefix: identityPopulationNoWorkloadPath,
@@ -168,24 +184,32 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		logger:     i.logger,
 	}
 
-	if i.config.LinkAuth {
-		// verify login resolves to the expected entity; sampling
-		// suffices since linking failures are systematic.
-		sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
-
-		for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
-			name := i.entityName(idx)
-			if err := authLinker.validateLogin(client, name, i.entityIDs[idx-1]); err != nil {
-				return nil, err
-			}
-		}
-		i.logger.Info("login resolution validated", "samples", sampleCount, "entities", i.config.EntityCount)
-
-		population.linkAuth = true
-		population.password = authLinker.password()
-		population.method = "POST"
-		population.pathPrefix = "/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath()))
+	if !i.config.LinkAuth {
+		return population, nil
 	}
+
+	// verify login resolves to the expected entity; sampling
+	// suffices since linking failures are systematic.
+	sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
+	for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
+		name := i.entityName(idx)
+		if err := authLinker.validateLogin(client, name, entityIDs[idx-1]); err != nil {
+			return nil, err
+		}
+	}
+	i.logger.Info("login resolution validated", "samples", sampleCount, "entities", i.config.EntityCount)
+
+	// Every login uses the same password, so marshal the body once here
+	// rather than per request in the attack loop.
+	loginBody, err := json.Marshal(map[string]string{"password": authLinker.password()})
+	if err != nil {
+		return nil, fmt.Errorf("error encoding login request body: %w", err)
+	}
+
+	population.linkAuth = true
+	population.loginBody = loginBody
+	population.method = "POST"
+	population.pathPrefix = "/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath()))
 
 	return population, nil
 }
@@ -206,7 +230,7 @@ func (i *IdentityPopulation) Target(client *api.Client) vegeta.Target {
 		Method: i.method,
 		URL:    client.Address() + i.pathPrefix + "/login/" + user,
 		Header: i.header,
-		Body:   fmt.Appendf(nil, `{"password": "%s"}`, i.password),
+		Body:   i.loginBody,
 	}
 }
 
