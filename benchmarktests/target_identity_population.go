@@ -22,15 +22,13 @@ import (
 const (
 	IdentityPopulationTestType = "identity_population"
 
-	// No-workload placeholder for the attack phase when link_userpass_auth is
-	// false. The runner always requires a target, but pure population has no
-	// attack of its own; pair this target with another for real load.
+	// Placeholder attack target for setup-only mode (link_auth =
+	// false); population creates no load of its own.
 	identityPopulationNoWorkloadPath = "/v1/sys/health"
 
-	// Default number of aliases sampled at setup to verify login resolution.
-	// Alias-linking bugs are systematic (all-or-nothing), so a fixed random
-	// sample gives high confidence independent of entity_count; 100 catches a
-	// >=5% corruption rate with ~99.4% probability at negligible cost.
+	// Default random-sample size for login-resolution validation.
+	// A sample of 100 identities provides a high probability (>99%)
+	// of detecting corruption affecting 5% or more of mappings.
 	identityValidationSamples = 100
 )
 
@@ -38,6 +36,9 @@ func init() {
 	// "Register" this test to the main test registry
 	TestList[IdentityPopulationTestType] = func() BenchmarkBuilder { return &IdentityPopulation{} }
 }
+
+// TODO(refactor-pr): rename the name_prefix default "seed-entity" -> "entity"
+// (cosmetic; the "seed-" is redundant for a general-purpose population target).
 
 // Identity Population Test Struct
 type IdentityPopulation struct {
@@ -55,7 +56,7 @@ type IdentityPopulationConfig struct {
 	EntityCount       int    `hcl:"entity_count,optional"`
 	NamePrefix        string `hcl:"name_prefix,optional"`
 	ProgressInterval  int    `hcl:"progress_interval,optional"`
-	LinkUserpassAuth  bool   `hcl:"link_userpass_auth,optional"`
+	LinkAuth          bool   `hcl:"link_auth,optional"`
 	UserpassMount     string `hcl:"userpass_mount,optional"`
 	ValidationSamples int    `hcl:"validation_samples,optional"`
 }
@@ -68,7 +69,7 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 			EntityCount:       10000,
 			NamePrefix:        "seed-entity",
 			ProgressInterval:  1000,
-			LinkUserpassAuth:  false,
+			LinkAuth:          false,
 			UserpassMount:     "userpass",
 			ValidationSamples: identityValidationSamples,
 		},
@@ -105,8 +106,7 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 }
 
 func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	// Identity is a built-in path, so this target manages no secret mount;
-	// mountName is required by the interface but unused here.
+	// Identity is a built-in path, so this target manages no secret mount
 	_ = mountName
 
 	i.logger = targetLogger.Named(IdentityPopulationTestType)
@@ -114,8 +114,8 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	i.entityIDs = make([]string, 0, i.config.EntityCount)
 
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
-		CreateAliases: i.config.LinkUserpassAuth,
-		CreateUsers:   i.config.LinkUserpassAuth,
+		CreateAliases: i.config.LinkAuth,
+		CreateUsers:   i.config.LinkAuth,
 		UserpassMount: i.config.UserpassMount,
 		RandomMounts:  topLevelConfig != nil && topLevelConfig.RandomMounts,
 	})
@@ -124,7 +124,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	}
 
 	start := time.Now()
-	i.logger.Info("entity population start", "total", i.config.EntityCount, "link_userpass_auth", i.config.LinkUserpassAuth)
+	i.logger.Info("entity population start", "total", i.config.EntityCount, "link_auth", i.config.LinkAuth)
 
 	for idx := 1; idx <= i.config.EntityCount; idx++ {
 		entityName := i.entityName(idx)
@@ -168,11 +168,9 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		logger:     i.logger,
 	}
 
-	if i.config.LinkUserpassAuth {
-		// A bare userpass login always resolves to some entity, so each sample
-		// checks against its expected id to confirm the alias mapping is correct.
-		// Sampling (vs. checking every alias) is enough because linking failures
-		// are systematic; a fixed random sample bounds the cost regardless of size.
+	if i.config.LinkAuth {
+		// verify login resolves to the expected entity; sampling
+		// suffices since linking failures are systematic.
 		sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
 
 		for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
@@ -192,7 +190,7 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 	return population, nil
 }
 
-// Target sends userpass logins against generated users when link_userpass_auth
+// Target sends userpass logins against generated users when link_auth
 // is enabled; otherwise it hits the no-workload placeholder.
 func (i *IdentityPopulation) Target(client *api.Client) vegeta.Target {
 	if !i.linkAuth {
@@ -229,28 +227,4 @@ func (i *IdentityPopulation) Flags(fs *flag.FlagSet) {}
 
 func (i *IdentityPopulation) entityName(idx int) string {
 	return fmt.Sprintf("%s-%06d", i.config.NamePrefix, idx)
-}
-
-// sampleIndices returns k distinct 1-based indices in [1, n], chosen at random.
-// It returns all indices when k >= n. Callers must pass 0 < k <= n.
-func sampleIndices(n, k int) []int {
-	if k >= n {
-		idxs := make([]int, n)
-		for i := range idxs {
-			idxs[i] = i + 1
-		}
-		return idxs
-	}
-
-	seen := make(map[int]struct{}, k)
-	idxs := make([]int, 0, k)
-	for len(idxs) < k {
-		candidate := rand.Intn(n) + 1
-		if _, ok := seen[candidate]; ok {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		idxs = append(idxs, candidate)
-	}
-	return idxs
 }

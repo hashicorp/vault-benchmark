@@ -5,6 +5,7 @@ package benchmarktests
 
 import (
 	"fmt"
+	"math/rand"
 	"path/filepath"
 	"strings"
 
@@ -26,6 +27,8 @@ import (
 //   - reconcile getter/field name collision: mountPath()/password() force the longer
 //     userpassMountPath/userPassword fields — either rename the getters or let
 //     same-package callers read the fields directly, then shorten the fields
+//   - relocate identityIDFromResponse (currently in group_read) into this file;
+//     it is shared by both identity targets
 
 // identityAuthLinkConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.
@@ -211,4 +214,28 @@ func normalizeAuthMountPath(path string) string {
 	}
 
 	return normalized
+}
+
+// sampleIndices returns k distinct 1-based indices in [1, n], chosen at random.
+// It returns all indices when k >= n. Callers must pass 0 < k <= n.
+func sampleIndices(n, k int) []int {
+	if k >= n {
+		idxs := make([]int, n)
+		for i := range idxs {
+			idxs[i] = i + 1
+		}
+		return idxs
+	}
+
+	seen := make(map[int]struct{}, k)
+	idxs := make([]int, 0, k)
+	for len(idxs) < k {
+		candidate := rand.Intn(n) + 1
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		idxs = append(idxs, candidate)
+	}
+	return idxs
 }

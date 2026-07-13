@@ -12,7 +12,7 @@ test "identity_population" "identity_population_login" {
     entity_count = 1000
     name_prefix = "seed-entity"
     progress_interval = 200
-    link_userpass_auth = true
+    link_auth = true
     userpass_mount = "userpass"
   }
 }

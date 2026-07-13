@@ -32,7 +32,7 @@ func TestIdentityGroupRead_Docker(t *testing.T) {
 }
 
 // TestIdentityPopulation_Docker runs the identity_population fixture, which sets
-// link_userpass_auth = true. A zero exit code means setup (including the
+// link_auth = true. A zero exit code means setup (including the
 // login-resolution validation) succeeded against a real Vault.
 func TestIdentityPopulation_Docker(t *testing.T) {
 	t.Parallel()
