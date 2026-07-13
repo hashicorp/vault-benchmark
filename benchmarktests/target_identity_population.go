@@ -26,6 +26,12 @@ const (
 	// false. The runner always requires a target, but pure population has no
 	// attack of its own; pair this target with another for real load.
 	identityPopulationNoWorkloadPath = "/v1/sys/health"
+
+	// Default number of aliases sampled at setup to verify login resolution.
+	// Alias-linking bugs are systematic (all-or-nothing), so a fixed random
+	// sample gives high confidence independent of entity_count; 100 catches a
+	// >=5% corruption rate with ~99.4% probability at negligible cost.
+	identityValidationSamples = 100
 )
 
 func init() {
@@ -46,11 +52,12 @@ type IdentityPopulation struct {
 }
 
 type IdentityPopulationConfig struct {
-	EntityCount      int    `hcl:"entity_count,optional"`
-	NamePrefix       string `hcl:"name_prefix,optional"`
-	ProgressInterval int    `hcl:"progress_interval,optional"`
-	LinkUserpassAuth bool   `hcl:"link_userpass_auth,optional"`
-	UserpassMount    string `hcl:"userpass_mount,optional"`
+	EntityCount       int    `hcl:"entity_count,optional"`
+	NamePrefix        string `hcl:"name_prefix,optional"`
+	ProgressInterval  int    `hcl:"progress_interval,optional"`
+	LinkUserpassAuth  bool   `hcl:"link_userpass_auth,optional"`
+	UserpassMount     string `hcl:"userpass_mount,optional"`
+	ValidationSamples int    `hcl:"validation_samples,optional"`
 }
 
 func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
@@ -58,11 +65,12 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 		Config *IdentityPopulationConfig `hcl:"config,block"`
 	}{
 		Config: &IdentityPopulationConfig{
-			EntityCount:      10000,
-			NamePrefix:       "seed-entity",
-			ProgressInterval: 1000,
-			LinkUserpassAuth: false,
-			UserpassMount:    "userpass",
+			EntityCount:       10000,
+			NamePrefix:        "seed-entity",
+			ProgressInterval:  1000,
+			LinkUserpassAuth:  false,
+			UserpassMount:     "userpass",
+			ValidationSamples: identityValidationSamples,
 		},
 	}
 
@@ -87,6 +95,10 @@ func (i *IdentityPopulation) ParseConfig(body hcl.Body) error {
 
 	if strings.TrimSpace(i.config.UserpassMount) == "" {
 		return fmt.Errorf("userpass_mount cannot be empty")
+	}
+
+	if i.config.ValidationSamples <= 0 {
+		return fmt.Errorf("validation_samples must be greater than 0")
 	}
 
 	return nil
@@ -154,17 +166,22 @@ func (i *IdentityPopulation) Setup(client *api.Client, mountName string, topLeve
 		header:     i.header,
 		config:     i.config,
 		logger:     i.logger,
-		entityIDs:  i.entityIDs,
 	}
 
 	if i.config.LinkUserpassAuth {
-		// A bare userpass login always resolves to some entity, so validate
-		// against the expected id to confirm the alias mapping is correct.
-		firstUser := i.entityName(1)
-		if err := authLinker.validateLogin(client, firstUser, i.entityIDs[0]); err != nil {
-			return nil, err
+		// A bare userpass login always resolves to some entity, so each sample
+		// checks against its expected id to confirm the alias mapping is correct.
+		// Sampling (vs. checking every alias) is enough because linking failures
+		// are systematic; a fixed random sample bounds the cost regardless of size.
+		sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
+
+		for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
+			name := i.entityName(idx)
+			if err := authLinker.validateLogin(client, name, i.entityIDs[idx-1]); err != nil {
+				return nil, err
+			}
 		}
-		i.logger.Info("login resolution validated", "user", firstUser, "entity_id", i.entityIDs[0])
+		i.logger.Info("login resolution validated", "samples", sampleCount, "entities", i.config.EntityCount)
 
 		population.linkAuth = true
 		population.password = authLinker.password()
@@ -212,4 +229,28 @@ func (i *IdentityPopulation) Flags(fs *flag.FlagSet) {}
 
 func (i *IdentityPopulation) entityName(idx int) string {
 	return fmt.Sprintf("%s-%06d", i.config.NamePrefix, idx)
+}
+
+// sampleIndices returns k distinct 1-based indices in [1, n], chosen at random.
+// It returns all indices when k >= n. Callers must pass 0 < k <= n.
+func sampleIndices(n, k int) []int {
+	if k >= n {
+		idxs := make([]int, n)
+		for i := range idxs {
+			idxs[i] = i + 1
+		}
+		return idxs
+	}
+
+	seen := make(map[int]struct{}, k)
+	idxs := make([]int, 0, k)
+	for len(idxs) < k {
+		candidate := rand.Intn(n) + 1
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		idxs = append(idxs, candidate)
+	}
+	return idxs
 }

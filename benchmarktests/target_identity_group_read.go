@@ -29,24 +29,27 @@ func init() {
 
 // TODO(refactor-pr):
 //   - rename cleanupCreatedIdentityResources -> cleanupIdentityResources
-//   - add package/target docs (missing; standup item)
-//   - rename target once it becomes the generalist weighted identity-lifecycle target
+//   - add package/target docs
+//   - rename script name to a generalist weighted identity-lifecycle target
 
 type IdentityGroupRead struct {
-	pathPrefix string
-	header     http.Header
-	config     *IdentityGroupReadConfig
-	groupIDs   []string
-	entityIDs  []string
-	logger     hclog.Logger
+	pathPrefix    string
+	header        http.Header
+	config        *IdentityGroupReadConfig
+	groupIDs      []string
+	entityIDs     []string
+	probeUsers    []string
+	userpassMount string
+	logger        hclog.Logger
 }
 
 type IdentityGroupReadConfig struct {
-	EntityCount   int    `hcl:"entity_count,optional"`
-	GroupCount    int    `hcl:"group_count,optional"`
-	GroupSize     int    `hcl:"group_size,optional"`
-	CreateAliases bool   `hcl:"create_aliases,optional"`
-	UserpassMount string `hcl:"userpass_mount,optional"`
+	EntityCount       int    `hcl:"entity_count,optional"`
+	GroupCount        int    `hcl:"group_count,optional"`
+	GroupSize         int    `hcl:"group_size,optional"`
+	CreateAliases     bool   `hcl:"create_aliases,optional"`
+	UserpassMount     string `hcl:"userpass_mount,optional"`
+	ValidationSamples int    `hcl:"validation_samples,optional"`
 }
 
 func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
@@ -54,11 +57,12 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 		Config *IdentityGroupReadConfig `hcl:"config,block"`
 	}{
 		Config: &IdentityGroupReadConfig{
-			EntityCount:   1000,
-			GroupCount:    1000,
-			GroupSize:     10,
-			CreateAliases: true,
-			UserpassMount: "userpass",
+			EntityCount:       1000,
+			GroupCount:        1000,
+			GroupSize:         10,
+			CreateAliases:     true,
+			UserpassMount:     "userpass",
+			ValidationSamples: identityValidationSamples,
 		},
 	}
 
@@ -82,6 +86,9 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 	if testConfig.Config.CreateAliases && testConfig.Config.UserpassMount == "" {
 		return fmt.Errorf("userpass_mount cannot be empty when create_aliases is true")
 	}
+	if testConfig.Config.ValidationSamples <= 0 {
+		return fmt.Errorf("validation_samples must be greater than 0")
+	}
 
 	i.config = testConfig.Config
 	return nil
@@ -95,11 +102,13 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	}
 
 	entityIDs := make([]string, 0, i.config.EntityCount)
+	entityNames := make([]string, 0, i.config.EntityCount)
 	groupIDs := make([]string, 0, i.config.GroupCount)
-	// When create_aliases is set, aliases are validated at setup via a
-	// single-sample login probe (below); note the read workload itself does not
-	// exercise aliases. Whether create_aliases belongs here long-term is the
-	// deferred dataset-vs-workload question.
+	var probeUsers []string
+	// When create_aliases is set, aliases are validated at setup via sampled
+	// login probes (below); note the read workload itself does not exercise
+	// aliases. Whether create_aliases belongs here long-term is the deferred
+	// dataset-vs-workload question.
 	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
 		CreateAliases: i.config.CreateAliases,
 		UserpassMount: i.config.UserpassMount,
@@ -108,42 +117,53 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	if err != nil {
 		return nil, err
 	}
+	userpassMount := authLinker.mountPath()
 
-	firstEntityName := ""
 	for idx := 0; idx < i.config.EntityCount; idx++ {
 		entityName := mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
-		if idx == 0 {
-			firstEntityName = entityName
-		}
 		resp, err := client.Logical().Write("identity/entity", map[string]interface{}{
 			"name": entityName,
 		})
 		if err != nil {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, probeUsers, userpassMount)
 			return nil, fmt.Errorf("error creating identity entity %q: %v", entityName, err)
 		}
 
 		entityID, err := identityIDFromResponse(resp)
 		if err != nil {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, probeUsers, userpassMount)
 			return nil, fmt.Errorf("error reading identity entity id for %q: %v", entityName, err)
 		}
 
 		entityIDs = append(entityIDs, entityID)
+		entityNames = append(entityNames, entityName)
 
 		err = authLinker.linkEntity(client, entityName, entityID)
 		if err != nil {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, probeUsers, userpassMount)
 			return nil, err
 		}
 	}
 
 	if i.config.CreateAliases && len(entityIDs) > 0 {
-		if err := authLinker.validateLogin(client, firstEntityName, entityIDs[0]); err != nil {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
-			return nil, err
+		// A bare userpass login always resolves to some entity, so each sample
+		// checks against its expected id to confirm the alias mapping. Alias-only
+		// mode has no users to log in as, so validateLogin creates a throwaway
+		// probe user per sample; track them so Cleanup can remove them.
+		sampleCount := i.config.ValidationSamples
+		if sampleCount > len(entityIDs) {
+			sampleCount = len(entityIDs)
 		}
-		i.logger.Info("login resolution validated", "user", firstEntityName, "entity_id", entityIDs[0])
+
+		for _, idx := range sampleIndices(len(entityIDs), sampleCount) {
+			name := entityNames[idx-1]
+			probeUsers = append(probeUsers, name)
+			if err := authLinker.validateLogin(client, name, entityIDs[idx-1]); err != nil {
+				_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, probeUsers, userpassMount)
+				return nil, err
+			}
+		}
+		i.logger.Info("login resolution validated", "samples", sampleCount, "entities", len(entityIDs))
 	}
 
 	for idx := 0; idx < i.config.GroupCount; idx++ {
@@ -156,13 +176,13 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 			"member_entity_ids": members,
 		})
 		if err != nil {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, probeUsers, userpassMount)
 			return nil, fmt.Errorf("error creating identity group %q: %v", groupName, err)
 		}
 
 		groupID, err := identityIDFromResponse(resp)
 		if err != nil {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, probeUsers, userpassMount)
 			return nil, fmt.Errorf("error reading identity group id for %q: %v", groupName, err)
 		}
 
@@ -170,12 +190,14 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	}
 
 	return &IdentityGroupRead{
-		pathPrefix: "/v1/identity/group/id/",
-		header:     generateHeader(client),
-		config:     i.config,
-		groupIDs:   groupIDs,
-		entityIDs:  entityIDs,
-		logger:     i.logger,
+		pathPrefix:    "/v1/identity/group/id/",
+		header:        generateHeader(client),
+		config:        i.config,
+		groupIDs:      groupIDs,
+		entityIDs:     entityIDs,
+		probeUsers:    probeUsers,
+		userpassMount: userpassMount,
+		logger:        i.logger,
 	}, nil
 }
 
@@ -198,7 +220,7 @@ func (i *IdentityGroupRead) Target(client *api.Client) vegeta.Target {
 
 func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
 	i.logger.Trace("cleaning up identity benchmark resources")
-	return i.cleanupCreatedIdentityResources(client, i.groupIDs, i.entityIDs)
+	return i.cleanupCreatedIdentityResources(client, i.groupIDs, i.entityIDs, i.probeUsers, i.userpassMount)
 }
 
 func (i *IdentityGroupRead) Flags(fs *flag.FlagSet) {}
@@ -210,7 +232,7 @@ func (i *IdentityGroupRead) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string) error {
+func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, probeUsers []string, userpassMount string) error {
 	var firstErr error
 
 	for _, groupID := range groupIDs {
@@ -224,6 +246,13 @@ func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, 
 		_, err := client.Logical().Delete("identity/entity/id/" + entityID)
 		if err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("error deleting identity entity %q: %v", entityID, err)
+		}
+	}
+
+	for _, user := range probeUsers {
+		_, err := client.Logical().Delete("auth/" + userpassMount + "/users/" + user)
+		if err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("error deleting validation user %q: %v", user, err)
 		}
 	}
 
