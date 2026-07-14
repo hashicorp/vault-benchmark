@@ -22,6 +22,7 @@ workload (see Notes).
 - `group_size` `(int: 10)` - Entity members per group. Must be `> 0` and `<= entity_count` when `group_count > 0`.
 - `validation_samples` `(int: 100)` - Aliases sampled at setup to verify login resolution when `create_aliases` is set. Clamped to `entity_count`; a fixed sample gives high confidence independent of `entity_count`.
 - `progress_interval` `(int: 1000)` - How often to log progress during entity creation.
+- `concurrency` `(int: 10)` - Number of parallel workers used to create entities and groups during setup. Increasing this reduces setup time proportionally up to the point Vault or the network becomes the bottleneck. Must be `>= 1`.
 
 ## Example HCL
 
@@ -35,6 +36,7 @@ test "identity_group_read" "identity_login" {
     entity_count   = 1000
     create_users   = true
     create_aliases = true
+    concurrency    = 10
   }
 }
 ```
@@ -49,6 +51,7 @@ test "identity_group_read" "identity_group_read" {
     entity_count = 1000
     group_count  = 1000
     group_size   = 10
+    concurrency  = 10
   }
 }
 ```
