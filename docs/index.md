@@ -62,7 +62,7 @@ Test RADIUS authentication directly
 Check Vault RADIUS configuration
 Enable Vault debug logging](tests/auth-radius.md)
 - [Userpass Auth Benchmark (`userpass_auth`)](tests/auth-userpass.md)
-- [Identity Population Benchmark (`identity_population`)](tests/identity-population.md)
+- [Identity Benchmark (`identity`)](tests/identity.md)
 
 ### Secret Benchmark Tests
 

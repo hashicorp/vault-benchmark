@@ -24,7 +24,6 @@ import (
 //   - swap primary struct before its Config; add a type doc comment
 //   - resolve getter/field collision (mountPath()/password() force the longer
 //     userpassMountPath/userPassword fields)
-//   - move identityIDFromResponse (currently in group_read) here; it's shared
 
 // identityAuthLinkConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.
@@ -210,6 +209,26 @@ func normalizeAuthMountPath(path string) string {
 	}
 
 	return normalized
+}
+
+// identityIDFromResponse extracts the "id" field from an identity
+// entity/group write or read response.
+func identityIDFromResponse(resp *api.Secret) (string, error) {
+	if resp == nil || resp.Data == nil {
+		return "", fmt.Errorf("empty response data")
+	}
+
+	rawID, ok := resp.Data["id"]
+	if !ok {
+		return "", fmt.Errorf("response missing id field")
+	}
+
+	id, ok := rawID.(string)
+	if !ok || id == "" {
+		return "", fmt.Errorf("response id is not a non-empty string")
+	}
+
+	return id, nil
 }
 
 // sampleIndices returns k distinct 1-based indices in [1, n], chosen at random.
