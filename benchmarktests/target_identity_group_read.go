@@ -3,22 +3,13 @@
 
 package benchmarktests
 
-// target_identity_group_read.go is the consolidated identity benchmark target.
-// It extends the original identity_group_read target in place to also drive the
-// population/login workload that previously lived in target_identity_population.go
-// (removed in this PR). The attack-phase workload is selected via the workload
-// config field.
-//
-// Consolidation summary:
-//   - Absorbed target_identity_population.go's login/population setup and attack
-//     path; that file is deleted in this PR.
-//   - Added workload, create_users, name_prefix, progress_interval, and
-//     validation_samples config fields.
-//   - Kept the IdentityGroupRead type and identity_group_read registry key so the
-//     diff reads as "group_read extended", not a rewrite.
-//
 // TODO(refactor-pr):
 //   - rename target/type/registry key from identity_group_read to identity
+//   - rename cleanupCreatedIdentityResources -> cleanupIdentityResources
+//
+// TODO(feature): richer user<->entity mapping — support N:1 links and alias
+//   bloating (multiple users/aliases per entity) so load can be weighted and
+//   shaped independently of entity_count.
 //   - parallelize entity/group creation with a bounded worker pool (setup is serial)
 //   - decouple user count from entity_count (bcrypt cost is pinned to entity_count
 //     whenever create_users is set)
@@ -68,52 +59,38 @@ func init() {
 	TestList[IdentityGroupReadTestType] = func() BenchmarkBuilder { return &IdentityGroupRead{} }
 }
 
-// IdentityGroupRead is the consolidated benchmark target for Vault identity
-// workloads. It retains the original group_read behaviour and adds the
-// population/login path merged in from the former IdentityPopulation target.
-// The type name is kept as-is for a reviewable diff; renaming is refactor-PR work.
+// IdentityGroupRead is the consolidated identity target (group_read + login/population).
 type IdentityGroupRead struct {
-	pathPrefix string
-	header     http.Header
-	config     *IdentityGroupReadConfig
-
-	// Original group_read state.
-	groupIDs  []string
-	entityIDs []string
-
-	// New fields for login workload (migrated from IdentityPopulation).
-	method    string
-	loginBody []byte
-
-	// Setup state shared across workloads.
-	mountName     string
-	runID         string
+	pathPrefix    string
+	header        http.Header
+	config        *IdentityGroupReadConfig
+	groupIDs      []string
+	entityIDs     []string
 	userpassMount string
-	ownsMount     bool
+	logger        hclog.Logger
 
+	// Added for the merged login/population workload.
+	method     string
+	loginBody  []byte
+	mountName  string
+	runID      string
+	ownsMount  bool
 	authLinker *identityAuthLinkHelper
-	logger     hclog.Logger
 }
 
-// IdentityGroupReadConfig adds the workload selector and the population-specific
-// fields (migrated from the former IdentityPopulationConfig) to the original
-// group_read config.
 type IdentityGroupReadConfig struct {
-	// Original group_read config fields.
-	EntityCount   int    `hcl:"entity_count,optional"`
-	GroupCount    int    `hcl:"group_count,optional"`
-	GroupSize     int    `hcl:"group_size,optional"`
-	CreateAliases bool   `hcl:"create_aliases,optional"`
-	UserpassMount string `hcl:"userpass_mount,optional"`
+	EntityCount       int    `hcl:"entity_count,optional"`
+	GroupCount        int    `hcl:"group_count,optional"`
+	GroupSize         int    `hcl:"group_size,optional"`
+	CreateAliases     bool   `hcl:"create_aliases,optional"`
+	UserpassMount     string `hcl:"userpass_mount,optional"`
+	ValidationSamples int    `hcl:"validation_samples,optional"`
 
-	// Migrated from IdentityPopulationConfig.
+	// Added for the merged login/population workload.
+	Workload         string `hcl:"workload,optional"`
+	CreateUsers      bool   `hcl:"create_users,optional"`
 	NamePrefix       string `hcl:"name_prefix,optional"`
 	ProgressInterval int    `hcl:"progress_interval,optional"`
-	CreateUsers      bool   `hcl:"create_users,optional"`
-
-	// New field: selects the attack-phase workload.
-	Workload          string `hcl:"workload,optional"`
-	ValidationSamples int    `hcl:"validation_samples,optional"`
 }
 
 func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
@@ -121,19 +98,16 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 		Config *IdentityGroupReadConfig `hcl:"config,block"`
 	}{
 		Config: &IdentityGroupReadConfig{
-			// Defaults preserved from the original group_read config.
-			EntityCount:   1000,
-			GroupCount:    0,
-			GroupSize:     10,
-			CreateAliases: false,
-			UserpassMount: "userpass",
-			// Defaults migrated from IdentityPopulationConfig.
-			NamePrefix:       "entity",
-			ProgressInterval: 1000,
-			CreateUsers:      false,
-			// New: seed-only by default, matching the old population MVP behaviour.
-			Workload:          identityWorkloadNone,
+			EntityCount:       1000,
+			GroupCount:        0,
+			GroupSize:         10,
+			CreateAliases:     false,
+			UserpassMount:     "userpass",
 			ValidationSamples: identityValidationSamples,
+			Workload:          identityWorkloadNone,
+			CreateUsers:       false,
+			NamePrefix:        "entity",
+			ProgressInterval:  1000,
 		},
 	}
 
@@ -225,14 +199,14 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	ownsMount := (i.config.CreateAliases || i.config.CreateUsers) && randomMounts
 
 	if err := i.createEntities(client, mountName, runID, authLinker, entityIDs); err != nil {
-		_ = cleanupIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
+		_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
 		return nil, err
 	}
 	entityIDs = i.entityIDs
 
 	if i.config.GroupCount > 0 {
 		if err := i.createGroups(client, mountName, runID, entityIDs, groupIDs); err != nil {
-			_ = cleanupIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
 			return nil, err
 		}
 		groupIDs = i.groupIDs
@@ -240,7 +214,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 
 	if i.config.CreateAliases {
 		if err := i.validateLinks(client, mountName, runID, authLinker); err != nil {
-			_ = cleanupIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
+			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
 			return nil, err
 		}
 	}
@@ -248,7 +222,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	header := generateHeader(client)
 	method, pathPrefix, loginBody, err := configureAttack(i.config, authLinker)
 	if err != nil {
-		_ = cleanupIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
+		_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
 		return nil, err
 	}
 
@@ -314,7 +288,7 @@ func (i *IdentityGroupRead) createEntities(client *api.Client, mountName, runID 
 // members drawn deterministically from the created entities.
 func (i *IdentityGroupRead) createGroups(client *api.Client, mountName, runID string, entityIDs, groupIDs []string) error {
 	for idx := 0; idx < i.config.GroupCount; idx++ {
-		groupName := fmt.Sprintf("%s-group-%s-%d", mountName, runID, idx)
+		groupName := mountName + "-group-" + runID + "-" + strconv.Itoa(idx)
 		members := selectGroupMembers(entityIDs, idx, i.config.GroupSize)
 
 		resp, err := client.Logical().Write("identity/group", map[string]interface{}{
@@ -341,9 +315,8 @@ func (i *IdentityGroupRead) createGroups(client *api.Client, mountName, runID st
 	return nil
 }
 
-// validateLinks verifies a random sample of alias→entity mappings by logging in
-// and confirming the token resolves to the expected entity. Migrated from the
-// validateAliasLinks helper in IdentityPopulation.
+// validateLinks verifies a random sample of alias->entity mappings by logging in
+// and confirming the token resolves to the expected entity.
 func (i *IdentityGroupRead) validateLinks(client *api.Client, mountName, runID string, authLinker *identityAuthLinkHelper) error {
 	sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
 	for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
@@ -413,23 +386,25 @@ func (i *IdentityGroupRead) Target(client *api.Client) vegeta.Target {
 
 func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
 	i.logger.Trace("cleaning up identity benchmark resources")
-	return cleanupIdentityResources(client, i.groupIDs, i.entityIDs, i.ownsMount, i.userpassMount)
+	return i.cleanupCreatedIdentityResources(client, i.groupIDs, i.entityIDs, i.ownsMount, i.userpassMount)
 }
 
-// cleanupIdentityResources deletes groups, entities, and, when this run owns the
-// userpass mount, disables it to remove all linked and probe users at once.
-func cleanupIdentityResources(client *api.Client, groupIDs, entityIDs []string, ownsMount bool, userpassMount string) error {
+// cleanupCreatedIdentityResources deletes groups, entities, and, when this run
+// owns the userpass mount, disables it to remove all linked and probe users.
+func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, ownsMount bool, userpassMount string) error {
 	var firstErr error
 
 	for _, groupID := range groupIDs {
-		if _, err := client.Logical().Delete("identity/group/id/" + groupID); err != nil && firstErr == nil {
+		_, err := client.Logical().Delete("identity/group/id/" + groupID)
+		if err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("error deleting identity group %q: %v", groupID, err)
 		}
 	}
 
 	// Deleting an entity removes its aliases, so aliases need no separate cleanup.
 	for _, entityID := range entityIDs {
-		if _, err := client.Logical().Delete("identity/entity/id/" + entityID); err != nil && firstErr == nil {
+		_, err := client.Logical().Delete("identity/entity/id/" + entityID)
+		if err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("error deleting identity entity %q: %v", entityID, err)
 		}
 	}
@@ -457,12 +432,9 @@ func (i *IdentityGroupRead) Flags(fs *flag.FlagSet) {}
 // entityName derives a run-unique, index-addressable entity name of the form
 // mountName-entity-runID-idx.
 func entityName(mountName, runID string, idx int) string {
-	return fmt.Sprintf("%s-entity-%s-%s", mountName, runID, strconv.Itoa(idx))
+	return mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// selectGroupMembers returns GroupSize member ids for the given group index,
-// wrapping around the entity list so every entity is used roughly evenly.
-// Directly preserved from IdentityGroupRead.
 func selectGroupMembers(entityIDs []string, groupIndex int, groupSize int) []string {
 	members := make([]string, 0, groupSize)
 	start := (groupIndex * groupSize) % len(entityIDs)
