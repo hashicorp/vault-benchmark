@@ -26,6 +26,7 @@ benchmark, or `workload = "none"` to only seed objects.
 - `create_users` `(bool: false)` - When `true`, create a userpass user per entity (named after the entity) so entities are loginable.
 - `userpass_mount` `(string: "userpass")` - Userpass auth mount used for created users and aliases. Enabled automatically if it does not already exist. Required when `create_aliases` or `create_users` is set.
 - `validation_samples` `(int: 100)` - Number of aliases randomly sampled at setup to verify login resolution when `create_aliases` is `true`. Clamped to `entity_count`. Because alias-linking failures are systematic, a fixed sample gives high confidence independent of `entity_count`; raise it for stricter checks or lower it for faster setup.
+- `concurrency` `(int: 10)` - Number of parallel workers used to create entities and groups during setup. Increasing this reduces setup time proportionally up to the point Vault or the network becomes the bottleneck. Must be `>= 1`.
 
 ## Example HCL
 
@@ -43,6 +44,7 @@ test "identity_group_read" "identity_login" {
     create_aliases     = true
     userpass_mount     = "userpass"
     validation_samples = 100
+    concurrency        = 10
   }
 }
 ```
@@ -59,6 +61,7 @@ test "identity_group_read" "identity_group_read" {
     workload       = "group_read"
     create_aliases = true
     userpass_mount = "userpass"
+    concurrency    = 10
   }
 }
 ```
