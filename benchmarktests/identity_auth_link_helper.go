@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
@@ -209,6 +210,23 @@ func normalizeAuthMountPath(path string) string {
 	}
 
 	return normalized
+}
+
+// entityName derives a run-unique, index-addressable entity name of the form
+// mountName-entity-runID-idx.
+func entityName(mountName, runID string, idx int) string {
+	return mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
+}
+
+// selectGroupMembers returns groupSize entity ids for the given group index,
+// walking the entity slice with wraparound so membership is deterministic.
+func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string {
+	members := make([]string, 0, groupSize)
+	start := (groupIndex * groupSize) % len(entityIDs)
+	for offset := 0; offset < groupSize; offset++ {
+		members = append(members, entityIDs[(start+offset)%len(entityIDs)])
+	}
+	return members
 }
 
 // identityIDFromResponse extracts the "id" field from an identity

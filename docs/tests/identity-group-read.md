@@ -13,19 +13,18 @@ benchmark, or `workload = "none"` to only seed objects.
 
 ### Configuration `config`
 
-- `entity_count` `(int: 1000)` - Number of Identity entities to create during setup.
-- `name_prefix` `(string: "entity")` - Prefix for generated object names. Entities are named `<name_prefix>-<run_id>-000001` and groups `<name_prefix>-group-<run_id>-000001`; the per-run id keeps names unique across concurrent runs while remaining index-addressable.
-- `progress_interval` `(int: 1000)` - How often to log progress during entity creation.
 - `workload` `(string: "none")` - Attack-phase workload. One of:
-  - `none` - Seed only. The attack phase performs no identity work and only hits `sys/health`; use a short `duration` for seed-only runs (see Notes).
-  - `login` - The attack phase logs in as randomly selected users. Requires `create_users = true` and `create_aliases = true`.
-  - `group_read` - The attack phase reads randomly selected groups by id. Requires `group_count > 0`.
-- `group_count` `(int: 0)` - Number of internal groups to create. `0` creates no groups.
-- `group_size` `(int: 10)` - Number of entity members per group. Must be `> 0` and `<= entity_count` when `group_count > 0`.
-- `create_aliases` `(bool: false)` - When `true`, link each entity to a userpass entity alias (named after the entity) so logins resolve to it. Enables the sampled login-resolution validation below.
-- `create_users` `(bool: false)` - When `true`, create a userpass user per entity (named after the entity) so entities are loginable.
-- `userpass_mount` `(string: "userpass")` - Userpass auth mount used for created users and aliases. Enabled automatically if it does not already exist. Required when `create_aliases` or `create_users` is set.
-- `validation_samples` `(int: 100)` - Number of aliases randomly sampled at setup to verify login resolution when `create_aliases` is `true`. Clamped to `entity_count`. Because alias-linking failures are systematic, a fixed sample gives high confidence independent of `entity_count`; raise it for stricter checks or lower it for faster setup.
+  - `none` - Seed only; the attack phase just hits `sys/health`. Use a short `duration` (see Notes).
+  - `login` - Log in as randomly selected users. Requires `create_users = true` and `create_aliases = true`.
+  - `group_read` - Read randomly selected groups by id. Requires `group_count > 0`.
+- `entity_count` `(int: 1000)` - Number of Identity entities to create during setup.
+- `create_users` `(bool: false)` - Create a userpass user per entity so entities are loginable.
+- `create_aliases` `(bool: false)` - Link each entity to a userpass alias so logins resolve to it. Enables the sampled login-resolution validation.
+- `userpass_mount` `(string: "userpass")` - Userpass mount for created users/aliases; enabled automatically if absent. Required when `create_users` or `create_aliases` is set.
+- `group_count` `(int: 0)` - Number of internal groups to create. `0` creates none.
+- `group_size` `(int: 10)` - Entity members per group. Must be `> 0` and `<= entity_count` when `group_count > 0`.
+- `validation_samples` `(int: 100)` - Aliases sampled at setup to verify login resolution when `create_aliases` is set. Clamped to `entity_count`; a fixed sample gives high confidence independent of `entity_count`.
+- `progress_interval` `(int: 1000)` - How often to log progress during entity creation.
 
 ## Example HCL
 
@@ -35,14 +34,13 @@ Login workload (former `identity_population` with `link_auth = true`):
 test "identity_group_read" "identity_login" {
   weight = 100
   config {
-    entity_count       = 1000
-    name_prefix        = "entity"
-    progress_interval  = 200
     workload           = "login"
+    entity_count       = 1000
     create_users       = true
     create_aliases     = true
     userpass_mount     = "userpass"
     validation_samples = 100
+    progress_interval  = 200
   }
 }
 ```
@@ -53,12 +51,12 @@ Group-read workload (former `identity_group_read`):
 test "identity_group_read" "identity_group_read" {
   weight = 100
   config {
-    entity_count   = 1000
-    group_count    = 1000
-    group_size     = 10
     workload       = "group_read"
+    entity_count   = 1000
     create_aliases = true
     userpass_mount = "userpass"
+    group_count    = 1000
+    group_size     = 10
   }
 }
 ```
