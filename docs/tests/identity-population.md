@@ -1,45 +1,35 @@
-# Identity Population Benchmark ('identity_population')
+# Identity Population Benchmark (`identity_population`)
 
-This benchmark creates a static set of Vault Identity entities during the setup phase.
-
-This target is primarily useful for seeding an identity dataset before running other benchmarks, or for measuring Vault identity entity creation performance in a controlled way. The attack/cleanup phases are intentionally trivial in this MVP.
+This benchmark creates Vault Identity entities during setup, and can optionally make them loginable so the attack phase drives userpass logins that resolve to those entities.
 
 ## Test Parameters
 
 ### Configuration `config`
 
-- `entity_count` `(int: 10000)` - number of Identity entities to create during setup.
-- `name_prefix` `(string: "seed-entity")` - prefix used for generated entity names. Entity names are created as `<name_prefix>-000001`, `<name_prefix>-000002`, etc.
-- `progress_interval` `(int: 1000)` - how often to log setup progress during entity creation.
-- `create_aliases` `(bool: true)` - create one entity alias per generated entity.
-- `userpass_mount` `(string: "userpass")` - userpass auth mount used to resolve the alias mount accessor.
+- `entity_count` `(int: 10000)` - Number of Identity entities to create during setup.
+- `name_prefix` `(string: "seed-entity")` - Prefix for generated entity names, created as `<name_prefix>-000001`, `<name_prefix>-000002`, etc.
+- `progress_interval` `(int: 1000)` - How often to log progress during entity creation.
+- `link_auth` `(bool: false)` - When `true`, setup also creates a userpass user and entity alias per entity (both named after the entity), and the attack phase logs in as randomly selected users. When `false`, this target only populates entities and the attack phase is a no-op health check.
+- `userpass_mount` `(string: "userpass")` - Userpass auth mount used for created users and aliases. Enabled automatically if it does not already exist.
+- `validation_samples` `(int: 100)` - Number of aliases randomly sampled at setup to verify login resolution when `link_auth` is `true`. Clamped to `entity_count`. Because alias-linking failures are systematic, a fixed sample gives high confidence independent of `entity_count`; raise it for stricter checks or lower it for faster setup.
 
-## Example Configuration
+## Example HCL
 
 ```hcl
-test "identity_population" "identity_population_test" {
-  weight = 10
+test "identity_population" "identity_population_login" {
+  weight = 100
   config {
-    entity_count      = 5000
-    name_prefix       = "scale-entity"
-    progress_interval = 500
-    create_aliases    = true
-    userpass_mount    = "userpass"
+    entity_count       = 1000
+    name_prefix        = "seed-entity"
+    progress_interval  = 200
+    link_auth          = true
+    userpass_mount     = "userpass"
+    validation_samples = 100
   }
 }
 ```
 
-## Behavior
-
-- Uses Vault's built-in Identity API at `identity/entity/name/<name>`.
-- Creates entities by name in the setup phase and reads each entity back to capture its generated ID.
-- Optionally creates `identity/entity-alias` entries and links alias name to generated entity ID in-memory for later validation.
-- The attack phase uses a minimal `/v1/sys/health` GET target so the benchmark runner can execute normally.
-- Cleanup is intentionally deferred in this MVP implementation; the target does not remove created entities automatically.
-
 ## Notes
 
-- Because Identity is a Vault built-in path, this target does not create or manage a mount.
-- When `create_aliases = true`, the target will use the configured `userpass_mount` and enable it if it does not already exist.
-- This target does not perform alias-to-entity verification checks yet; it only stores linkages for later checks.
-- If you want to test pure identity-entity population without later workload, set a small duration and a low weight for this target in the overall benchmark config.
+- When `link_auth = true`, setup logs in against a random sample of created users (see `validation_samples`) and fails if any login does not resolve to that user's entity, confirming the alias mapping is correct.
+- Cleanup is deferred in this MVP; created entities are not removed automatically.

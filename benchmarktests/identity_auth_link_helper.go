@@ -5,38 +5,60 @@ package benchmarktests
 
 import (
 	"fmt"
+	"math/rand"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
+	"github.com/sethvargo/go-password/password"
 )
 
+// TODO(refactor-pr): drop redundant auth/userpass qualifiers (file + type already
+// carry that context). Rename map:
+//   - file identity_auth_link_helper.go -> identity_linker.go (and _test.go)
+//   - type identityAuthLinkHelper -> identityLinker; identityAuthLinkConfig -> identityLinkerConfig
+//   - func newIdentityAuthLinkHelper -> newIdentityLinker
+//   - func ensureUserpassMountAccessor -> ensureMount; normalizeAuthMountPath -> normalizeMountPath
+// Also:
+//   - swap primary struct before its Config; add a type doc comment
+//   - resolve getter/field collision (mountPath()/password() force the longer
+//     userpassMountPath/userPassword fields)
+//   - move identityIDFromResponse (currently in group_read) here; it's shared
+
+// identityAuthLinkConfig configures how identity setup links generated entities
+// to a userpass auth mount so they become loginable.
 type identityAuthLinkConfig struct {
 	CreateAliases bool
+	CreateUsers   bool
 	UserpassMount string
 	RandomMounts  bool
 }
 
 type identityAuthLinkHelper struct {
 	createAliases bool
+	createUsers   bool
+	userPassword  string
 
 	userpassMountPath string
 	userpassAccessor  string
-
-	aliasIDs        []string
-	aliasToEntityID map[string]string
 }
 
 func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (*identityAuthLinkHelper, error) {
 	helper := &identityAuthLinkHelper{
-		createAliases:   cfg.CreateAliases,
-		aliasIDs:        make([]string, 0),
-		aliasToEntityID: make(map[string]string),
+		createAliases: cfg.CreateAliases,
+		createUsers:   cfg.CreateUsers,
 	}
 
-	if !cfg.CreateAliases {
+	if !cfg.CreateAliases && !cfg.CreateUsers {
 		return helper, nil
 	}
+
+	generated, err := generatePassword()
+	if err != nil {
+		return nil, fmt.Errorf("error generating userpass password: %w", err)
+	}
+	helper.userPassword = generated
 
 	authMountPath := normalizeAuthMountPath(cfg.UserpassMount)
 	if cfg.RandomMounts {
@@ -58,39 +80,79 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 	return helper, nil
 }
 
-func (h *identityAuthLinkHelper) createEntityAlias(client *api.Client, aliasName string, entityID string) error {
-	if !h.createAliases {
-		return nil
-	}
-
-	aliasResp, err := client.Logical().Write("identity/entity-alias", map[string]any{
-		"name":           aliasName,
-		"canonical_id":   entityID,
-		"mount_accessor": h.userpassAccessor,
-	})
-	if err != nil {
-		return fmt.Errorf("error creating alias for entity alias name %q: %w", aliasName, err)
-	}
-
-	if aliasResp != nil && aliasResp.Data != nil {
-		if rawAliasID, ok := aliasResp.Data["id"]; ok {
-			if aliasID, ok := rawAliasID.(string); ok && aliasID != "" {
-				h.aliasIDs = append(h.aliasIDs, aliasID)
-			}
+// linkEntity creates the userpass user (when CreateUsers is set) and then the
+// entity alias that connects it (when CreateAliases is set). Both are named after
+// the entity (1:1), which callers rely on to derive usernames from an index
+// without storing a lookup map.
+func (h *identityAuthLinkHelper) linkEntity(client *api.Client, name, entityID string) error {
+	if h.createUsers {
+		// filepath.Join+ToSlash: build the path portably (forward slashes) even on Windows.
+		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		_, err := client.Logical().Write(userPath, map[string]any{
+			"password": h.userPassword,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating userpass user %q: %w", name, err)
 		}
 	}
 
-	h.aliasToEntityID[aliasName] = entityID
+	if h.createAliases {
+		_, err := client.Logical().Write("identity/entity-alias", map[string]any{
+			"name":           name,
+			"canonical_id":   entityID,
+			"mount_accessor": h.userpassAccessor,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating entity alias %q: %w", name, err)
+		}
+	}
+
 	return nil
 }
 
-func (h *identityAuthLinkHelper) aliasEntityLinksCopy() map[string]string {
-	links := make(map[string]string, len(h.aliasToEntityID))
-	for alias, entityID := range h.aliasToEntityID {
-		links[alias] = entityID
+// validateLogin is a single-sample, fail-fast check: it logs in as
+// one user and confirms the token resolves to expectedEntityID. For alias-only
+// datasets it first creates a throwaway probe user, since there is otherwise no
+// credential to log in with.
+func (h *identityAuthLinkHelper) validateLogin(client *api.Client, name, expectedEntityID string) error {
+	if h.userpassAccessor == "" {
+		return fmt.Errorf("cannot validate login resolution: no userpass mount configured")
 	}
 
-	return links
+	if !h.createUsers {
+		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		if _, err := client.Logical().Write(userPath, map[string]any{
+			"password": h.userPassword,
+		}); err != nil {
+			return fmt.Errorf("error creating validation user %q: %w", name, err)
+		}
+	}
+
+	loginPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "login", name))
+	secret, err := client.Logical().Write(loginPath, map[string]any{
+		"password": h.userPassword,
+	})
+	if err != nil {
+		return fmt.Errorf("login resolution check failed for user %q: %w", name, err)
+	}
+	if secret == nil || secret.Auth == nil {
+		return fmt.Errorf("login resolution check for user %q returned no auth data", name)
+	}
+
+	if secret.Auth.EntityID != expectedEntityID {
+		return fmt.Errorf("login for user %q resolved to entity %q, expected %q",
+			name, secret.Auth.EntityID, expectedEntityID)
+	}
+
+	return nil
+}
+
+func (h *identityAuthLinkHelper) mountPath() string {
+	return h.userpassMountPath
+}
+
+func (h *identityAuthLinkHelper) password() string {
+	return h.userPassword
 }
 
 func ensureUserpassMountAccessor(client *api.Client, mountPath string) (string, string, error) {
@@ -135,6 +197,12 @@ func ensureUserpassMountAccessor(client *api.Client, mountPath string) (string, 
 	return authMount.Accessor, authMountPath, nil
 }
 
+// generatePassword returns a strong throwaway password shared by every
+// generated user: 64 chars, 10 digits, no symbols, repeats allowed.
+func generatePassword() (string, error) {
+	return password.Generate(64, 10, 0, false, true)
+}
+
 func normalizeAuthMountPath(path string) string {
 	normalized := strings.Trim(path, "/")
 	if normalized == "" {
@@ -142,4 +210,28 @@ func normalizeAuthMountPath(path string) string {
 	}
 
 	return normalized
+}
+
+// sampleIndices returns k distinct 1-based indices in [1, n], chosen at random.
+// It returns all indices when k >= n. Callers must pass 0 < k <= n.
+func sampleIndices(n, k int) []int {
+	if k >= n {
+		idxs := make([]int, n)
+		for i := range idxs {
+			idxs[i] = i + 1
+		}
+		return idxs
+	}
+
+	seen := make(map[int]struct{}, k)
+	idxs := make([]int, 0, k)
+	for len(idxs) < k {
+		candidate := rand.Intn(n) + 1
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		idxs = append(idxs, candidate)
+	}
+	return idxs
 }
