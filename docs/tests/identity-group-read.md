@@ -1,14 +1,13 @@
-# Identity Benchmark (`identity`)
+# Identity Group Read Benchmark (`identity_group_read`)
 
 This benchmark seeds Vault Identity objects during setup and, when a workload is
 selected, drives that workload during the attack phase. It creates entities,
 optional groups, and optional userpass links (users and/or aliases), can validate
 that logins resolve to the seeded entities, and cleans up everything it created.
 
-It consolidates the former `identity_population` and `identity_group_read`
-targets: choose `workload = "login"` for the population/login benchmark,
-`workload = "group_read"` for the group-read benchmark, or `workload = "none"` to
-only seed objects.
+It absorbs the former `identity_population` target: choose `workload = "login"`
+for the population/login benchmark, `workload = "group_read"` for the group-read
+benchmark, or `workload = "none"` to only seed objects.
 
 ## Test Parameters
 
@@ -33,7 +32,7 @@ only seed objects.
 Login workload (former `identity_population` with `link_auth = true`):
 
 ```hcl
-test "identity" "identity_login" {
+test "identity_group_read" "identity_login" {
   weight = 100
   config {
     entity_count       = 1000
@@ -51,7 +50,7 @@ test "identity" "identity_login" {
 Group-read workload (former `identity_group_read`):
 
 ```hcl
-test "identity" "identity_group_read" {
+test "identity_group_read" "identity_group_read" {
   weight = 100
   config {
     entity_count   = 1000
@@ -67,7 +66,7 @@ test "identity" "identity_group_read" {
 Seed only (no attack-phase workload):
 
 ```hcl
-test "identity" "identity_seed" {
+test "identity_group_read" "identity_seed" {
   weight = 100
   config {
     entity_count = 10000

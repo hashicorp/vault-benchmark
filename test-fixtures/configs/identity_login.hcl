@@ -6,7 +6,7 @@ report_mode = "terse"
 random_mounts = true
 cleanup = true
 
-test "identity" "identity_login" {
+test "identity_group_read" "identity_login" {
   weight = 100
   config {
     entity_count = 1000
