@@ -3,27 +3,59 @@
 
 package benchmarktests
 
-// TODO(refactor-pr):
-//   - rename target/type/registry key: identity_group_read -> identity
-//   - fold cleanupCreatedIdentityResources into Cleanup (split only for Setup rollback)
-//   - trim config to a count-driven surface (creation implied by count > 0):
-//       workload     : populate | login | group_read (mode)
-//       entity_count : base object count
-//       alias_count  : entities to link (0..entity_count for now; >entity_count
-//                      bloating is the feature TODO below)
-//       group_count  : groups (0 = none)
-//       group_size   : derived entity_count/group_count unless set
-//       validation_samples : advanced, default 100
-//     drop: create_aliases (-> alias_count>0), create_users (derive from
-//     workload), userpass_mount (hardcode; random_mounts isolates),
-//     progress_interval (-> internal constant)
-//   - Target() login pick range becomes [1, alias_count] since only linked
-//     entities are loginable
+// TODO(refactor-pr): identity target refactor checklist. Do the mechanical
+// renames first (reviewable as a pure rename), then structural cleanup, then the
+// config reframe. None of this changes current behavior.
 //
-// TODO(feature): richer user<->entity mapping (N:1 links, alias bloating) so load
-//   scales independently of entity_count; parallelize setup creation. Note: the
-//   userpass mount is enabled once up front, so only the per-entity writes
-//   parallelize; watch for entity-alias writes racing on the same canonical_id.
+// 1. Renames
+//    [ ] target/type/registry key: identity_group_read -> identity
+//    [ ] helper file: identity_auth_link_helper.go -> identity_linker.go (+ _test.go)
+//    [ ] helper types: identityAuthLinkHelper -> identityLinker,
+//        identityAuthLinkConfig -> identityLinkerConfig
+//    [ ] helper funcs: newIdentityAuthLinkHelper -> newIdentityLinker,
+//        ensureUserpassMountAccessor -> ensureMount,
+//        normalizeAuthMountPath -> normalizeMountPath
+//    [ ] resolve getter/field collision so fields can shorten:
+//        mountPath()/password() vs userpassMountPath/userPassword
+//    [ ] put the primary struct before its Config; add a type doc comment
+//
+// 2. Structural cleanup
+//    [ ] fold cleanupCreatedIdentityResources into Cleanup (split only for rollback)
+//    [ ] hardcode "userpass" mount; drop UserpassMount + normalizeAuthMountPath
+//        (random_mounts already isolates the run)
+//    [ ] progress_interval -> internal constant
+//
+// 3. Config reframe: counts -> shape (sculpt the identity DB to stress the storage
+//    packer; confirm intent w/ team). Target surface:
+//        workload     : populate | login | group_read
+//        entity_count : primary scale axis
+//        groups       : "default|empty|max" OR { count, size }
+//                       (empty=size 0, max=1 group all members, default=even split)
+//        aliases      : "default|..." OR { count }  (0..entity_count; >entity_count
+//                       bloat needs multiple mounts -> phase 5)
+//        policies     : optional attach + customize (mirror userpass token_policies)
+//        user_validation_set : fixed real (bcrypt) users, default 100 -- ONE set
+//                       used as BOTH the login-resolution sample and the login
+//                       attack pool (never per-entity)
+//    [ ] add the shape knobs above
+//    [ ] drop create_aliases (-> aliases), create_users + validation_samples
+//        (-> user_validation_set)
+//    [ ] derive createAliases/createUsers internally from the new knobs
+//
+// 4. Behavior
+//    [ ] login attack spans only user_validation_set against the large store
+//        (userpass-style: few users, big bloat); Target() picks from that set
+//    [ ] guard the U>A footgun: a login with no matching alias auto-provisions a
+//        phantom entity, so users must be a bounded subset of aliases
+//
+// 5. Feature-tier (separate PR, not the refactor)
+//    [ ] alias bloat: aliases { count } > entity_count via multiple mounts
+//    [ ] parallelize setup creation -- the mount is enabled once up front so only
+//        the per-entity writes parallelize; watch entity-alias writes racing on
+//        the same canonical_id
+//
+// Assumptions to keep explicit: shape modes target the packer; alias bloat is
+// feature-tier; users never scale with entities; policies reuse userpass knobs.
 
 import (
 	"encoding/json"

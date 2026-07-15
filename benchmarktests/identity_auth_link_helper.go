@@ -15,19 +15,10 @@ import (
 	"github.com/sethvargo/go-password/password"
 )
 
-// TODO(refactor-pr): drop redundant auth/userpass qualifiers (file + type already
-// carry that context). Rename map:
-//   - file identity_auth_link_helper.go -> identity_linker.go (and _test.go)
-//   - type identityAuthLinkHelper -> identityLinker; identityAuthLinkConfig -> identityLinkerConfig
-//   - func newIdentityAuthLinkHelper -> newIdentityLinker
-//   - func ensureUserpassMountAccessor -> ensureMount; normalizeAuthMountPath -> normalizeMountPath
-// Also:
-//   - swap primary struct before its Config; add a type doc comment
-//   - resolve getter/field collision (mountPath()/password() force the longer
-//     userpassMountPath/userPassword fields)
-//   - drop UserpassMount/normalizeAuthMountPath: hardcode "userpass" and let
-//     random_mounts suffix it; derive createAliases/createUsers from
-//     alias_count/workload instead of passed-through config toggles
+// TODO(refactor-pr): see the full refactor checklist at the top of
+// target_identity_group_read.go. This file's renames are phase 1
+// (-> identity_linker.go, identityLinker, newIdentityLinker, ensureMount,
+// normalizeMountPath) and the mount hardcoding is phase 2.
 
 // identityAuthLinkConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.
