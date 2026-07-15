@@ -25,6 +25,9 @@ import (
 //   - swap primary struct before its Config; add a type doc comment
 //   - resolve getter/field collision (mountPath()/password() force the longer
 //     userpassMountPath/userPassword fields)
+//   - drop UserpassMount/normalizeAuthMountPath: hardcode "userpass" and let
+//     random_mounts suffix it; derive createAliases/createUsers from
+//     alias_count/workload instead of passed-through config toggles
 
 // identityAuthLinkConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.

@@ -6,11 +6,19 @@ package benchmarktests
 // TODO(refactor-pr):
 //   - rename target/type/registry key: identity_group_read -> identity
 //   - fold cleanupCreatedIdentityResources into Cleanup (split only for Setup rollback)
-//   - reorder config fields by importance: workload, entity_count, auth, grouping, tuning
-//   - workload implies its prerequisites: derive create_users/create_aliases/
-//     grouping from workload instead of making the user set both the mode and the
-//     toggles that ParseConfig then cross-checks. Fewer knobs, fewer ways to
-//     misconfigure. (Later: group_count could imply a default group_size too.)
+//   - trim config to a count-driven surface (creation implied by count > 0):
+//       workload     : populate | login | group_read (mode)
+//       entity_count : base object count
+//       alias_count  : entities to link (0..entity_count for now; >entity_count
+//                      bloating is the feature TODO below)
+//       group_count  : groups (0 = none)
+//       group_size   : derived entity_count/group_count unless set
+//       validation_samples : advanced, default 100
+//     drop: create_aliases (-> alias_count>0), create_users (derive from
+//     workload), userpass_mount (hardcode; random_mounts isolates),
+//     progress_interval (-> internal constant)
+//   - Target() login pick range becomes [1, alias_count] since only linked
+//     entities are loginable
 //
 // TODO(feature): richer user<->entity mapping (N:1 links, alias bloating) so load
 //   scales independently of entity_count; parallelize setup creation. Note: the
@@ -40,13 +48,11 @@ const (
 	IdentityGroupReadTestType = "identity_group_read"
 
 	// Attack-phase workload modes selected via the workload config field.
-	identityWorkloadNone      = "none"
+	identityWorkloadPopulate  = "populate"
 	identityWorkloadLogin     = "login"
 	identityWorkloadGroupRead = "group_read"
 
-	// Placeholder attack target used when workload = none. The framework always
-	// drives an attack for the configured duration, so a seed-only run hits this
-	// cheap health check rather than performing identity work.
+	// No-op attack target used by the populate workload.
 	identityNoWorkloadPath = "/v1/sys/health"
 
 	// Default random-sample size for login-resolution validation. A sample of
@@ -59,7 +65,7 @@ func init() {
 	TestList[IdentityGroupReadTestType] = func() BenchmarkBuilder { return &IdentityGroupRead{} }
 }
 
-// IdentityGroupRead is the consolidated identity target (group_read + login/population).
+// Identity Group Read Test Struct
 type IdentityGroupRead struct {
 	pathPrefix    string
 	header        http.Header
@@ -100,7 +106,7 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 			CreateAliases:     false,
 			UserpassMount:     "userpass",
 			ValidationSamples: identityValidationSamples,
-			Workload:          identityWorkloadNone,
+			Workload:          identityWorkloadPopulate,
 			CreateUsers:       false,
 			ProgressInterval:  1000,
 		},
@@ -143,7 +149,7 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 
 	// Each workload has prerequisites that must be created during setup.
 	switch i.config.Workload {
-	case identityWorkloadNone:
+	case identityWorkloadPopulate:
 		// Seed only: no attack-phase prerequisites.
 	case identityWorkloadLogin:
 		if !i.config.CreateUsers {
@@ -158,7 +164,7 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 		}
 	default:
 		return fmt.Errorf("invalid workload %q: must be one of %q, %q, or %q",
-			i.config.Workload, identityWorkloadNone, identityWorkloadLogin, identityWorkloadGroupRead)
+			i.config.Workload, identityWorkloadPopulate, identityWorkloadLogin, identityWorkloadGroupRead)
 	}
 
 	return nil
@@ -332,7 +338,7 @@ func (i *IdentityGroupRead) validateLinks(client *api.Client, mountName, runID s
 
 // configureAttack returns the method, pathPrefix, and optional login request body
 // for the selected workload: group_read hits GET /identity/group/id/, login POSTs
-// to the userpass mount, and none falls back to a cheap health check.
+// to the userpass mount, and populate falls back to a cheap health check.
 func configureAttack(cfg *IdentityGroupReadConfig, authLinker *identityAuthLinkHelper) (method, pathPrefix string, loginReqBody []byte, err error) {
 	switch cfg.Workload {
 	case identityWorkloadLogin:
@@ -345,7 +351,7 @@ func configureAttack(cfg *IdentityGroupReadConfig, authLinker *identityAuthLinkH
 			body, nil
 	case identityWorkloadGroupRead:
 		return http.MethodGet, "/v1/identity/group/id/", nil, nil
-	default: // identityWorkloadNone
+	default: // identityWorkloadPopulate
 		return http.MethodGet, identityNoWorkloadPath, nil, nil
 	}
 }
@@ -375,6 +381,11 @@ func (i *IdentityGroupRead) Target(client *api.Client) vegeta.Target {
 }
 
 func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
+	if i.config.Workload == identityWorkloadPopulate {
+		i.logger.Info("populate workload; leaving seeded identity objects in place")
+		return nil
+	}
+
 	i.logger.Trace("cleaning up identity benchmark resources")
 	return i.cleanupCreatedIdentityResources(client, i.groupIDs, i.entityIDs, i.ownsMount, i.userpassMount)
 }
