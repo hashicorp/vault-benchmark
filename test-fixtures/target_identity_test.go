@@ -11,8 +11,6 @@ import (
 	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
 )
 
-// TestIdentityGroupRead_Docker runs the create_aliases=true fixture; exit 0
-// means setup and the sampled login-resolution validation passed against Vault.
 func TestIdentityGroupRead_Docker(t *testing.T) {
 	t.Parallel()
 
@@ -30,9 +28,7 @@ func TestIdentityGroupRead_Docker(t *testing.T) {
 	}
 }
 
-// TestIdentityPopulation_Docker runs the link_auth=true fixture; exit 0 means
-// setup and the sampled login-resolution validation passed against Vault.
-func TestIdentityPopulation_Docker(t *testing.T) {
+func TestIdentityLogin_Docker(t *testing.T) {
 	t.Parallel()
 
 	// Create Vault Container
@@ -41,7 +37,7 @@ func TestIdentityPopulation_Docker(t *testing.T) {
 
 	// Run Vault-Benchmark Container
 	vaultAddr := fmt.Sprintf("http://%s:8200", containerIPAddress)
-	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", "identity_population.hcl")
+	benchmarkCleanup, exitCode := dockerjobs.CreateVaultBenchmarkContainer(t, vaultAddr, "root", "identity_login.hcl")
 	defer benchmarkCleanup()
 
 	if exitCode != 0 {

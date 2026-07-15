@@ -12,6 +12,7 @@ test "identity_group_read" "identity_scale_read" {
     entity_count = 1000
     group_count = 1000
     group_size = 10
+    workload = "group_read"
     create_aliases = true
     userpass_mount = "userpass"
   }

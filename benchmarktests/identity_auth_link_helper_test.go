@@ -125,8 +125,8 @@ func TestValidateLogin(t *testing.T) {
 }
 
 // TestValidateLogin_ProvisionsProbeUser covers the alias-only path
-// (createUsers=false, as identity_group_read uses): a probe user must be created
-// before the login check, reusing the helper's password.
+// (createUsers=false, as the identity group_read workload uses): a probe user
+// must be created before the login check, reusing the helper's password.
 func TestValidateLogin_ProvisionsProbeUser(t *testing.T) {
 	const wantEntity = "entity-abc"
 	const wantPassword = "pre-generated-password"
