@@ -11,8 +11,6 @@ import (
 	"github.com/hashicorp/vault-benchmark/helper/dockertest/dockerjobs"
 )
 
-// TestIdentityGroupRead_Docker runs the group_read workload fixture; exit 0
-// means setup and the sampled login-resolution validation passed against Vault.
 func TestIdentityGroupRead_Docker(t *testing.T) {
 	t.Parallel()
 
@@ -30,8 +28,6 @@ func TestIdentityGroupRead_Docker(t *testing.T) {
 	}
 }
 
-// TestIdentityLogin_Docker runs the login workload fixture; exit 0 means setup
-// and the sampled login-resolution validation passed against Vault.
 func TestIdentityLogin_Docker(t *testing.T) {
 	t.Parallel()
 
