@@ -58,7 +58,9 @@ package benchmarktests
 // feature-tier; users never scale with entities; policies reuse userpass knobs.
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -66,6 +68,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -124,6 +128,7 @@ type IdentityGroupReadConfig struct {
 	CreateAliases     bool   `hcl:"create_aliases,optional"`
 	UserpassMount     string `hcl:"userpass_mount,optional"`
 	ValidationSamples int    `hcl:"validation_samples,optional"`
+	Concurrency       int    `hcl:"concurrency,optional"`
 
 	Workload         string `hcl:"workload,optional"`
 	CreateUsers      bool   `hcl:"create_users,optional"`
@@ -141,6 +146,7 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 			CreateAliases:     false,
 			UserpassMount:     "userpass",
 			ValidationSamples: identityValidationSamples,
+			Concurrency:       10,
 			Workload:          identityWorkloadPopulate,
 			CreateUsers:       false,
 			ProgressInterval:  1000,
@@ -162,6 +168,9 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 	}
 	if i.config.ValidationSamples <= 0 {
 		return fmt.Errorf("validation_samples must be greater than 0")
+	}
+	if i.config.Concurrency < 1 {
+		return fmt.Errorf("concurrency must be greater than 0")
 	}
 
 	// Grouping is optional; when requested it must be internally consistent.
@@ -277,94 +286,190 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	}, nil
 }
 
-// createEntities creates EntityCount entities, links each to userpass as
-// configured, and returns their ids in creation order. On error it returns the
-// ids created so far so the caller can roll them back.
+// createEntities creates EntityCount entities and links each to userpass as
+// configured. Workers run concurrently up to Concurrency, storing ids at their
+// 1-based index so the slice is ordered without a mutex. Returns ids in creation
+// order so the caller can roll them back on error.
 func (i *IdentityGroupRead) createEntities(client *api.Client, mountName, runID string, authLinker *identityAuthLinkHelper) ([]string, error) {
 	start := time.Now()
-	i.logger.Info("entity population start", "total", i.config.EntityCount,
-		"create_aliases", i.config.CreateAliases, "create_users", i.config.CreateUsers)
+	total := i.config.EntityCount
+	i.logger.Info("entity population start", "total", total,
+		"create_aliases", i.config.CreateAliases, "create_users", i.config.CreateUsers,
+		"concurrency", i.config.Concurrency)
 
-	entityIDs := make([]string, 0, i.config.EntityCount)
-	for idx := 1; idx <= i.config.EntityCount; idx++ {
-		entityName := entityName(mountName, runID, idx)
+	entityIDs := make([]string, total)
 
-		resp, err := client.Logical().Write("identity/entity", map[string]any{
-			"name": entityName,
-		})
-		if err != nil {
-			return entityIDs, fmt.Errorf("error creating identity entity %q: %v", entityName, err)
-		}
+	jobs := make(chan int, i.config.Concurrency)
+	errs := make(chan error, total)
+	var done atomic.Int64
 
-		entityID, err := identityIDFromResponse(resp)
-		if err != nil {
-			return entityIDs, fmt.Errorf("error reading identity entity id for %q: %v", entityName, err)
-		}
+	var wg sync.WaitGroup
+	for w := 0; w < i.config.Concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				name := entityName(mountName, runID, idx)
 
-		entityIDs = append(entityIDs, entityID)
+				resp, err := client.Logical().Write("identity/entity", map[string]any{
+					"name": name,
+				})
+				if err != nil {
+					errs <- fmt.Errorf("error creating identity entity %q: %w", name, err)
+					continue
+				}
 
-		if err := authLinker.linkEntity(client, entityName, entityID); err != nil {
-			return entityIDs, err
-		}
+				id, err := identityIDFromResponse(resp)
+				if err != nil {
+					errs <- fmt.Errorf("error reading identity entity id for %q: %w", name, err)
+					continue
+				}
 
-		if idx%i.config.ProgressInterval == 0 || idx == i.config.EntityCount {
-			i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", idx, i.config.EntityCount))
-		}
+				entityIDs[idx-1] = id
+
+				if err := authLinker.linkEntity(client, name, id); err != nil {
+					errs <- err
+					continue
+				}
+
+				n := done.Add(1)
+				if n%int64(i.config.ProgressInterval) == 0 || int(n) == total {
+					i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", n, total))
+				}
+			}
+		}()
 	}
 
-	i.logger.Info("entity population complete", "total", i.config.EntityCount, "elapsed", time.Since(start).String())
+	for idx := 1; idx <= total; idx++ {
+		jobs <- idx
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	var allErrs []error
+	for err := range errs {
+		allErrs = append(allErrs, err)
+	}
+	if err := errors.Join(allErrs...); err != nil {
+		return entityIDs, err
+	}
+
+	i.logger.Info("entity population complete", "total", total, "elapsed", time.Since(start).String())
 	return entityIDs, nil
 }
 
 // createGroups creates GroupCount internal groups, each populated with GroupSize
-// members drawn deterministically from the created entities, and returns their
-// ids. On error it returns the ids created so far so the caller can roll them back.
+// members drawn deterministically from the created entities. Workers run
+// concurrently up to Concurrency. Returns ids in creation order so the caller
+// can roll them back on error.
 func (i *IdentityGroupRead) createGroups(client *api.Client, mountName, runID string, entityIDs []string) ([]string, error) {
 	start := time.Now()
-	i.logger.Info("group population start", "total", i.config.GroupCount, "group_size", i.config.GroupSize)
+	total := i.config.GroupCount
+	i.logger.Info("group population start", "total", total, "group_size", i.config.GroupSize,
+		"concurrency", i.config.Concurrency)
 
-	groupIDs := make([]string, 0, i.config.GroupCount)
-	for idx := 0; idx < i.config.GroupCount; idx++ {
-		groupName := mountName + "-group-" + runID + "-" + strconv.Itoa(idx)
-		members := selectGroupMembers(entityIDs, idx, i.config.GroupSize)
+	groupIDs := make([]string, total)
 
-		resp, err := client.Logical().Write("identity/group", map[string]any{
-			"name":              groupName,
-			"type":              "internal",
-			"member_entity_ids": members,
-		})
-		if err != nil {
-			return groupIDs, fmt.Errorf("error creating identity group %q: %v", groupName, err)
-		}
+	jobs := make(chan int, i.config.Concurrency)
+	errs := make(chan error, total)
 
-		groupID, err := identityIDFromResponse(resp)
-		if err != nil {
-			return groupIDs, fmt.Errorf("error reading identity group id for %q: %v", groupName, err)
-		}
+	var wg sync.WaitGroup
+	for w := 0; w < i.config.Concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				groupName := mountName + "-group-" + runID + "-" + strconv.Itoa(idx)
+				members := selectGroupMembers(entityIDs, idx, i.config.GroupSize)
 
-		groupIDs = append(groupIDs, groupID)
+				resp, err := client.Logical().Write("identity/group", map[string]any{
+					"name":              groupName,
+					"type":              "internal",
+					"member_entity_ids": members,
+				})
+				if err != nil {
+					errs <- fmt.Errorf("error creating identity group %q: %w", groupName, err)
+					continue
+				}
 
-		if (idx+1)%i.config.ProgressInterval == 0 || idx+1 == i.config.GroupCount {
-			i.logger.Info("group population", "progress", fmt.Sprintf("%d/%d", idx+1, i.config.GroupCount))
-		}
+				id, err := identityIDFromResponse(resp)
+				if err != nil {
+					errs <- fmt.Errorf("error reading identity group id for %q: %w", groupName, err)
+					continue
+				}
+
+				groupIDs[idx] = id
+			}
+		}()
 	}
 
-	i.logger.Info("group population complete", "total", i.config.GroupCount, "elapsed", time.Since(start).String())
+	for idx := 0; idx < total; idx++ {
+		jobs <- idx
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	var allErrs []error
+	for err := range errs {
+		allErrs = append(allErrs, err)
+	}
+	if err := errors.Join(allErrs...); err != nil {
+		return groupIDs, err
+	}
+
+	i.logger.Info("group population complete", "total", total, "elapsed", time.Since(start).String())
 	return groupIDs, nil
 }
 
 // validateLinks verifies a random sample of alias->entity mappings by logging in
-// and confirming the token resolves to the expected entity.
+// and confirming the token resolves to the expected entity. Checks run
+// concurrently up to Concurrency workers; the first failure cancels the rest.
 func (i *IdentityGroupRead) validateLinks(client *api.Client, mountName, runID string, authLinker *identityAuthLinkHelper, entityIDs []string) error {
 	start := time.Now()
 	sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
-	i.logger.Info("login resolution validation start", "samples", sampleCount, "entities", i.config.EntityCount)
+	i.logger.Info("login resolution validation start", "samples", sampleCount, "entities", i.config.EntityCount,
+		"concurrency", i.config.Concurrency)
 
-	for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
-		name := entityName(mountName, runID, idx)
-		if err := authLinker.validateLogin(client, name, entityIDs[idx-1]); err != nil {
-			return err
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	indices := sampleIndices(i.config.EntityCount, sampleCount)
+	jobs := make(chan int, i.config.Concurrency)
+	errs := make(chan error, len(indices))
+
+	var wg sync.WaitGroup
+	for w := 0; w < i.config.Concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				name := entityName(mountName, runID, idx)
+				if err := authLinker.validateLogin(client, name, entityIDs[idx-1]); err != nil {
+					errs <- err
+					cancel()
+					return
+				}
+			}
+		}()
+	}
+
+	for _, idx := range indices {
+		if ctx.Err() != nil {
+			break
 		}
+		jobs <- idx
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	if err := <-errs; err != nil {
+		return err
 	}
 
 	i.logger.Info("login resolution validation complete", "samples", sampleCount, "elapsed", time.Since(start).String())
@@ -427,33 +532,71 @@ func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
 
 // cleanupCreatedIdentityResources deletes groups, entities, and, when this run
 // owns the userpass mount, disables it to remove all linked and probe users.
+// Groups and entities are deleted concurrently up to Concurrency workers each;
+// DisableAuth runs last since it is a single call.
 func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, ownsMount bool, userpassMount string) error {
-	var firstErr error
+	start := time.Now()
+	i.logger.Info("cleanup start", "groups", len(groupIDs), "entities", len(entityIDs),
+		"concurrency", i.config.Concurrency)
 
-	for _, groupID := range groupIDs {
-		_, err := client.Logical().Delete("identity/group/id/" + groupID)
-		if err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error deleting identity group %q: %v", groupID, err)
-		}
+	var allErrs []error
+
+	if err := i.deleteIDs(client, "identity/group/id/", groupIDs); err != nil {
+		allErrs = append(allErrs, err)
 	}
 
 	// Deleting an entity removes its aliases, so aliases need no separate cleanup.
-	for _, entityID := range entityIDs {
-		_, err := client.Logical().Delete("identity/entity/id/" + entityID)
-		if err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error deleting identity entity %q: %v", entityID, err)
-		}
+	if err := i.deleteIDs(client, "identity/entity/id/", entityIDs); err != nil {
+		allErrs = append(allErrs, err)
 	}
 
 	// The run-scoped userpass mount holds every linked and probe user, so
 	// disabling it removes them all in a single call.
 	if ownsMount && userpassMount != "" {
-		if err := client.Sys().DisableAuth(userpassMount); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error disabling userpass mount %q: %v", userpassMount, err)
+		if err := client.Sys().DisableAuth(userpassMount); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %v", userpassMount, err))
 		}
 	}
 
-	return firstErr
+	i.logger.Info("cleanup complete", "elapsed", time.Since(start).String())
+	return errors.Join(allErrs...)
+}
+
+// deleteIDs deletes each id under pathPrefix concurrently, up to Concurrency
+// workers. All errors are collected and returned via errors.Join.
+func (i *IdentityGroupRead) deleteIDs(client *api.Client, pathPrefix string, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	jobs := make(chan string, i.config.Concurrency)
+	errs := make(chan error, len(ids))
+
+	var wg sync.WaitGroup
+	for w := 0; w < i.config.Concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range jobs {
+				if _, err := client.Logical().Delete(pathPrefix + id); err != nil {
+					errs <- fmt.Errorf("error deleting %s%s: %v", pathPrefix, id, err)
+				}
+			}
+		}()
+	}
+
+	for _, id := range ids {
+		jobs <- id
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	var allErrs []error
+	for err := range errs {
+		allErrs = append(allErrs, err)
+	}
+	return errors.Join(allErrs...)
 }
 
 func (i *IdentityGroupRead) GetTargetInfo() TargetInfo {
