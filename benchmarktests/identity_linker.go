@@ -17,19 +17,10 @@ import (
 // TODO(refactor-pr): see the full refactor checklist at the top of
 // target_identity.go. Phase 1 renames and the phase 2 mount hardcoding are done.
 
-// userpassMountBase is the fixed base path (and auth type) used to link
-// entities. random_mounts already isolates each run by appending a per-run
-// suffix, so the mount path is no longer configurable.
 const userpassMountBase = "userpass"
 
-// identityLinkerConfig configures how identity setup links generated entities
-// to a userpass auth mount so they become loginable.
-type identityLinkerConfig struct {
-	CreateAliases bool
-	CreateUsers   bool
-	RandomMounts  bool
-}
-
+// identityLinker links generated entities to a userpass auth mount by creating
+// userpass users and/or entity aliases so the entities become loginable.
 type identityLinker struct {
 	createAliases bool
 	createUsers   bool
@@ -37,6 +28,13 @@ type identityLinker struct {
 
 	mountPath        string
 	userpassAccessor string
+}
+
+// identityLinkerConfig configures how identity setup links entities to userpass.
+type identityLinkerConfig struct {
+	CreateAliases bool
+	CreateUsers   bool
+	RandomMounts  bool
 }
 
 func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityLinker, error) {
@@ -75,13 +73,11 @@ func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityL
 	return helper, nil
 }
 
-// linkEntity creates the userpass user (when CreateUsers is set) and then the
-// entity alias that connects it (when CreateAliases is set). Both are named after
-// the entity (1:1), which callers rely on to derive usernames from an index
-// without storing a lookup map.
+// linkEntity creates the userpass user and/or entity alias for name. Both are
+// named after the entity (1:1) so callers can derive the username from an index.
 func (h *identityLinker) linkEntity(client *api.Client, name, entityID string) error {
 	if h.createUsers {
-		// filepath.Join+ToSlash: build the path portably (forward slashes) even on Windows.
+		// ToSlash keeps forward slashes on Windows.
 		userPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "users", name))
 		_, err := client.Logical().Write(userPath, map[string]any{
 			"password": h.password,
@@ -105,10 +101,9 @@ func (h *identityLinker) linkEntity(client *api.Client, name, entityID string) e
 	return nil
 }
 
-// validateLogin is a single-sample, fail-fast check: it logs in as
-// one user and confirms the token resolves to expectedEntityID. For alias-only
-// datasets it first creates a throwaway probe user, since there is otherwise no
-// credential to log in with.
+// validateLogin logs in as one user and confirms the token resolves to
+// expectedEntityID. Alias-only datasets first get a throwaway probe user (no
+// other credential exists).
 func (h *identityLinker) validateLogin(client *api.Client, name, expectedEntityID string) error {
 	if h.userpassAccessor == "" {
 		return fmt.Errorf("cannot validate login resolution: no userpass mount configured")
@@ -183,31 +178,28 @@ func ensureMount(client *api.Client, mountPath string) (string, string, error) {
 	return authMount.Accessor, mountPath, nil
 }
 
-// generatePassword returns a strong throwaway password shared by every
-// generated user: 64 chars, 10 digits, no symbols, repeats allowed.
+// generatePassword returns a strong throwaway password shared by all users.
 func generatePassword() (string, error) {
 	return password.Generate(64, 10, 0, false, true)
 }
 
-// entityName derives a run-unique, index-addressable entity name of the form
-// mountName-entity-runID-idx.
+// entityName derives a run-unique entity name of the form mountName-entity-runID-idx.
 func entityName(mountName, runID string, idx int) string {
 	return mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// selectGroupMembers returns groupSize entity ids for the given group index,
-// walking the entity slice with wraparound so membership is deterministic.
+// selectGroupMembers returns groupSize entity ids for groupIndex, walking the
+// slice with wraparound so membership is deterministic.
 func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string {
 	members := make([]string, 0, groupSize)
 	start := (groupIndex * groupSize) % len(entityIDs)
-	for offset := 0; offset < groupSize; offset++ {
+	for offset := range groupSize {
 		members = append(members, entityIDs[(start+offset)%len(entityIDs)])
 	}
 	return members
 }
 
-// identityIDFromResponse extracts the "id" field from an identity
-// entity/group write or read response.
+// identityIDFromResponse extracts the "id" field from an entity/group response.
 func identityIDFromResponse(resp *api.Secret) (string, error) {
 	if resp == nil || resp.Data == nil {
 		return "", fmt.Errorf("empty response data")
@@ -226,8 +218,8 @@ func identityIDFromResponse(resp *api.Secret) (string, error) {
 	return id, nil
 }
 
-// sampleIndices returns k distinct 1-based indices in [1, n], chosen at random.
-// It returns all indices when k >= n. Callers must pass 0 < k <= n.
+// sampleIndices returns k distinct random 1-based indices in [1, n] (all when
+// k >= n). Callers must pass 0 < k <= n.
 func sampleIndices(n, k int) []int {
 	if k >= n {
 		idxs := make([]int, n)

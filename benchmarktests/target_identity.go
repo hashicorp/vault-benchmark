@@ -90,26 +90,21 @@ const (
 	// No-op attack target used by the populate workload.
 	identityNoWorkloadPath = "/v1/sys/health"
 
-	// Default random-sample size for login-resolution validation. A sample of
-	// 100 aliases gives a high probability (>99%) of detecting corruption
-	// affecting 5% or more of mappings, independent of entity_count.
+	// Default login-resolution validation sample; ~99% chance of catching
+	// corruption of >=5% of mappings, independent of entity_count.
 	identityValidationSamples = 100
 
-	// identityProgressInterval is how often (in entities) creation progress is
-	// logged during setup.
+	// How often (in entities) to log creation progress during setup.
 	identityProgressInterval = 1000
 )
 
 func init() {
-	// "Register" this test to the main test registry. The former
-	// identity_population target is merged in here, so only identity is
-	// registered now.
+	// "Register" this test to the main test registry
 	TestList[IdentityTestType] = func() BenchmarkBuilder { return &Identity{} }
 }
 
-// Identity is a benchmark target that seeds Vault Identity objects (entities,
-// optional internal groups, and optional userpass links) during setup and
-// drives the configured workload during the attack phase.
+// Identity seeds Vault identity objects (entities, optional groups and userpass
+// links) during setup and drives the configured workload during the attack.
 type Identity struct {
 	pathPrefix    string
 	header        http.Header
@@ -184,13 +179,10 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 		}
 	}
 
-	// Auth linking (aliases and/or users) attaches to the fixed userpass mount
-	// (random_mounts isolates each run), so no mount path needs validating here.
-
 	// Each workload has prerequisites that must be created during setup.
 	switch i.config.Workload {
 	case identityWorkloadPopulate:
-		// Seed only: no attack-phase prerequisites.
+		// Seed only: no prerequisites.
 	case identityWorkloadLogin:
 		if !i.config.CreateUsers {
 			return fmt.Errorf("workload %q requires create_users = true so seeded entities are loginable", identityWorkloadLogin)
@@ -238,16 +230,6 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		ownsMount:     (i.config.CreateAliases || i.config.CreateUsers) && randomMounts,
 	}
 
-	// Roll back any partially created identity resources unless setup succeeds.
-	// Rollback runs for every workload, so it calls deleteResources directly
-	// rather than Cleanup, which intentionally preserves the populate dataset.
-	success := false
-	defer func() {
-		if !success {
-			_ = result.deleteResources(client)
-		}
-	}()
-
 	result.entityIDs, err = i.createEntities(client, mountName, runID, authLinker)
 	if err != nil {
 		return nil, err
@@ -272,14 +254,12 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 	result.header = generateHeader(client)
 
-	success = true
 	return result, nil
 }
 
-// createEntities creates EntityCount entities and links each to userpass as
-// configured. Workers run concurrently up to Concurrency, storing ids at their
-// 1-based index so the slice is ordered without a mutex. Returns ids in creation
-// order so the caller can roll them back on error.
+// createEntities creates EntityCount entities (linking each to userpass as
+// configured) concurrently, storing each id at its 1-based index so the result
+// stays ordered without a mutex.
 func (i *Identity) createEntities(client *api.Client, mountName, runID string, authLinker *identityLinker) ([]string, error) {
 	start := time.Now()
 	total := i.config.EntityCount
@@ -349,10 +329,8 @@ func (i *Identity) createEntities(client *api.Client, mountName, runID string, a
 	return entityIDs, nil
 }
 
-// createGroups creates GroupCount internal groups, each populated with GroupSize
-// members drawn deterministically from the created entities. Workers run
-// concurrently up to Concurrency. Returns ids in creation order so the caller
-// can roll them back on error.
+// createGroups creates GroupCount internal groups concurrently, each with
+// GroupSize members drawn deterministically from the created entities.
 func (i *Identity) createGroups(client *api.Client, mountName, runID string, entityIDs []string) ([]string, error) {
 	start := time.Now()
 	total := i.config.GroupCount
@@ -394,7 +372,7 @@ func (i *Identity) createGroups(client *api.Client, mountName, runID string, ent
 		}()
 	}
 
-	for idx := 0; idx < total; idx++ {
+	for idx := range total {
 		jobs <- idx
 	}
 	close(jobs)
@@ -413,9 +391,8 @@ func (i *Identity) createGroups(client *api.Client, mountName, runID string, ent
 	return groupIDs, nil
 }
 
-// validateLinks verifies a random sample of alias->entity mappings by logging in
-// and confirming the token resolves to the expected entity. Checks run
-// concurrently up to Concurrency workers; the first failure cancels the rest.
+// validateLinks logs in a random sample of users and confirms each token
+// resolves to the expected entity. Concurrent; the first failure cancels the rest.
 func (i *Identity) validateLinks(client *api.Client, mountName, runID string, authLinker *identityLinker, entityIDs []string) error {
 	start := time.Now()
 	sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
@@ -466,9 +443,8 @@ func (i *Identity) validateLinks(client *api.Client, mountName, runID string, au
 	return nil
 }
 
-// configureAttack returns the method, pathPrefix, and optional login request body
-// for the selected workload: group_read hits GET /identity/group/id/, login POSTs
-// to the userpass mount, and populate falls back to a cheap health check.
+// configureAttack returns the method, path prefix, and optional login body for
+// the selected workload (populate falls back to a health check).
 func configureAttack(cfg *IdentityConfig, authLinker *identityLinker) (method, pathPrefix string, loginReqBody []byte, err error) {
 	switch cfg.Workload {
 	case identityWorkloadLogin:
@@ -486,9 +462,8 @@ func configureAttack(cfg *IdentityConfig, authLinker *identityLinker) (method, p
 	}
 }
 
-// Target drives the configured workload: a login POST, a group read, or the
-// no-workload health check. All variants share a base target and adjust only the
-// URL (and body, for login).
+// Target builds the request for the configured workload, adjusting the base
+// target's URL (and body, for login).
 func (i *Identity) Target(client *api.Client) vegeta.Target {
 	t := vegeta.Target{
 		Method: i.method,
@@ -516,17 +491,6 @@ func (i *Identity) Cleanup(client *api.Client) error {
 		return nil
 	}
 
-	i.logger.Trace("cleaning up identity benchmark resources")
-	return i.deleteResources(client)
-}
-
-// deleteResources deletes the groups and entities this run created and, when the
-// run owns the userpass mount, disables it to drop all linked and probe users in
-// a single call. It is the shared teardown core: Cleanup calls it after honoring
-// the populate keep-alive, while setup rollback calls it directly (partial
-// cleanup must run for every workload). Groups and entities delete concurrently
-// up to Concurrency workers each; DisableAuth runs last since it is a single call.
-func (i *Identity) deleteResources(client *api.Client) error {
 	start := time.Now()
 	i.logger.Info("cleanup start", "groups", len(i.groupIDs), "entities", len(i.entityIDs),
 		"concurrency", i.config.Concurrency)
@@ -542,8 +506,7 @@ func (i *Identity) deleteResources(client *api.Client) error {
 		allErrs = append(allErrs, err)
 	}
 
-	// The run-scoped userpass mount holds every linked and probe user, so
-	// disabling it removes them all in a single call.
+	// Disabling the run-scoped mount drops all its users in one call.
 	if i.ownsMount && i.userpassMount != "" {
 		if err := client.Sys().DisableAuth(i.userpassMount); err != nil {
 			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %v", i.userpassMount, err))
@@ -554,8 +517,7 @@ func (i *Identity) deleteResources(client *api.Client) error {
 	return errors.Join(allErrs...)
 }
 
-// deleteIDs deletes each id under pathPrefix concurrently, up to Concurrency
-// workers. All errors are collected and returned via errors.Join.
+// deleteIDs deletes each id under pathPrefix concurrently.
 func (i *Identity) deleteIDs(client *api.Client, pathPrefix string, ids []string) error {
 	if len(ids) == 0 {
 		return nil
