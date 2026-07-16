@@ -4,6 +4,7 @@
 package benchmarktests
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
