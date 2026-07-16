@@ -58,6 +58,7 @@ package benchmarktests
 // feature-tier; users never scale with entities; policies reuse userpass knobs.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -420,17 +421,52 @@ func (i *IdentityGroupRead) createGroups(client *api.Client, mountName, runID st
 }
 
 // validateLinks verifies a random sample of alias->entity mappings by logging in
-// and confirming the token resolves to the expected entity.
+// and confirming the token resolves to the expected entity. Checks run
+// concurrently up to Concurrency workers; the first failure cancels the rest.
 func (i *IdentityGroupRead) validateLinks(client *api.Client, mountName, runID string, authLinker *identityAuthLinkHelper, entityIDs []string) error {
 	start := time.Now()
 	sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
-	i.logger.Info("login resolution validation start", "samples", sampleCount, "entities", i.config.EntityCount)
+	i.logger.Info("login resolution validation start", "samples", sampleCount, "entities", i.config.EntityCount,
+		"concurrency", i.config.Concurrency)
 
-	for _, idx := range sampleIndices(i.config.EntityCount, sampleCount) {
-		name := entityName(mountName, runID, idx)
-		if err := authLinker.validateLogin(client, name, entityIDs[idx-1]); err != nil {
-			return err
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	indices := sampleIndices(i.config.EntityCount, sampleCount)
+	jobs := make(chan int, i.config.Concurrency)
+	errs := make(chan error, len(indices))
+
+	var wg sync.WaitGroup
+	for w := 0; w < i.config.Concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				name := entityName(mountName, runID, idx)
+				if err := authLinker.validateLogin(client, name, entityIDs[idx-1]); err != nil {
+					errs <- err
+					cancel()
+					return
+				}
+			}
+		}()
+	}
+
+	for _, idx := range indices {
+		if ctx.Err() != nil {
+			break
 		}
+		jobs <- idx
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	if err := <-errs; err != nil {
+		return err
 	}
 
 	i.logger.Info("login resolution validation complete", "samples", sampleCount, "elapsed", time.Since(start).String())
