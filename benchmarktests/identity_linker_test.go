@@ -100,11 +100,11 @@ func TestValidateLogin(t *testing.T) {
 			defer server.Close()
 
 			client := newTestClient(t, server.URL)
-			helper := &identityAuthLinkHelper{
-				createUsers:       true,
-				userPassword:      "password-value",
-				userpassMountPath: "userpass",
-				userpassAccessor:  "auth_userpass_00000000",
+			helper := &identityLinker{
+				createUsers:      true,
+				password:         "password-value",
+				mountPath:        "userpass",
+				userpassAccessor: "auth_userpass_00000000",
 			}
 
 			err := helper.validateLogin(client, "check-user", wantEntity)
@@ -137,11 +137,11 @@ func TestValidateLogin_ProvisionsProbeUser(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(t, server.URL)
-	helper := &identityAuthLinkHelper{
-		createUsers:       false,
-		userPassword:      wantPassword,
-		userpassMountPath: "userpass",
-		userpassAccessor:  "auth_userpass_00000000",
+	helper := &identityLinker{
+		createUsers:      false,
+		password:         wantPassword,
+		mountPath:        "userpass",
+		userpassAccessor: "auth_userpass_00000000",
 	}
 
 	if err := helper.validateLogin(client, "check-user", wantEntity); err != nil {
@@ -150,14 +150,14 @@ func TestValidateLogin_ProvisionsProbeUser(t *testing.T) {
 	if !userCreated {
 		t.Fatalf("expected a probe user to be created when createUsers is false")
 	}
-	if helper.userPassword != wantPassword {
-		t.Fatalf("validate must not clobber the helper password: got %q, want %q", helper.userPassword, wantPassword)
+	if helper.password != wantPassword {
+		t.Fatalf("validate must not clobber the helper password: got %q, want %q", helper.password, wantPassword)
 	}
 }
 
 // TestValidateLogin_NoMount guards the fail-fast when no userpass mount exists.
 func TestValidateLogin_NoMount(t *testing.T) {
-	helper := &identityAuthLinkHelper{}
+	helper := &identityLinker{}
 	err := helper.validateLogin(nil, "check-user", "entity-abc")
 	if err == nil {
 		t.Fatalf("expected error when no userpass mount is configured")

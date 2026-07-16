@@ -16,30 +16,29 @@ import (
 )
 
 // TODO(refactor-pr): see the full refactor checklist at the top of
-// target_identity_group_read.go. This file's renames are phase 1
-// (-> identity_linker.go, identityLinker, newIdentityLinker, ensureMount,
-// normalizeMountPath) and the mount hardcoding is phase 2.
+// target_identity.go. Phase 1 renames are done; the mount hardcoding
+// (drop UserpassMount + normalizeMountPath) is phase 2.
 
-// identityAuthLinkConfig configures how identity setup links generated entities
+// identityLinkerConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.
-type identityAuthLinkConfig struct {
+type identityLinkerConfig struct {
 	CreateAliases bool
 	CreateUsers   bool
 	UserpassMount string
 	RandomMounts  bool
 }
 
-type identityAuthLinkHelper struct {
+type identityLinker struct {
 	createAliases bool
 	createUsers   bool
-	userPassword  string
+	password      string
 
-	userpassMountPath string
-	userpassAccessor  string
+	mountPath        string
+	userpassAccessor string
 }
 
-func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (*identityAuthLinkHelper, error) {
-	helper := &identityAuthLinkHelper{
+func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityLinker, error) {
+	helper := &identityLinker{
 		createAliases: cfg.CreateAliases,
 		createUsers:   cfg.CreateUsers,
 	}
@@ -52,9 +51,9 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 	if err != nil {
 		return nil, fmt.Errorf("error generating userpass password: %w", err)
 	}
-	helper.userPassword = generated
+	helper.password = generated
 
-	authMountPath := normalizeAuthMountPath(cfg.UserpassMount)
+	authMountPath := normalizeMountPath(cfg.UserpassMount)
 	if cfg.RandomMounts {
 		runID, err := uuid.GenerateUUID()
 		if err != nil {
@@ -63,13 +62,13 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 		authMountPath = authMountPath + "-" + runID
 	}
 
-	accessor, resolvedMountPath, err := ensureUserpassMountAccessor(client, authMountPath)
+	accessor, resolvedMountPath, err := ensureMount(client, authMountPath)
 	if err != nil {
 		return nil, err
 	}
 
 	helper.userpassAccessor = accessor
-	helper.userpassMountPath = resolvedMountPath
+	helper.mountPath = resolvedMountPath
 
 	return helper, nil
 }
@@ -78,12 +77,12 @@ func newIdentityAuthLinkHelper(client *api.Client, cfg identityAuthLinkConfig) (
 // entity alias that connects it (when CreateAliases is set). Both are named after
 // the entity (1:1), which callers rely on to derive usernames from an index
 // without storing a lookup map.
-func (h *identityAuthLinkHelper) linkEntity(client *api.Client, name, entityID string) error {
+func (h *identityLinker) linkEntity(client *api.Client, name, entityID string) error {
 	if h.createUsers {
 		// filepath.Join+ToSlash: build the path portably (forward slashes) even on Windows.
-		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		userPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "users", name))
 		_, err := client.Logical().Write(userPath, map[string]any{
-			"password": h.userPassword,
+			"password": h.password,
 		})
 		if err != nil {
 			return fmt.Errorf("error creating userpass user %q: %w", name, err)
@@ -108,23 +107,23 @@ func (h *identityAuthLinkHelper) linkEntity(client *api.Client, name, entityID s
 // one user and confirms the token resolves to expectedEntityID. For alias-only
 // datasets it first creates a throwaway probe user, since there is otherwise no
 // credential to log in with.
-func (h *identityAuthLinkHelper) validateLogin(client *api.Client, name, expectedEntityID string) error {
+func (h *identityLinker) validateLogin(client *api.Client, name, expectedEntityID string) error {
 	if h.userpassAccessor == "" {
 		return fmt.Errorf("cannot validate login resolution: no userpass mount configured")
 	}
 
 	if !h.createUsers {
-		userPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "users", name))
+		userPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "users", name))
 		if _, err := client.Logical().Write(userPath, map[string]any{
-			"password": h.userPassword,
+			"password": h.password,
 		}); err != nil {
 			return fmt.Errorf("error creating validation user %q: %w", name, err)
 		}
 	}
 
-	loginPath := filepath.ToSlash(filepath.Join("auth", h.userpassMountPath, "login", name))
+	loginPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "login", name))
 	secret, err := client.Logical().Write(loginPath, map[string]any{
-		"password": h.userPassword,
+		"password": h.password,
 	})
 	if err != nil {
 		return fmt.Errorf("login resolution check failed for user %q: %w", name, err)
@@ -141,16 +140,8 @@ func (h *identityAuthLinkHelper) validateLogin(client *api.Client, name, expecte
 	return nil
 }
 
-func (h *identityAuthLinkHelper) mountPath() string {
-	return h.userpassMountPath
-}
-
-func (h *identityAuthLinkHelper) password() string {
-	return h.userPassword
-}
-
-func ensureUserpassMountAccessor(client *api.Client, mountPath string) (string, string, error) {
-	authMountPath := normalizeAuthMountPath(mountPath)
+func ensureMount(client *api.Client, mountPath string) (string, string, error) {
+	authMountPath := normalizeMountPath(mountPath)
 	authMountKey := authMountPath + "/"
 
 	authMounts, err := client.Sys().ListAuth()
@@ -197,7 +188,7 @@ func generatePassword() (string, error) {
 	return password.Generate(64, 10, 0, false, true)
 }
 
-func normalizeAuthMountPath(path string) string {
+func normalizeMountPath(path string) string {
 	normalized := strings.Trim(path, "/")
 	if normalized == "" {
 		return "userpass"

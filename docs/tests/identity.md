@@ -1,4 +1,4 @@
-# Identity Group Read Benchmark (`identity_group_read`)
+# Identity Benchmark (`identity`)
 
 This benchmark seeds Vault Identity objects during setup and, when a workload is
 selected, drives that workload during the attack phase. It creates entities,
@@ -29,7 +29,7 @@ workload (see Notes).
 Log in as seeded entities, validating that aliases resolve correctly:
 
 ```hcl
-test "identity_group_read" "identity_login" {
+test "identity" "identity_login" {
   weight = 100
   config {
     workload       = "login"
@@ -44,7 +44,7 @@ test "identity_group_read" "identity_login" {
 Read groups by id under load:
 
 ```hcl
-test "identity_group_read" "identity_group_read" {
+test "identity" "identity_group_read" {
   weight = 100
   config {
     workload     = "group_read"
@@ -60,7 +60,7 @@ Seed a persistent bloat dataset — the `populate` workload keeps its objects ev
 in a mixed run where the global `cleanup` flag tears down other targets:
 
 ```hcl
-test "identity_group_read" "identity_seed" {
+test "identity" "identity_seed" {
   weight = 100
   config {
     workload     = "populate"

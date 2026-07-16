@@ -8,20 +8,20 @@ package benchmarktests
 // config reframe. None of this changes current behavior.
 //
 // 1. Renames
-//    [ ] target/type/registry key: identity_group_read -> identity
-//    [ ] helper file: identity_auth_link_helper.go -> identity_linker.go (+ _test.go)
-//    [ ] helper types: identityAuthLinkHelper -> identityLinker,
+//    [x] target/type/registry key: identity_group_read -> identity
+//    [x] helper file: identity_auth_link_helper.go -> identity_linker.go (+ _test.go)
+//    [x] helper types: identityAuthLinkHelper -> identityLinker,
 //        identityAuthLinkConfig -> identityLinkerConfig
-//    [ ] helper funcs: newIdentityAuthLinkHelper -> newIdentityLinker,
+//    [x] helper funcs: newIdentityAuthLinkHelper -> newIdentityLinker,
 //        ensureUserpassMountAccessor -> ensureMount,
 //        normalizeAuthMountPath -> normalizeMountPath
-//    [ ] resolve getter/field collision so fields can shorten:
+//    [x] resolve getter/field collision so fields can shorten:
 //        mountPath()/password() vs userpassMountPath/userPassword
-//    [ ] put the primary struct before its Config; add a type doc comment
+//    [x] put the primary struct before its Config; add a type doc comment
 //
 // 2. Structural cleanup
 //    [ ] fold cleanupCreatedIdentityResources into Cleanup (split only for rollback)
-//    [ ] hardcode "userpass" mount; drop UserpassMount + normalizeAuthMountPath
+//    [ ] hardcode "userpass" mount; drop UserpassMount + normalizeMountPath
 //        (random_mounts already isolates the run)
 //    [ ] progress_interval -> internal constant
 //
@@ -81,7 +81,7 @@ import (
 )
 
 const (
-	IdentityGroupReadTestType = "identity_group_read"
+	IdentityTestType = "identity"
 
 	// Attack-phase workload modes selected via the workload config field.
 	identityWorkloadPopulate  = "populate"
@@ -99,16 +99,18 @@ const (
 
 func init() {
 	// "Register" this test to the main test registry. The former
-	// identity_population target is merged in here, so only identity_group_read
-	// is registered now.
-	TestList[IdentityGroupReadTestType] = func() BenchmarkBuilder { return &IdentityGroupRead{} }
+	// identity_population target is merged in here, so only identity is
+	// registered now.
+	TestList[IdentityTestType] = func() BenchmarkBuilder { return &Identity{} }
 }
 
-// Identity Group Read Test Struct
-type IdentityGroupRead struct {
+// Identity is a benchmark target that seeds Vault Identity objects (entities,
+// optional internal groups, and optional userpass links) during setup and
+// drives the configured workload during the attack phase.
+type Identity struct {
 	pathPrefix    string
 	header        http.Header
-	config        *IdentityGroupReadConfig
+	config        *IdentityConfig
 	groupIDs      []string
 	entityIDs     []string
 	userpassMount string
@@ -121,7 +123,7 @@ type IdentityGroupRead struct {
 	ownsMount    bool
 }
 
-type IdentityGroupReadConfig struct {
+type IdentityConfig struct {
 	EntityCount       int    `hcl:"entity_count,optional"`
 	GroupCount        int    `hcl:"group_count,optional"`
 	GroupSize         int    `hcl:"group_size,optional"`
@@ -135,11 +137,11 @@ type IdentityGroupReadConfig struct {
 	ProgressInterval int    `hcl:"progress_interval,optional"`
 }
 
-func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
+func (i *Identity) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *IdentityGroupReadConfig `hcl:"config,block"`
+		Config *IdentityConfig `hcl:"config,block"`
 	}{
-		Config: &IdentityGroupReadConfig{
+		Config: &IdentityConfig{
 			EntityCount:       1000,
 			GroupCount:        0,
 			GroupSize:         10,
@@ -214,9 +216,9 @@ func (i *IdentityGroupRead) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	// identity is a built-in path, so this target manages no secret mount.
-	i.logger = targetLogger.Named(IdentityGroupReadTestType)
+	i.logger = targetLogger.Named(IdentityTestType)
 
 	runID, err := uuid.GenerateUUID()
 	if err != nil {
@@ -224,7 +226,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	}
 
 	randomMounts := topLevelConfig != nil && topLevelConfig.RandomMounts
-	authLinker, err := newIdentityAuthLinkHelper(client, identityAuthLinkConfig{
+	authLinker, err := newIdentityLinker(client, identityLinkerConfig{
 		CreateAliases: i.config.CreateAliases,
 		CreateUsers:   i.config.CreateUsers,
 		UserpassMount: i.config.UserpassMount,
@@ -234,7 +236,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 		return nil, err
 	}
 
-	userpassMount := authLinker.mountPath()
+	userpassMount := authLinker.mountPath
 	ownsMount := (i.config.CreateAliases || i.config.CreateUsers) && randomMounts
 
 	// Roll back any partially created identity resources unless setup succeeds.
@@ -270,7 +272,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 	}
 
 	success = true
-	return &IdentityGroupRead{
+	return &Identity{
 		pathPrefix:    pathPrefix,
 		header:        generateHeader(client),
 		config:        i.config,
@@ -290,7 +292,7 @@ func (i *IdentityGroupRead) Setup(client *api.Client, mountName string, topLevel
 // configured. Workers run concurrently up to Concurrency, storing ids at their
 // 1-based index so the slice is ordered without a mutex. Returns ids in creation
 // order so the caller can roll them back on error.
-func (i *IdentityGroupRead) createEntities(client *api.Client, mountName, runID string, authLinker *identityAuthLinkHelper) ([]string, error) {
+func (i *Identity) createEntities(client *api.Client, mountName, runID string, authLinker *identityLinker) ([]string, error) {
 	start := time.Now()
 	total := i.config.EntityCount
 	i.logger.Info("entity population start", "total", total,
@@ -363,7 +365,7 @@ func (i *IdentityGroupRead) createEntities(client *api.Client, mountName, runID 
 // members drawn deterministically from the created entities. Workers run
 // concurrently up to Concurrency. Returns ids in creation order so the caller
 // can roll them back on error.
-func (i *IdentityGroupRead) createGroups(client *api.Client, mountName, runID string, entityIDs []string) ([]string, error) {
+func (i *Identity) createGroups(client *api.Client, mountName, runID string, entityIDs []string) ([]string, error) {
 	start := time.Now()
 	total := i.config.GroupCount
 	i.logger.Info("group population start", "total", total, "group_size", i.config.GroupSize,
@@ -426,7 +428,7 @@ func (i *IdentityGroupRead) createGroups(client *api.Client, mountName, runID st
 // validateLinks verifies a random sample of alias->entity mappings by logging in
 // and confirming the token resolves to the expected entity. Checks run
 // concurrently up to Concurrency workers; the first failure cancels the rest.
-func (i *IdentityGroupRead) validateLinks(client *api.Client, mountName, runID string, authLinker *identityAuthLinkHelper, entityIDs []string) error {
+func (i *Identity) validateLinks(client *api.Client, mountName, runID string, authLinker *identityLinker, entityIDs []string) error {
 	start := time.Now()
 	sampleCount := min(i.config.ValidationSamples, i.config.EntityCount)
 	i.logger.Info("login resolution validation start", "samples", sampleCount, "entities", i.config.EntityCount,
@@ -479,15 +481,15 @@ func (i *IdentityGroupRead) validateLinks(client *api.Client, mountName, runID s
 // configureAttack returns the method, pathPrefix, and optional login request body
 // for the selected workload: group_read hits GET /identity/group/id/, login POSTs
 // to the userpass mount, and populate falls back to a cheap health check.
-func configureAttack(cfg *IdentityGroupReadConfig, authLinker *identityAuthLinkHelper) (method, pathPrefix string, loginReqBody []byte, err error) {
+func configureAttack(cfg *IdentityConfig, authLinker *identityLinker) (method, pathPrefix string, loginReqBody []byte, err error) {
 	switch cfg.Workload {
 	case identityWorkloadLogin:
-		body, marshalErr := json.Marshal(map[string]string{"password": authLinker.password()})
+		body, marshalErr := json.Marshal(map[string]string{"password": authLinker.password})
 		if marshalErr != nil {
 			return "", "", nil, fmt.Errorf("error encoding login request body: %w", marshalErr)
 		}
 		return http.MethodPost,
-			"/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath())),
+			"/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath)),
 			body, nil
 	case identityWorkloadGroupRead:
 		return http.MethodGet, "/v1/identity/group/id/", nil, nil
@@ -499,7 +501,7 @@ func configureAttack(cfg *IdentityGroupReadConfig, authLinker *identityAuthLinkH
 // Target drives the configured workload: a login POST, a group read, or the
 // no-workload health check. All variants share a base target and adjust only the
 // URL (and body, for login).
-func (i *IdentityGroupRead) Target(client *api.Client) vegeta.Target {
+func (i *Identity) Target(client *api.Client) vegeta.Target {
 	t := vegeta.Target{
 		Method: i.method,
 		URL:    client.Address() + i.pathPrefix,
@@ -520,7 +522,7 @@ func (i *IdentityGroupRead) Target(client *api.Client) vegeta.Target {
 	return t
 }
 
-func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
+func (i *Identity) Cleanup(client *api.Client) error {
 	if i.config.Workload == identityWorkloadPopulate {
 		i.logger.Info("populate workload; leaving seeded identity objects in place")
 		return nil
@@ -534,7 +536,7 @@ func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
 // owns the userpass mount, disables it to remove all linked and probe users.
 // Groups and entities are deleted concurrently up to Concurrency workers each;
 // DisableAuth runs last since it is a single call.
-func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, ownsMount bool, userpassMount string) error {
+func (i *Identity) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, ownsMount bool, userpassMount string) error {
 	start := time.Now()
 	i.logger.Info("cleanup start", "groups", len(groupIDs), "entities", len(entityIDs),
 		"concurrency", i.config.Concurrency)
@@ -564,7 +566,7 @@ func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, 
 
 // deleteIDs deletes each id under pathPrefix concurrently, up to Concurrency
 // workers. All errors are collected and returned via errors.Join.
-func (i *IdentityGroupRead) deleteIDs(client *api.Client, pathPrefix string, ids []string) error {
+func (i *Identity) deleteIDs(client *api.Client, pathPrefix string, ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -599,11 +601,11 @@ func (i *IdentityGroupRead) deleteIDs(client *api.Client, pathPrefix string, ids
 	return errors.Join(allErrs...)
 }
 
-func (i *IdentityGroupRead) GetTargetInfo() TargetInfo {
+func (i *Identity) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     i.method,
 		pathPrefix: i.pathPrefix,
 	}
 }
 
-func (i *IdentityGroupRead) Flags(fs *flag.FlagSet) {}
+func (i *Identity) Flags(fs *flag.FlagSet) {}
