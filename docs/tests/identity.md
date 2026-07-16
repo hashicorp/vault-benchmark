@@ -17,11 +17,9 @@ workload (see Notes).
 - `entity_count` `(int: 1000)` - Number of Identity entities to create during setup.
 - `create_users` `(bool: false)` - Create a userpass user per entity so entities are loginable.
 - `create_aliases` `(bool: false)` - Link each entity to a userpass alias so logins resolve to it. Enables the sampled login-resolution validation.
-- `userpass_mount` `(string: "userpass")` - Userpass mount for created users/aliases; enabled automatically if absent. Required when `create_users` or `create_aliases` is set.
 - `group_count` `(int: 0)` - Number of internal groups to create. `0` creates none.
 - `group_size` `(int: 10)` - Entity members per group. Must be `> 0` and `<= entity_count` when `group_count > 0`.
 - `validation_samples` `(int: 100)` - Aliases sampled at setup to verify login resolution when `create_aliases` is set. Clamped to `entity_count`; a fixed sample gives high confidence independent of `entity_count`.
-- `progress_interval` `(int: 1000)` - How often to log progress during entity creation.
 - `concurrency` `(int: 10)` - Number of parallel workers used to create entities and groups during setup. Increasing this reduces setup time proportionally up to the point Vault or the network becomes the bottleneck. Must be `>= 1`.
 
 ## Example HCL

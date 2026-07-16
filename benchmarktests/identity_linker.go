@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
@@ -16,15 +15,18 @@ import (
 )
 
 // TODO(refactor-pr): see the full refactor checklist at the top of
-// target_identity.go. Phase 1 renames are done; the mount hardcoding
-// (drop UserpassMount + normalizeMountPath) is phase 2.
+// target_identity.go. Phase 1 renames and the phase 2 mount hardcoding are done.
+
+// userpassMountBase is the fixed base path (and auth type) used to link
+// entities. random_mounts already isolates each run by appending a per-run
+// suffix, so the mount path is no longer configurable.
+const userpassMountBase = "userpass"
 
 // identityLinkerConfig configures how identity setup links generated entities
 // to a userpass auth mount so they become loginable.
 type identityLinkerConfig struct {
 	CreateAliases bool
 	CreateUsers   bool
-	UserpassMount string
 	RandomMounts  bool
 }
 
@@ -53,7 +55,7 @@ func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityL
 	}
 	helper.password = generated
 
-	authMountPath := normalizeMountPath(cfg.UserpassMount)
+	authMountPath := userpassMountBase
 	if cfg.RandomMounts {
 		runID, err := uuid.GenerateUUID()
 		if err != nil {
@@ -141,8 +143,7 @@ func (h *identityLinker) validateLogin(client *api.Client, name, expectedEntityI
 }
 
 func ensureMount(client *api.Client, mountPath string) (string, string, error) {
-	authMountPath := normalizeMountPath(mountPath)
-	authMountKey := authMountPath + "/"
+	authMountKey := mountPath + "/"
 
 	authMounts, err := client.Sys().ListAuth()
 	if err != nil {
@@ -151,50 +152,41 @@ func ensureMount(client *api.Client, mountPath string) (string, string, error) {
 
 	if authMount, ok := authMounts[authMountKey]; ok {
 		if authMount.Type != "userpass" {
-			return "", "", fmt.Errorf("auth mount %q exists with type %q, expected userpass", authMountPath, authMount.Type)
+			return "", "", fmt.Errorf("auth mount %q exists with type %q, expected userpass", mountPath, authMount.Type)
 		}
 
 		if authMount.Accessor == "" {
-			return "", "", fmt.Errorf("auth mount %q has empty accessor", authMountPath)
+			return "", "", fmt.Errorf("auth mount %q has empty accessor", mountPath)
 		}
 
-		return authMount.Accessor, authMountPath, nil
+		return authMount.Accessor, mountPath, nil
 	}
 
-	if err := client.Sys().EnableAuthWithOptions(authMountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
-		return "", "", fmt.Errorf("error enabling userpass auth mount %q: %w", authMountPath, err)
+	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
+		return "", "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
 	}
 
 	authMounts, err = client.Sys().ListAuth()
 	if err != nil {
-		return "", "", fmt.Errorf("error listing auth mounts after enabling %q: %w", authMountPath, err)
+		return "", "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
 	}
 
 	authMount, ok := authMounts[authMountKey]
 	if !ok {
-		return "", "", fmt.Errorf("auth mount %q not found after enable", authMountPath)
+		return "", "", fmt.Errorf("auth mount %q not found after enable", mountPath)
 	}
 
 	if authMount.Accessor == "" {
-		return "", "", fmt.Errorf("auth mount %q has empty accessor after enable", authMountPath)
+		return "", "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
 	}
 
-	return authMount.Accessor, authMountPath, nil
+	return authMount.Accessor, mountPath, nil
 }
 
 // generatePassword returns a strong throwaway password shared by every
 // generated user: 64 chars, 10 digits, no symbols, repeats allowed.
 func generatePassword() (string, error) {
 	return password.Generate(64, 10, 0, false, true)
-}
-
-func normalizeMountPath(path string) string {
-	normalized := strings.Trim(path, "/")
-	if normalized == "" {
-		return "userpass"
-	}
-
-	return normalized
 }
 
 // entityName derives a run-unique, index-addressable entity name of the form

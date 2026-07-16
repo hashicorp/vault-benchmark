@@ -20,10 +20,10 @@ package benchmarktests
 //    [x] put the primary struct before its Config; add a type doc comment
 //
 // 2. Structural cleanup
-//    [ ] fold cleanupCreatedIdentityResources into Cleanup (split only for rollback)
-//    [ ] hardcode "userpass" mount; drop UserpassMount + normalizeMountPath
+//    [x] fold cleanupCreatedIdentityResources into Cleanup (split only for rollback)
+//    [x] hardcode "userpass" mount; drop UserpassMount + normalizeMountPath
 //        (random_mounts already isolates the run)
-//    [ ] progress_interval -> internal constant
+//    [x] progress_interval -> internal constant
 //
 // 3. Config reframe: counts -> shape (sculpt the identity DB to stress the storage
 //    packer; confirm intent w/ team). Target surface:
@@ -67,7 +67,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -95,6 +94,10 @@ const (
 	// 100 aliases gives a high probability (>99%) of detecting corruption
 	// affecting 5% or more of mappings, independent of entity_count.
 	identityValidationSamples = 100
+
+	// identityProgressInterval is how often (in entities) creation progress is
+	// logged during setup.
+	identityProgressInterval = 1000
 )
 
 func init() {
@@ -124,17 +127,15 @@ type Identity struct {
 }
 
 type IdentityConfig struct {
-	EntityCount       int    `hcl:"entity_count,optional"`
-	GroupCount        int    `hcl:"group_count,optional"`
-	GroupSize         int    `hcl:"group_size,optional"`
-	CreateAliases     bool   `hcl:"create_aliases,optional"`
-	UserpassMount     string `hcl:"userpass_mount,optional"`
-	ValidationSamples int    `hcl:"validation_samples,optional"`
-	Concurrency       int    `hcl:"concurrency,optional"`
+	EntityCount       int  `hcl:"entity_count,optional"`
+	GroupCount        int  `hcl:"group_count,optional"`
+	GroupSize         int  `hcl:"group_size,optional"`
+	CreateAliases     bool `hcl:"create_aliases,optional"`
+	ValidationSamples int  `hcl:"validation_samples,optional"`
+	Concurrency       int  `hcl:"concurrency,optional"`
 
-	Workload         string `hcl:"workload,optional"`
-	CreateUsers      bool   `hcl:"create_users,optional"`
-	ProgressInterval int    `hcl:"progress_interval,optional"`
+	Workload    string `hcl:"workload,optional"`
+	CreateUsers bool   `hcl:"create_users,optional"`
 }
 
 func (i *Identity) ParseConfig(body hcl.Body) error {
@@ -146,12 +147,10 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 			GroupCount:        0,
 			GroupSize:         10,
 			CreateAliases:     false,
-			UserpassMount:     "userpass",
 			ValidationSamples: identityValidationSamples,
 			Concurrency:       10,
 			Workload:          identityWorkloadPopulate,
 			CreateUsers:       false,
-			ProgressInterval:  1000,
 		},
 	}
 
@@ -164,9 +163,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 
 	if i.config.EntityCount <= 0 {
 		return fmt.Errorf("entity_count must be greater than 0")
-	}
-	if i.config.ProgressInterval <= 0 {
-		return fmt.Errorf("progress_interval must be greater than 0")
 	}
 	if i.config.ValidationSamples <= 0 {
 		return fmt.Errorf("validation_samples must be greater than 0")
@@ -188,10 +184,8 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 		}
 	}
 
-	// Auth linking (aliases and/or users) needs a mount to attach to.
-	if (i.config.CreateAliases || i.config.CreateUsers) && strings.TrimSpace(i.config.UserpassMount) == "" {
-		return fmt.Errorf("userpass_mount cannot be empty when create_aliases or create_users is set")
-	}
+	// Auth linking (aliases and/or users) attaches to the fixed userpass mount
+	// (random_mounts isolates each run), so no mount path needs validating here.
 
 	// Each workload has prerequisites that must be created during setup.
 	switch i.config.Workload {
@@ -229,63 +223,57 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	authLinker, err := newIdentityLinker(client, identityLinkerConfig{
 		CreateAliases: i.config.CreateAliases,
 		CreateUsers:   i.config.CreateUsers,
-		UserpassMount: i.config.UserpassMount,
 		RandomMounts:  randomMounts,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	userpassMount := authLinker.mountPath
-	ownsMount := (i.config.CreateAliases || i.config.CreateUsers) && randomMounts
+	result := &Identity{
+		config:        i.config,
+		logger:        i.logger,
+		mountName:     mountName,
+		runID:         runID,
+		userpassMount: authLinker.mountPath,
+		ownsMount:     (i.config.CreateAliases || i.config.CreateUsers) && randomMounts,
+	}
 
 	// Roll back any partially created identity resources unless setup succeeds.
-	var entityIDs, groupIDs []string
+	// Rollback runs for every workload, so it calls deleteResources directly
+	// rather than Cleanup, which intentionally preserves the populate dataset.
 	success := false
 	defer func() {
 		if !success {
-			_ = i.cleanupCreatedIdentityResources(client, groupIDs, entityIDs, ownsMount, userpassMount)
+			_ = result.deleteResources(client)
 		}
 	}()
 
-	entityIDs, err = i.createEntities(client, mountName, runID, authLinker)
+	result.entityIDs, err = i.createEntities(client, mountName, runID, authLinker)
 	if err != nil {
 		return nil, err
 	}
 
 	if i.config.GroupCount > 0 {
-		groupIDs, err = i.createGroups(client, mountName, runID, entityIDs)
+		result.groupIDs, err = i.createGroups(client, mountName, runID, result.entityIDs)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if i.config.CreateAliases {
-		if err := i.validateLinks(client, mountName, runID, authLinker, entityIDs); err != nil {
+		if err := i.validateLinks(client, mountName, runID, authLinker, result.entityIDs); err != nil {
 			return nil, err
 		}
 	}
 
-	method, pathPrefix, loginReqBody, err := configureAttack(i.config, authLinker)
+	result.method, result.pathPrefix, result.loginReqBody, err = configureAttack(i.config, authLinker)
 	if err != nil {
 		return nil, err
 	}
+	result.header = generateHeader(client)
 
 	success = true
-	return &Identity{
-		pathPrefix:    pathPrefix,
-		header:        generateHeader(client),
-		config:        i.config,
-		groupIDs:      groupIDs,
-		entityIDs:     entityIDs,
-		method:        method,
-		loginReqBody:  loginReqBody,
-		mountName:     mountName,
-		runID:         runID,
-		userpassMount: userpassMount,
-		ownsMount:     ownsMount,
-		logger:        i.logger,
-	}, nil
+	return result, nil
 }
 
 // createEntities creates EntityCount entities and links each to userpass as
@@ -335,7 +323,7 @@ func (i *Identity) createEntities(client *api.Client, mountName, runID string, a
 				}
 
 				n := done.Add(1)
-				if n%int64(i.config.ProgressInterval) == 0 || int(n) == total {
+				if n%int64(identityProgressInterval) == 0 || int(n) == total {
 					i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", n, total))
 				}
 			}
@@ -529,34 +517,36 @@ func (i *Identity) Cleanup(client *api.Client) error {
 	}
 
 	i.logger.Trace("cleaning up identity benchmark resources")
-	return i.cleanupCreatedIdentityResources(client, i.groupIDs, i.entityIDs, i.ownsMount, i.userpassMount)
+	return i.deleteResources(client)
 }
 
-// cleanupCreatedIdentityResources deletes groups, entities, and, when this run
-// owns the userpass mount, disables it to remove all linked and probe users.
-// Groups and entities are deleted concurrently up to Concurrency workers each;
-// DisableAuth runs last since it is a single call.
-func (i *Identity) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, ownsMount bool, userpassMount string) error {
+// deleteResources deletes the groups and entities this run created and, when the
+// run owns the userpass mount, disables it to drop all linked and probe users in
+// a single call. It is the shared teardown core: Cleanup calls it after honoring
+// the populate keep-alive, while setup rollback calls it directly (partial
+// cleanup must run for every workload). Groups and entities delete concurrently
+// up to Concurrency workers each; DisableAuth runs last since it is a single call.
+func (i *Identity) deleteResources(client *api.Client) error {
 	start := time.Now()
-	i.logger.Info("cleanup start", "groups", len(groupIDs), "entities", len(entityIDs),
+	i.logger.Info("cleanup start", "groups", len(i.groupIDs), "entities", len(i.entityIDs),
 		"concurrency", i.config.Concurrency)
 
 	var allErrs []error
 
-	if err := i.deleteIDs(client, "identity/group/id/", groupIDs); err != nil {
+	if err := i.deleteIDs(client, "identity/group/id/", i.groupIDs); err != nil {
 		allErrs = append(allErrs, err)
 	}
 
 	// Deleting an entity removes its aliases, so aliases need no separate cleanup.
-	if err := i.deleteIDs(client, "identity/entity/id/", entityIDs); err != nil {
+	if err := i.deleteIDs(client, "identity/entity/id/", i.entityIDs); err != nil {
 		allErrs = append(allErrs, err)
 	}
 
 	// The run-scoped userpass mount holds every linked and probe user, so
 	// disabling it removes them all in a single call.
-	if ownsMount && userpassMount != "" {
-		if err := client.Sys().DisableAuth(userpassMount); err != nil {
-			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %v", userpassMount, err))
+	if i.ownsMount && i.userpassMount != "" {
+		if err := client.Sys().DisableAuth(i.userpassMount); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %v", i.userpassMount, err))
 		}
 	}
 
