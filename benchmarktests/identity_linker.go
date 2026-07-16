@@ -4,7 +4,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
 	"github.com/sethvargo/go-password/password"
 )
@@ -28,45 +26,33 @@ type identityLinker struct {
 	userpassAccessor string
 }
 
-// identityLinkerConfig configures how identity setup links entities to userpass.
-type identityLinkerConfig struct {
-	// NeedsMount is set when any aliases or users will be created, which requires
-	// a userpass mount to exist.
-	NeedsMount   bool
-	RandomMounts bool
-}
+// newIdentityLinker returns a linker for the run. When needMount is set (any
+// aliases or users will be created) it enables a run-scoped userpass mount
+// (userpass-<runID>) that Cleanup later disables; otherwise it returns an empty
+// linker that touches no mount.
+func newIdentityLinker(client *api.Client, runID string, needMount bool) (*identityLinker, error) {
+	linker := &identityLinker{}
 
-func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityLinker, error) {
-	helper := &identityLinker{}
-
-	if !cfg.NeedsMount {
-		return helper, nil
+	if !needMount {
+		return linker, nil
 	}
 
 	generated, err := generatePassword()
 	if err != nil {
 		return nil, fmt.Errorf("error generating userpass password: %w", err)
 	}
-	helper.password = generated
+	linker.password = generated
 
-	authMountPath := userpassMountBase
-	if cfg.RandomMounts {
-		runID, err := uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating userpass mount run id: %w", err)
-		}
-		authMountPath = authMountPath + "-" + runID
-	}
-
-	accessor, err := ensureMount(client, authMountPath)
+	mountPath := userpassMountBase + "-" + runID
+	accessor, err := ensureMount(client, mountPath)
 	if err != nil {
 		return nil, err
 	}
 
-	helper.userpassAccessor = accessor
-	helper.mountPath = authMountPath
+	linker.userpassAccessor = accessor
+	linker.mountPath = mountPath
 
-	return helper, nil
+	return linker, nil
 }
 
 // linkEntity creates a userpass user and/or entity alias for name, as requested
@@ -241,22 +227,16 @@ func resolveGroups(g *GroupConfig, groupCount, entityCount int) (filled, size in
 	}
 }
 
-// configureAttack returns the method, path prefix, and optional login body for
-// the selected workload (populate falls back to a health check).
-func configureAttack(cfg *IdentityConfig, authLinker *identityLinker) (method, pathPrefix string, loginReqBody []byte, err error) {
+// configureAttack returns the method and path prefix for the selected workload
+// (populate falls back to a health check).
+func configureAttack(cfg *IdentityConfig, authLinker *identityLinker) (method, pathPrefix string) {
 	switch cfg.Workload {
 	case identityWorkloadLogin:
-		body, marshalErr := json.Marshal(map[string]string{"password": authLinker.password})
-		if marshalErr != nil {
-			return "", "", nil, fmt.Errorf("error encoding login request body: %w", marshalErr)
-		}
-		return http.MethodPost,
-			"/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath)),
-			body, nil
+		return http.MethodPost, "/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath))
 	case identityWorkloadGroupRead:
-		return http.MethodGet, "/v1/identity/group/id/", nil, nil
+		return http.MethodGet, "/v1/identity/group/id/"
 	default: // identityWorkloadPopulate
-		return http.MethodGet, identityNoWorkloadPath, nil, nil
+		return http.MethodGet, identityNoWorkloadPath
 	}
 }
 
