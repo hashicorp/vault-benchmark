@@ -228,3 +228,89 @@ func TestSampleIndices(t *testing.T) {
 		}
 	})
 }
+
+func TestSelectGroupMembers(t *testing.T) {
+	// Build a realistic entity slice: ["e0", "e1", ..., "e(n-1)"].
+	makeEntities := func(n int) []string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf("e%d", i)
+		}
+		return out
+	}
+
+	t.Run("every entity in every group when group_size equals entity_count", func(t *testing.T) {
+		// group_size == entity_count: start is always 0 and the loop wraps
+		// through every slot, so every group contains every entity.
+		const entityCount = 10
+		entities := makeEntities(entityCount)
+
+		for groupIdx := 0; groupIdx < 5; groupIdx++ {
+			members := selectGroupMembers(entities, groupIdx, entityCount)
+
+			if len(members) != entityCount {
+				t.Fatalf("group %d: got %d members, want %d", groupIdx, len(members), entityCount)
+			}
+
+			seen := make(map[string]struct{}, entityCount)
+			for _, m := range members {
+				seen[m] = struct{}{}
+			}
+			for _, e := range entities {
+				if _, ok := seen[e]; !ok {
+					t.Fatalf("group %d: entity %q missing from members", groupIdx, e)
+				}
+			}
+		}
+	})
+
+	t.Run("one-to-one mapping when group_size is 1 and group_count equals entity_count", func(t *testing.T) {
+		// group_size == 1, group_count == entity_count: group i gets entity i,
+		// so every group has exactly one entity and no two groups share one.
+		const entityCount = 10
+		entities := makeEntities(entityCount)
+
+		assigned := make(map[string]int, entityCount) // entity -> group index
+		for groupIdx := 0; groupIdx < entityCount; groupIdx++ {
+			members := selectGroupMembers(entities, groupIdx, 1)
+
+			if len(members) != 1 {
+				t.Fatalf("group %d: got %d members, want 1", groupIdx, len(members))
+			}
+
+			e := members[0]
+			if prev, dup := assigned[e]; dup {
+				t.Fatalf("entity %q appears in both group %d and group %d", e, prev, groupIdx)
+			}
+			assigned[e] = groupIdx
+		}
+
+		if len(assigned) != entityCount {
+			t.Fatalf("got %d distinct assigned entities, want %d", len(assigned), entityCount)
+		}
+	})
+
+	t.Run("no entity shared across groups when group_size * group_count <= entity_count", func(t *testing.T) {
+		// group_size * group_count == entity_count with no wraparound: the
+		// sliding window never overlaps, so every entity appears in at most
+		// one group.
+		const entityCount, groupSize, groupCount = 20, 4, 5
+		entities := makeEntities(entityCount)
+
+		seen := make(map[string]int, entityCount) // entity -> first group index
+		for groupIdx := 0; groupIdx < groupCount; groupIdx++ {
+			members := selectGroupMembers(entities, groupIdx, groupSize)
+
+			if len(members) != groupSize {
+				t.Fatalf("group %d: got %d members, want %d", groupIdx, len(members), groupSize)
+			}
+
+			for _, e := range members {
+				if prev, dup := seen[e]; dup {
+					t.Fatalf("entity %q appears in both group %d and group %d (overlap)", e, prev, groupIdx)
+				}
+				seen[e] = groupIdx
+			}
+		}
+	})
+}

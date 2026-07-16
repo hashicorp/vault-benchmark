@@ -493,33 +493,71 @@ func (i *IdentityGroupRead) Cleanup(client *api.Client) error {
 
 // cleanupCreatedIdentityResources deletes groups, entities, and, when this run
 // owns the userpass mount, disables it to remove all linked and probe users.
+// Groups and entities are deleted concurrently up to Concurrency workers each;
+// DisableAuth runs last since it is a single call.
 func (i *IdentityGroupRead) cleanupCreatedIdentityResources(client *api.Client, groupIDs []string, entityIDs []string, ownsMount bool, userpassMount string) error {
-	var firstErr error
+	start := time.Now()
+	i.logger.Info("cleanup start", "groups", len(groupIDs), "entities", len(entityIDs),
+		"concurrency", i.config.Concurrency)
 
-	for _, groupID := range groupIDs {
-		_, err := client.Logical().Delete("identity/group/id/" + groupID)
-		if err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error deleting identity group %q: %v", groupID, err)
-		}
+	var allErrs []error
+
+	if err := i.deleteIDs(client, "identity/group/id/", groupIDs); err != nil {
+		allErrs = append(allErrs, err)
 	}
 
 	// Deleting an entity removes its aliases, so aliases need no separate cleanup.
-	for _, entityID := range entityIDs {
-		_, err := client.Logical().Delete("identity/entity/id/" + entityID)
-		if err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error deleting identity entity %q: %v", entityID, err)
-		}
+	if err := i.deleteIDs(client, "identity/entity/id/", entityIDs); err != nil {
+		allErrs = append(allErrs, err)
 	}
 
 	// The run-scoped userpass mount holds every linked and probe user, so
 	// disabling it removes them all in a single call.
 	if ownsMount && userpassMount != "" {
-		if err := client.Sys().DisableAuth(userpassMount); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error disabling userpass mount %q: %v", userpassMount, err)
+		if err := client.Sys().DisableAuth(userpassMount); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %v", userpassMount, err))
 		}
 	}
 
-	return firstErr
+	i.logger.Info("cleanup complete", "elapsed", time.Since(start).String())
+	return errors.Join(allErrs...)
+}
+
+// deleteIDs deletes each id under pathPrefix concurrently, up to Concurrency
+// workers. All errors are collected and returned via errors.Join.
+func (i *IdentityGroupRead) deleteIDs(client *api.Client, pathPrefix string, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	jobs := make(chan string, i.config.Concurrency)
+	errs := make(chan error, len(ids))
+
+	var wg sync.WaitGroup
+	for w := 0; w < i.config.Concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range jobs {
+				if _, err := client.Logical().Delete(pathPrefix + id); err != nil {
+					errs <- fmt.Errorf("error deleting %s%s: %v", pathPrefix, id, err)
+				}
+			}
+		}()
+	}
+
+	for _, id := range ids {
+		jobs <- id
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	var allErrs []error
+	for err := range errs {
+		allErrs = append(allErrs, err)
+	}
+	return errors.Join(allErrs...)
 }
 
 func (i *IdentityGroupRead) GetTargetInfo() TargetInfo {
