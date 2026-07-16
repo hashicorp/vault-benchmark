@@ -4,27 +4,25 @@
 package benchmarktests
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
-	"math/rand"
+	"net/http"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
 	"github.com/sethvargo/go-password/password"
 )
 
-// TODO(refactor-pr): see the full refactor checklist at the top of
-// target_identity.go. Phase 1 renames and the phase 2 mount hardcoding are done.
-
 const userpassMountBase = "userpass"
 
 // identityLinker links generated entities to a userpass auth mount by creating
 // userpass users and/or entity aliases so the entities become loginable.
 type identityLinker struct {
-	createAliases bool
-	createUsers   bool
-	password      string
+	password string
 
 	mountPath        string
 	userpassAccessor string
@@ -32,18 +30,16 @@ type identityLinker struct {
 
 // identityLinkerConfig configures how identity setup links entities to userpass.
 type identityLinkerConfig struct {
-	CreateAliases bool
-	CreateUsers   bool
-	RandomMounts  bool
+	// NeedsMount is set when any aliases or users will be created, which requires
+	// a userpass mount to exist.
+	NeedsMount   bool
+	RandomMounts bool
 }
 
 func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityLinker, error) {
-	helper := &identityLinker{
-		createAliases: cfg.CreateAliases,
-		createUsers:   cfg.CreateUsers,
-	}
+	helper := &identityLinker{}
 
-	if !cfg.CreateAliases && !cfg.CreateUsers {
+	if !cfg.NeedsMount {
 		return helper, nil
 	}
 
@@ -62,21 +58,22 @@ func newIdentityLinker(client *api.Client, cfg identityLinkerConfig) (*identityL
 		authMountPath = authMountPath + "-" + runID
 	}
 
-	accessor, resolvedMountPath, err := ensureMount(client, authMountPath)
+	accessor, err := ensureMount(client, authMountPath)
 	if err != nil {
 		return nil, err
 	}
 
 	helper.userpassAccessor = accessor
-	helper.mountPath = resolvedMountPath
+	helper.mountPath = authMountPath
 
 	return helper, nil
 }
 
-// linkEntity creates the userpass user and/or entity alias for name. Both are
-// named after the entity (1:1) so callers can derive the username from an index.
-func (h *identityLinker) linkEntity(client *api.Client, name, entityID string) error {
-	if h.createUsers {
+// linkEntity creates a userpass user and/or entity alias for name, as requested
+// by the caller. Both are named after the entity (1:1) so callers can derive the
+// username from an index.
+func (h *identityLinker) linkEntity(client *api.Client, name, entityID string, createAlias, createUser bool) error {
+	if createUser {
 		// ToSlash keeps forward slashes on Windows.
 		userPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "users", name))
 		_, err := client.Logical().Write(userPath, map[string]any{
@@ -87,7 +84,7 @@ func (h *identityLinker) linkEntity(client *api.Client, name, entityID string) e
 		}
 	}
 
-	if h.createAliases {
+	if createAlias {
 		_, err := client.Logical().Write("identity/entity-alias", map[string]any{
 			"name":           name,
 			"canonical_id":   entityID,
@@ -101,23 +98,9 @@ func (h *identityLinker) linkEntity(client *api.Client, name, entityID string) e
 	return nil
 }
 
-// validateLogin logs in as one user and confirms the token resolves to
-// expectedEntityID. Alias-only datasets first get a throwaway probe user (no
-// other credential exists).
+// validateLogin logs in as one seeded user and confirms the token resolves to
+// expectedEntityID.
 func (h *identityLinker) validateLogin(client *api.Client, name, expectedEntityID string) error {
-	if h.userpassAccessor == "" {
-		return fmt.Errorf("cannot validate login resolution: no userpass mount configured")
-	}
-
-	if !h.createUsers {
-		userPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "users", name))
-		if _, err := client.Logical().Write(userPath, map[string]any{
-			"password": h.password,
-		}); err != nil {
-			return fmt.Errorf("error creating validation user %q: %w", name, err)
-		}
-	}
-
 	loginPath := filepath.ToSlash(filepath.Join("auth", h.mountPath, "login", name))
 	secret, err := client.Logical().Write(loginPath, map[string]any{
 		"password": h.password,
@@ -137,45 +120,45 @@ func (h *identityLinker) validateLogin(client *api.Client, name, expectedEntityI
 	return nil
 }
 
-func ensureMount(client *api.Client, mountPath string) (string, string, error) {
+func ensureMount(client *api.Client, mountPath string) (string, error) {
 	authMountKey := mountPath + "/"
 
 	authMounts, err := client.Sys().ListAuth()
 	if err != nil {
-		return "", "", fmt.Errorf("error listing auth mounts: %w", err)
+		return "", fmt.Errorf("error listing auth mounts: %w", err)
 	}
 
 	if authMount, ok := authMounts[authMountKey]; ok {
 		if authMount.Type != "userpass" {
-			return "", "", fmt.Errorf("auth mount %q exists with type %q, expected userpass", mountPath, authMount.Type)
+			return "", fmt.Errorf("auth mount %q exists with type %q, expected userpass", mountPath, authMount.Type)
 		}
 
 		if authMount.Accessor == "" {
-			return "", "", fmt.Errorf("auth mount %q has empty accessor", mountPath)
+			return "", fmt.Errorf("auth mount %q has empty accessor", mountPath)
 		}
 
-		return authMount.Accessor, mountPath, nil
+		return authMount.Accessor, nil
 	}
 
 	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
-		return "", "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
 	}
 
 	authMounts, err = client.Sys().ListAuth()
 	if err != nil {
-		return "", "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
+		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
 	}
 
 	authMount, ok := authMounts[authMountKey]
 	if !ok {
-		return "", "", fmt.Errorf("auth mount %q not found after enable", mountPath)
+		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
 	}
 
 	if authMount.Accessor == "" {
-		return "", "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
+		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
 	}
 
-	return authMount.Accessor, mountPath, nil
+	return authMount.Accessor, nil
 }
 
 // generatePassword returns a strong throwaway password shared by all users.
@@ -218,26 +201,97 @@ func identityIDFromResponse(resp *api.Secret) (string, error) {
 	return id, nil
 }
 
-// sampleIndices returns k distinct random 1-based indices in [1, n] (all when
-// k >= n). Callers must pass 0 < k <= n.
-func sampleIndices(n, k int) []int {
-	if k >= n {
-		idxs := make([]int, n)
-		for i := range idxs {
-			idxs[i] = i + 1
-		}
-		return idxs
+// resolveGroups turns the group allocation into the number of groups that hold
+// members and the members per filled group (E is entity_count):
+//
+//	even  (default): entities partitioned across all groups (~E/group_count each)
+//	empty          : no group holds members
+//	max            : every group holds all E entities
+//	count+size     : count groups hold size members each, the rest empty
+func resolveGroups(g *GroupConfig, groupCount, entityCount int) (filled, size int, err error) {
+	if groupCount <= 0 {
+		return 0, 0, nil
+	}
+	if g == nil {
+		return groupCount, ceilDiv(entityCount, groupCount), nil
 	}
 
-	seen := make(map[int]struct{}, k)
-	idxs := make([]int, 0, k)
-	for len(idxs) < k {
-		candidate := rand.Intn(n) + 1
-		if _, ok := seen[candidate]; ok {
-			continue
+	if g.Count > 0 || g.Size > 0 {
+		if g.Preset != "" {
+			return 0, 0, fmt.Errorf("groups: set either preset or count+size, not both")
 		}
-		seen[candidate] = struct{}{}
-		idxs = append(idxs, candidate)
+		if g.Count < 0 || g.Count > groupCount {
+			return 0, 0, fmt.Errorf("groups.count (%d) must be in [0, group_count=%d]", g.Count, groupCount)
+		}
+		if g.Size < 0 || g.Size > entityCount {
+			return 0, 0, fmt.Errorf("groups.size (%d) must be in [0, entity_count=%d]", g.Size, entityCount)
+		}
+		return g.Count, g.Size, nil
 	}
-	return idxs
+
+	switch g.Preset {
+	case "", "even":
+		return groupCount, ceilDiv(entityCount, groupCount), nil
+	case "empty":
+		return 0, 0, nil
+	case "max":
+		return groupCount, entityCount, nil
+	default:
+		return 0, 0, fmt.Errorf("invalid groups preset %q: must be \"even\", \"empty\", or \"max\"", g.Preset)
+	}
+}
+
+// configureAttack returns the method, path prefix, and optional login body for
+// the selected workload (populate falls back to a health check).
+func configureAttack(cfg *IdentityConfig, authLinker *identityLinker) (method, pathPrefix string, loginReqBody []byte, err error) {
+	switch cfg.Workload {
+	case identityWorkloadLogin:
+		body, marshalErr := json.Marshal(map[string]string{"password": authLinker.password})
+		if marshalErr != nil {
+			return "", "", nil, fmt.Errorf("error encoding login request body: %w", marshalErr)
+		}
+		return http.MethodPost,
+			"/v1/" + filepath.ToSlash(filepath.Join("auth", authLinker.mountPath)),
+			body, nil
+	case identityWorkloadGroupRead:
+		return http.MethodGet, "/v1/identity/group/id/", nil, nil
+	default: // identityWorkloadPopulate
+		return http.MethodGet, identityNoWorkloadPath, nil, nil
+	}
+}
+
+// deleteIDs deletes each id under pathPrefix concurrently.
+func deleteIDs(client *api.Client, pathPrefix string, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	jobs := make(chan string, identityConcurrency)
+	errs := make(chan error, len(ids))
+
+	var wg sync.WaitGroup
+	for range identityConcurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range jobs {
+				if _, err := client.Logical().Delete(pathPrefix + id); err != nil {
+					errs <- fmt.Errorf("error deleting %s%s: %v", pathPrefix, id, err)
+				}
+			}
+		}()
+	}
+
+	for _, id := range ids {
+		jobs <- id
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	var allErrs []error
+	for err := range errs {
+		allErrs = append(allErrs, err)
+	}
+	return errors.Join(allErrs...)
 }

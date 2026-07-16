@@ -3,7 +3,7 @@
 
 # General identity showcase: one run exercising every workload the target
 # supports. Kept small and short so it stays a smoke test; the docs carry the
-# per-workload examples. NOTE: config keys settle in the Phase 3 reframe.
+# per-workload examples.
 
 duration      = "10s"
 report_mode   = "terse"
@@ -16,30 +16,30 @@ test "identity" "identity_populate" {
   config {
     workload     = "populate"
     entity_count = 100
-    concurrency  = 10
   }
 }
 
-# Log in as seeded entities, validating that aliases resolve correctly.
+# Log in as seeded users, validating that aliases resolve correctly.
 test "identity" "identity_login" {
   weight = 33
   config {
-    workload       = "login"
-    entity_count   = 100
-    create_users   = true
-    create_aliases = true
-    concurrency    = 10
+    workload     = "login"
+    entity_count = 100
+    alias_count  = 100
+    login_users  = 50
   }
 }
 
-# Read internal groups by id under load.
+# Read internal groups by id under load. An omitted groups block spreads
+# entities evenly across groups; shown here explicitly.
 test "identity" "identity_group_read" {
   weight = 33
   config {
     workload     = "group_read"
     entity_count = 100
     group_count  = 100
-    group_size   = 10
-    concurrency  = 10
+    groups {
+      preset = "even"
+    }
   }
 }

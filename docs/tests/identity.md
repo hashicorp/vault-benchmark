@@ -12,34 +12,37 @@ workload (see Notes).
 
 - `workload` `(string: "populate")` - Attack-phase workload. One of:
   - `populate` - Seed only; the attack phase just hits `sys/health` and the seeded objects are always kept (even if the global `cleanup` flag is on) so they can be reused as a bloat dataset. Use a short `duration` (see Notes).
-  - `login` - Log in as randomly selected users. Requires `create_users = true` and `create_aliases = true`.
+  - `login` - Log in as randomly selected users from the login pool. Requires `login_users > 0` and `alias_count > 0` so logins resolve to seeded entities.
   - `group_read` - Read randomly selected groups by id. Requires `group_count > 0`.
-- `entity_count` `(int: 1000)` - Number of Identity entities to create during setup.
-- `create_users` `(bool: false)` - Create a userpass user per entity so entities are loginable.
-- `create_aliases` `(bool: false)` - Link each entity to a userpass alias so logins resolve to it. Enables the sampled login-resolution validation.
+- `entity_count` `(int: 1000)` - Number of Identity entities to create during setup. Primary scale axis.
+- `alias_count` `(int: 0)` - Number of entities that also get a userpass alias, created for the first `alias_count` entities. On this single mount an alias maps 1:1 to an entity, so `alias_count` must be `<= entity_count`. (Giving one entity multiple aliases requires multiple mounts, a future feature.)
+- `login_users` `(int: 100)` - Number of real (bcrypt) userpass users to create, for the first `login_users` entities. These users are the login-resolution verification sample at setup **and** the pool the `login` workload attacks. A user needs an alias to resolve, so the effective count is capped at `alias_count` (with `alias_count = 0` no users are created and no verification runs). Users are not part of the identity lifecycle; raising this only slows setup.
 - `group_count` `(int: 0)` - Number of internal groups to create. `0` creates none.
-- `group_size` `(int: 10)` - Entity members per group. Must be `> 0` and `<= entity_count` when `group_count > 0`.
-- `validation_samples` `(int: 100)` - Aliases sampled at setup to verify login resolution when `create_aliases` is set. Clamped to `entity_count`; a fixed sample gives high confidence independent of `entity_count`.
-- `concurrency` `(int: 10)` - Number of parallel workers used to create entities and groups during setup. Increasing this reduces setup time proportionally up to the point Vault or the network becomes the bottleneck. Must be `>= 1`.
+- `groups` `(block)` - Optional block controlling how the `group_count` groups are filled with entities. Omit it for an even split. Set either a `preset` or `count`+`size` (not both):
+  - `preset = "even"` (default) - Entities partitioned across all groups; every entity lands in one group (~`entity_count / group_count` members each).
+  - `preset = "empty"` - All groups are created with no members.
+  - `preset = "max"` - Every group holds all `entity_count` entities.
+  - `count = N, size = M` - `N` of the groups hold `M` members each; the rest are empty. `N` must be `<= group_count` and `M <= entity_count`.
 
 ## Example HCL
 
-Log in as seeded entities, validating that aliases resolve correctly:
+Log in as seeded users, validating that aliases resolve correctly. Here 1000
+entities are aliased and 100 of them get real users to attack:
 
 ```hcl
 test "identity" "identity_login" {
   weight = 100
   config {
-    workload       = "login"
-    entity_count   = 1000
-    create_users   = true
-    create_aliases = true
-    concurrency    = 10
+    workload     = "login"
+    entity_count = 1000
+    alias_count  = 1000
+    login_users  = 100
   }
 }
 ```
 
-Read groups by id under load:
+Read groups by id under load, spreading entities evenly across groups (an
+omitted `groups` block does the same):
 
 ```hcl
 test "identity" "identity_group_read" {
@@ -48,8 +51,27 @@ test "identity" "identity_group_read" {
     workload     = "group_read"
     entity_count = 1000
     group_count  = 1000
-    group_size   = 10
-    concurrency  = 10
+    groups {
+      preset = "even"
+    }
+  }
+}
+```
+
+Fill only some groups to a fixed capacity — 50 of the 1000 groups hold 20
+members each, the rest are empty:
+
+```hcl
+test "identity" "identity_partial_groups" {
+  weight = 100
+  config {
+    workload     = "group_read"
+    entity_count = 1000
+    group_count  = 1000
+    groups {
+      count = 50
+      size  = 20
+    }
   }
 }
 ```
@@ -63,13 +85,14 @@ test "identity" "identity_seed" {
   config {
     workload     = "populate"
     entity_count = 10000
+    alias_count  = 10000
   }
 }
 ```
 
 ## Notes
 
-- When `create_aliases = true`, setup logs in against a random sample of created entities (see `validation_samples`) and fails if any login does not resolve to that entity, confirming the alias mapping is correct. The `login` workload requires aliases, so it is always validated.
+- When `login_users` real users are created (bounded by `alias_count`), setup logs in as each one and fails if any login does not resolve to its expected entity, confirming the alias mapping is correct. The `login` workload always creates users, so it is always validated; other workloads validate only if `login_users` and `alias_count` are both set.
 - The framework always drives an attack for the configured `duration`; there is no per-target early exit. With `workload = "populate"` the attack phase only hits `sys/health`, so set a short `duration` when you only want to seed objects.
 - The `login` and `group_read` workloads honor the global `cleanup` flag (which requires `random_mounts`): when enabled it deletes created groups and entities and disables the run-scoped userpass mount, removing all created users in one call. The `populate` workload always keeps its seeded objects regardless of the global flag, so it can build a bloat dataset that survives a mixed run tearing down other targets. With the global flag off, all objects persist regardless.
 - If setup fails partway through (e.g. a Vault error while creating entities), any objects created up to that point are left in place. This matches the framework, which does not tear down a target whose setup fails; benchmark runs use ephemeral Vault instances, so restart against a fresh instance.

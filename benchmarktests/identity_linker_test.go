@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 
@@ -31,27 +30,20 @@ func newTestClient(t *testing.T, addr string) *api.Client {
 	return client
 }
 
-// fakeUserpass serves the minimal userpass surface validateLogin
-// touches: user creation returns 204, and login returns the response the test
-// configures. It records whether the probe user was created.
-func fakeUserpass(t *testing.T, loginStatus int, loginBody string, userCreated *bool) *httptest.Server {
+// fakeUserpass serves the minimal userpass surface validateLogin touches: login
+// returns the response the test configures.
+func fakeUserpass(t *testing.T, loginStatus int, loginBody string) *httptest.Server {
 	t.Helper()
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.Contains(r.URL.Path, "/login/"):
+		if strings.Contains(r.URL.Path, "/login/") {
 			w.WriteHeader(loginStatus)
 			if loginBody != "" {
 				_, _ = w.Write([]byte(loginBody))
 			}
-		case strings.Contains(r.URL.Path, "/users/"):
-			if userCreated != nil {
-				*userCreated = true
-			}
-			w.WriteHeader(http.StatusNoContent)
-		default:
-			w.WriteHeader(http.StatusNoContent)
+			return
 		}
+		w.WriteHeader(http.StatusNoContent)
 	}))
 }
 
@@ -96,12 +88,11 @@ func TestValidateLogin(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			server := fakeUserpass(t, tc.loginStatus, tc.loginBody, nil)
+			server := fakeUserpass(t, tc.loginStatus, tc.loginBody)
 			defer server.Close()
 
 			client := newTestClient(t, server.URL)
 			helper := &identityLinker{
-				createUsers:      true,
 				password:         "password-value",
 				mountPath:        "userpass",
 				userpassAccessor: "auth_userpass_00000000",
@@ -124,107 +115,43 @@ func TestValidateLogin(t *testing.T) {
 	}
 }
 
-// TestValidateLogin_ProvisionsProbeUser covers the alias-only path
-// (createUsers=false, as the identity group_read workload uses): a probe user
-// must be created before the login check, reusing the helper's password.
-func TestValidateLogin_ProvisionsProbeUser(t *testing.T) {
-	const wantEntity = "entity-abc"
-	const wantPassword = "pre-generated-password"
-
-	userCreated := false
-	server := fakeUserpass(t, http.StatusOK,
-		`{"auth":{"entity_id":"entity-abc","client_token":"t","policies":["default"]}}`, &userCreated)
-	defer server.Close()
-
-	client := newTestClient(t, server.URL)
-	helper := &identityLinker{
-		createUsers:      false,
-		password:         wantPassword,
-		mountPath:        "userpass",
-		userpassAccessor: "auth_userpass_00000000",
+func TestResolveGroups(t *testing.T) {
+	tests := []struct {
+		name        string
+		groups      *GroupConfig
+		groupCount  int
+		entityCount int
+		wantFilled  int
+		wantSize    int
+		wantErr     bool
+	}{
+		{name: "no groups", groups: nil, groupCount: 0, entityCount: 100, wantFilled: 0, wantSize: 0},
+		{name: "default is even", groups: nil, groupCount: 10, entityCount: 100, wantFilled: 10, wantSize: 10},
+		{name: "even rounds up", groups: &GroupConfig{Preset: "even"}, groupCount: 7, entityCount: 100, wantFilled: 7, wantSize: 15},
+		{name: "empty", groups: &GroupConfig{Preset: "empty"}, groupCount: 10, entityCount: 100, wantFilled: 0, wantSize: 0},
+		{name: "max", groups: &GroupConfig{Preset: "max"}, groupCount: 10, entityCount: 100, wantFilled: 10, wantSize: 100},
+		{name: "count+size partial", groups: &GroupConfig{Count: 5, Size: 20}, groupCount: 10, entityCount: 100, wantFilled: 5, wantSize: 20},
+		{name: "invalid preset", groups: &GroupConfig{Preset: "bogus"}, groupCount: 10, entityCount: 100, wantErr: true},
+		{name: "count too high", groups: &GroupConfig{Count: 11, Size: 20}, groupCount: 10, entityCount: 100, wantErr: true},
+		{name: "size too high", groups: &GroupConfig{Count: 5, Size: 200}, groupCount: 10, entityCount: 100, wantErr: true},
+		{name: "preset and count conflict", groups: &GroupConfig{Preset: "even", Count: 5}, groupCount: 10, entityCount: 100, wantErr: true},
 	}
 
-	if err := helper.validateLogin(client, "check-user", wantEntity); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !userCreated {
-		t.Fatalf("expected a probe user to be created when createUsers is false")
-	}
-	if helper.password != wantPassword {
-		t.Fatalf("validate must not clobber the helper password: got %q, want %q", helper.password, wantPassword)
-	}
-}
-
-// TestValidateLogin_NoMount guards the fail-fast when no userpass mount exists.
-func TestValidateLogin_NoMount(t *testing.T) {
-	helper := &identityLinker{}
-	err := helper.validateLogin(nil, "check-user", "entity-abc")
-	if err == nil {
-		t.Fatalf("expected error when no userpass mount is configured")
-	}
-	if !strings.Contains(err.Error(), "no userpass mount configured") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestSampleIndices(t *testing.T) {
-	t.Run("returns k distinct in-range indices", func(t *testing.T) {
-		const n, k = 1000, 50
-		idxs := sampleIndices(n, k)
-		if len(idxs) != k {
-			t.Fatalf("got %d indices, want %d", len(idxs), k)
-		}
-
-		seen := make(map[int]struct{}, len(idxs))
-		for _, idx := range idxs {
-			if idx < 1 || idx > n {
-				t.Fatalf("index %d out of range [1, %d]", idx, n)
-			}
-			if _, dup := seen[idx]; dup {
-				t.Fatalf("duplicate index %d", idx)
-			}
-			seen[idx] = struct{}{}
-		}
-	})
-
-	t.Run("returns all indices when k >= n", func(t *testing.T) {
-		const n = 5
-		for _, k := range []int{n, n + 3} {
-			idxs := sampleIndices(n, k)
-			if len(idxs) != n {
-				t.Fatalf("k=%d: got %d indices, want %d", k, len(idxs), n)
-			}
-			for want, got := range idxs {
-				if got != want+1 {
-					t.Fatalf("k=%d: index[%d]=%d, want %d", k, want, got, want+1)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			filled, size, err := resolveGroups(tc.groups, tc.groupCount, tc.entityCount)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got filled=%d size=%d", filled, size)
 				}
+				return
 			}
-		}
-	})
-
-	t.Run("varies across calls and covers the range", func(t *testing.T) {
-		// The checks above pass even for a fixed [1..k] result, so confirm the
-		// sample is actually random: results must differ between calls and reach
-		// beyond the first k into the upper range.
-		const n, k = 1000, 50
-		baseline := sampleIndices(n, k)
-		varied, reachedUpperRange := false, false
-		for trial := 0; trial < 10; trial++ {
-			got := sampleIndices(n, k)
-			if !slices.Equal(got, baseline) {
-				varied = true
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
-			for _, idx := range got {
-				if idx > n/2 {
-					reachedUpperRange = true
-				}
+			if filled != tc.wantFilled || size != tc.wantSize {
+				t.Fatalf("got filled=%d size=%d, want filled=%d size=%d", filled, size, tc.wantFilled, tc.wantSize)
 			}
-		}
-		if !varied {
-			t.Fatal("identical results across calls; not sampling randomly")
-		}
-		if !reachedUpperRange {
-			t.Fatalf("no index above %d across trials; not sampling across the range", n/2)
-		}
-	})
+		})
+	}
 }
