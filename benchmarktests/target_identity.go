@@ -11,14 +11,12 @@ package benchmarktests
 // revisit and refine that merged concurrency implementation once it lands.
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -207,8 +205,8 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 // createEntities creates EntityCount entities concurrently: the first AliasCount
 // get an alias and the first loginUsers also get a userpass user (loginUsers <=
 // alias_count, so every user is aliased). Ids are collected only when a later step
-// reads them (groups or validation), each at its 1-based index so the slice stays
-// ordered without a lock.
+// reads them (groups or validation), each at its index so the slice stays ordered
+// without a lock.
 func (i *Identity) createEntities(client *api.Client, accessor string) ([]string, error) {
 	start := time.Now()
 	total := i.config.EntityCount
@@ -226,71 +224,45 @@ func (i *Identity) createEntities(client *api.Client, accessor string) ([]string
 	}
 
 	progressInterval := ceilDiv(total, identityProgressDivisions)
-	jobs := make(chan int, identityConcurrency)
-	// TODO(phase 6): sized to total so no worker blocks on send, but that reserves
-	// an entity_count-sized buffer even on success; revisit in the concurrency review.
-	errs := make(chan error, total)
 	var done atomic.Int64
 
-	var wg sync.WaitGroup
-	for range identityConcurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for idx := range jobs {
-				name := entityName(i.mountName, i.runID, idx)
+	err := runConcurrent(0, total-1, func(idx int) error {
+		name := entityName(i.mountName, i.runID, idx)
 
-				resp, err := client.Logical().Write("identity/entity", map[string]any{
-					"name": name,
-				})
-				if err != nil {
-					errs <- fmt.Errorf("error creating identity entity %q: %w", name, err)
-					continue
-				}
+		resp, err := client.Logical().Write("identity/entity", map[string]any{
+			"name": name,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating identity entity %q: %w", name, err)
+		}
 
-				id, err := idFromResponse(resp)
-				if err != nil {
-					errs <- fmt.Errorf("error reading identity entity id for %q: %w", name, err)
-					continue
-				}
+		id, err := idFromResponse(resp)
+		if err != nil {
+			return fmt.Errorf("error reading identity entity id for %q: %w", name, err)
+		}
 
-				if entityIDs != nil {
-					entityIDs[idx-1] = id
-				}
+		if entityIDs != nil {
+			entityIDs[idx] = id
+		}
 
-				if idx <= i.config.AliasCount {
-					if err := addEntityAlias(client, accessor, name, id); err != nil {
-						errs <- err
-						continue
-					}
-				}
-				if idx <= i.loginUsers {
-					if err := addUserpassUser(client, mountPath, name, i.password); err != nil {
-						errs <- err
-						continue
-					}
-				}
-
-				n := done.Add(1)
-				if n%int64(progressInterval) == 0 || int(n) == total {
-					i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", n, total))
-				}
+		if idx < i.config.AliasCount {
+			if err := addEntityAlias(client, accessor, name, id); err != nil {
+				return err
 			}
-		}()
-	}
+		}
+		if idx < i.loginUsers {
+			if err := addUserpassUser(client, mountPath, name, i.password); err != nil {
+				return err
+			}
+		}
 
-	for idx := 1; idx <= total; idx++ {
-		jobs <- idx
-	}
-	close(jobs)
-	wg.Wait()
-	close(errs)
-
-	var allErrs []error
-	for err := range errs {
-		allErrs = append(allErrs, err)
-	}
-	if err := errors.Join(allErrs...); err != nil {
+		n := done.Add(1)
+		if n%int64(progressInterval) == 0 || int(n) == total {
+			i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", n, total))
+		}
+		return nil
+	})
+	if err != nil {
 		return entityIDs, err
 	}
 
@@ -309,54 +281,31 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 
 	groupIDs := make([]string, total)
 
-	jobs := make(chan int, identityConcurrency)
-	errs := make(chan error, total)
+	err := runConcurrent(0, total-1, func(idx int) error {
+		groupName := i.mountName + "-group-" + i.runID + "-" + strconv.Itoa(idx)
+		var members []string
+		if idx < groupFill {
+			members = selectGroupMembers(entityIDs, idx, groupCap)
+		}
 
-	var wg sync.WaitGroup
-	for range identityConcurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for idx := range jobs {
-				groupName := i.mountName + "-group-" + i.runID + "-" + strconv.Itoa(idx)
-				var members []string
-				if idx < groupFill {
-					members = selectGroupMembers(entityIDs, idx, groupCap)
-				}
+		resp, err := client.Logical().Write("identity/group", map[string]any{
+			"name":              groupName,
+			"type":              "internal",
+			"member_entity_ids": members,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating identity group %q: %w", groupName, err)
+		}
 
-				resp, err := client.Logical().Write("identity/group", map[string]any{
-					"name":              groupName,
-					"type":              "internal",
-					"member_entity_ids": members,
-				})
-				if err != nil {
-					errs <- fmt.Errorf("error creating identity group %q: %w", groupName, err)
-					continue
-				}
+		id, err := idFromResponse(resp)
+		if err != nil {
+			return fmt.Errorf("error reading identity group id for %q: %w", groupName, err)
+		}
 
-				id, err := idFromResponse(resp)
-				if err != nil {
-					errs <- fmt.Errorf("error reading identity group id for %q: %w", groupName, err)
-					continue
-				}
-
-				groupIDs[idx] = id
-			}
-		}()
-	}
-
-	for idx := range total {
-		jobs <- idx
-	}
-	close(jobs)
-	wg.Wait()
-	close(errs)
-
-	var allErrs []error
-	for err := range errs {
-		allErrs = append(allErrs, err)
-	}
-	if err := errors.Join(allErrs...); err != nil {
+		groupIDs[idx] = id
+		return nil
+	})
+	if err != nil {
 		return groupIDs, err
 	}
 
@@ -365,8 +314,8 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 }
 
 // validateAliases logs in as each of the loginUsers seeded users and confirms the
-// token resolves to the expected entity. Concurrent; the first failure cancels
-// the rest.
+// token resolves to the expected entity. Concurrent and collect-all: the login
+// pool is small (capped at login_users), so verifying every user is cheap.
 func (i *Identity) validateAliases(client *api.Client, entityIDs []string) error {
 	start := time.Now()
 	total := i.loginUsers
@@ -374,42 +323,11 @@ func (i *Identity) validateAliases(client *api.Client, entityIDs []string) error
 
 	mountPath := userpassMountPath(i.runID)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	jobs := make(chan int, identityConcurrency)
-	errs := make(chan error, total)
-
-	var wg sync.WaitGroup
-	for range identityConcurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for idx := range jobs {
-				if ctx.Err() != nil {
-					return
-				}
-				name := entityName(i.mountName, i.runID, idx)
-				if err := validateLogin(client, mountPath, name, i.password, entityIDs[idx-1]); err != nil {
-					errs <- err
-					cancel()
-					return
-				}
-			}
-		}()
-	}
-
-	for idx := 1; idx <= total; idx++ {
-		if ctx.Err() != nil {
-			break
-		}
-		jobs <- idx
-	}
-	close(jobs)
-	wg.Wait()
-	close(errs)
-
-	if err := <-errs; err != nil {
+	err := runConcurrent(0, total-1, func(idx int) error {
+		name := entityName(i.mountName, i.runID, idx)
+		return validateLogin(client, mountPath, name, i.password, entityIDs[idx])
+	})
+	if err != nil {
 		return err
 	}
 
@@ -428,7 +346,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 	switch i.config.Workload {
 	case identityWorkloadLogin:
-		user := entityName(i.mountName, i.runID, rand.Intn(i.loginUsers)+1)
+		user := entityName(i.mountName, i.runID, rand.Intn(i.loginUsers))
 		t.URL += "/login/" + user
 		t.Body = fmt.Appendf(nil, `{"password": "%s"}`, i.password)
 	case identityWorkloadGroupRead:
@@ -460,8 +378,8 @@ func (i *Identity) Cleanup(client *api.Client) error {
 	}
 
 	entityNames := make([]string, i.config.EntityCount)
-	for idx := 1; idx <= i.config.EntityCount; idx++ {
-		entityNames[idx-1] = entityName(i.mountName, i.runID, idx)
+	for idx := 0; idx < i.config.EntityCount; idx++ {
+		entityNames[idx] = entityName(i.mountName, i.runID, idx)
 	}
 	if err := deleteEach(client, "identity/entity/name/", entityNames); err != nil {
 		allErrs = append(allErrs, err)

@@ -225,31 +225,35 @@ func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix stri
 	}
 }
 
-// deleteEach deletes each key under pathPrefix concurrently (keys may be ids or
-// names, whichever the caller's endpoint uses).
-func deleteEach(client *api.Client, pathPrefix string, keys []string) error {
-	if len(keys) == 0 {
+// runConcurrent runs fn for every index in [start, end] across identityConcurrency
+// workers, collecting all errors (collect-all). Callers pass 0-based ranges. An
+// empty range (end < start) is a no-op.
+func runConcurrent(start, end int, fn func(idx int) error) error {
+	if end < start {
 		return nil
 	}
 
-	jobs := make(chan string, identityConcurrency)
-	errs := make(chan error, len(keys))
+	jobs := make(chan int, identityConcurrency)
+	// TODO(phase 6): sized to the job count so no worker blocks on send, but that
+	// reserves a job-count-sized buffer even on success; revisit in the
+	// concurrency review.
+	errs := make(chan error, end-start+1)
 
 	var wg sync.WaitGroup
 	for range identityConcurrency {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for key := range jobs {
-				if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
-					errs <- fmt.Errorf("error deleting %s%s: %v", pathPrefix, key, err)
+			for idx := range jobs {
+				if err := fn(idx); err != nil {
+					errs <- err
 				}
 			}
 		}()
 	}
 
-	for _, key := range keys {
-		jobs <- key
+	for idx := start; idx <= end; idx++ {
+		jobs <- idx
 	}
 	close(jobs)
 	wg.Wait()
@@ -260,4 +264,16 @@ func deleteEach(client *api.Client, pathPrefix string, keys []string) error {
 		allErrs = append(allErrs, err)
 	}
 	return errors.Join(allErrs...)
+}
+
+// deleteEach deletes each key under pathPrefix concurrently (keys may be ids or
+// names, whichever the caller's endpoint uses).
+func deleteEach(client *api.Client, pathPrefix string, keys []string) error {
+	return runConcurrent(0, len(keys)-1, func(idx int) error {
+		key := keys[idx]
+		if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
+			return fmt.Errorf("error deleting %s%s: %v", pathPrefix, key, err)
+		}
+		return nil
+	})
 }
