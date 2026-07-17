@@ -9,7 +9,7 @@ duration    = "30s"
 # Vault generates and returns a new tweak with each encode response;
 # no tweak needs to be provided on the request.
 test "transform_fpe" "fpe_generated_tweak_ff1" {
-  weight = 50
+  weight = 100
   config {
     role {
       name            = "benchmark-role"
