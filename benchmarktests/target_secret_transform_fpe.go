@@ -85,7 +85,7 @@ func (t *TransformFPETest) ParseConfig(body hcl.Body) error {
 			FPEConfig: &TransformFPEConfig{
 				Name:         "benchmarktransformation",
 				Template:     "builtin/creditcardnumber",
-				TweakSource:  "internal",
+				TweakSource:  "supplied",
 				AllowedRoles: []string{"benchmark-role"},
 				MaxTweakLen:  0,
 			},
