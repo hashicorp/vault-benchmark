@@ -39,7 +39,7 @@ test "identity" "identity_group_read" {
     entity_count = 100
     group_count  = 100
     groups {
-      preset = "even"
+      preset = "balanced"
     }
   }
 }

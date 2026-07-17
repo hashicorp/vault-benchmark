@@ -1,0 +1,263 @@
+// Copyright IBM Corp. 2022, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package benchmarktests
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"path/filepath"
+	"strconv"
+	"sync"
+
+	"github.com/hashicorp/vault/api"
+	"github.com/sethvargo/go-password/password"
+)
+
+const userpassMountBase = "userpass"
+
+// userpassMountPath is the run-scoped userpass mount path (userpass-<runID>),
+// derived from the run id so setup and cleanup agree without storing it.
+func userpassMountPath(runID string) string {
+	return userpassMountBase + "-" + runID
+}
+
+// entityName derives a run-unique entity name of the form mountName-entity-runID-idx.
+func entityName(mountName, runID string, idx int) string {
+	return mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
+}
+
+// enableUserpass enables the run-scoped userpass mount (disabled in Cleanup) and
+// returns the two non-derivable values later steps need: the mount accessor (to
+// bind entity aliases) and a shared password for its users.
+func enableUserpass(client *api.Client, runID string) (accessor, password string, err error) {
+	password, err = generatePassword()
+	if err != nil {
+		return "", "", fmt.Errorf("error generating userpass password: %w", err)
+	}
+
+	accessor, err = ensureMount(client, userpassMountPath(runID))
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessor, password, nil
+}
+
+// addEntityAlias binds name -> entityID as an entity alias on the userpass mount
+// (via its accessor), so a login as name resolves to that entity. The entity is
+// only loginable once addUserpassUser gives name a credential.
+func addEntityAlias(client *api.Client, accessor, name, entityID string) error {
+	_, err := client.Logical().Write("identity/entity-alias", map[string]any{
+		"name":           name,
+		"canonical_id":   entityID,
+		"mount_accessor": accessor,
+	})
+	if err != nil {
+		return fmt.Errorf("error creating entity alias %q: %w", name, err)
+	}
+	return nil
+}
+
+// addUserpassUser creates a userpass user named name with the shared password on
+// mountPath, making an already-aliased entity loginable.
+func addUserpassUser(client *api.Client, mountPath, name, password string) error {
+	// ToSlash keeps forward slashes on Windows.
+	userPath := filepath.ToSlash(filepath.Join("auth", mountPath, "users", name))
+	_, err := client.Logical().Write(userPath, map[string]any{
+		"password": password,
+	})
+	if err != nil {
+		return fmt.Errorf("error creating userpass user %q: %w", name, err)
+	}
+	return nil
+}
+
+// validateLogin logs in as one seeded user on mountPath and confirms the token
+// resolves to expectedEntityID.
+func validateLogin(client *api.Client, mountPath, name, password, expectedEntityID string) error {
+	loginPath := filepath.ToSlash(filepath.Join("auth", mountPath, "login", name))
+	secret, err := client.Logical().Write(loginPath, map[string]any{
+		"password": password,
+	})
+	if err != nil {
+		return fmt.Errorf("login resolution check failed for user %q: %w", name, err)
+	}
+	if secret == nil || secret.Auth == nil {
+		return fmt.Errorf("login resolution check for user %q returned no auth data", name)
+	}
+
+	if secret.Auth.EntityID != expectedEntityID {
+		return fmt.Errorf("login for user %q resolved to entity %q, expected %q",
+			name, secret.Auth.EntityID, expectedEntityID)
+	}
+
+	return nil
+}
+
+func ensureMount(client *api.Client, mountPath string) (string, error) {
+	authMountKey := mountPath + "/"
+
+	authMounts, err := client.Sys().ListAuth()
+	if err != nil {
+		return "", fmt.Errorf("error listing auth mounts: %w", err)
+	}
+
+	if authMount, ok := authMounts[authMountKey]; ok {
+		if authMount.Type != "userpass" {
+			return "", fmt.Errorf("auth mount %q exists with type %q, expected userpass", mountPath, authMount.Type)
+		}
+
+		if authMount.Accessor == "" {
+			return "", fmt.Errorf("auth mount %q has empty accessor", mountPath)
+		}
+
+		return authMount.Accessor, nil
+	}
+
+	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
+		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+	}
+
+	authMounts, err = client.Sys().ListAuth()
+	if err != nil {
+		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
+	}
+
+	authMount, ok := authMounts[authMountKey]
+	if !ok {
+		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
+	}
+
+	if authMount.Accessor == "" {
+		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
+	}
+
+	return authMount.Accessor, nil
+}
+
+// generatePassword returns a strong throwaway password shared by all users.
+func generatePassword() (string, error) {
+	return password.Generate(64, 10, 0, false, true)
+}
+
+// idFromResponse extracts the "id" field from an entity/group response.
+func idFromResponse(resp *api.Secret) (string, error) {
+	if resp == nil || resp.Data == nil {
+		return "", fmt.Errorf("empty response data")
+	}
+
+	rawID, ok := resp.Data["id"]
+	if !ok {
+		return "", fmt.Errorf("response missing id field")
+	}
+
+	id, ok := rawID.(string)
+	if !ok || id == "" {
+		return "", fmt.Errorf("response id is not a non-empty string")
+	}
+
+	return id, nil
+}
+
+// selectGroupMembers returns groupSize entity ids for groupIndex, walking the
+// slice with wraparound so membership is deterministic.
+func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string {
+	members := make([]string, 0, groupSize)
+	start := (groupIndex * groupSize) % len(entityIDs)
+	for offset := range groupSize {
+		members = append(members, entityIDs[(start+offset)%len(entityIDs)])
+	}
+	return members
+}
+
+// parseGroups turns the group allocation into the number of groups that hold
+// members and the members per filled group (E is entity_count):
+//
+//	balanced (default): entities partitioned across all groups (~E/group_count each)
+//	empty             : no group holds members
+//	full              : every group holds all E entities
+//	count+size        : count groups hold size members each, the rest empty
+func parseGroups(g *GroupConfig, groupCount, entityCount int) (filled, size int, err error) {
+	if groupCount <= 0 {
+		return 0, 0, nil
+	}
+	if g == nil {
+		return groupCount, ceilDiv(entityCount, groupCount), nil
+	}
+
+	if g.Count > 0 || g.Size > 0 {
+		if g.Preset != "" {
+			return 0, 0, fmt.Errorf("groups: set either preset or count+size, not both")
+		}
+		if g.Count < 0 || g.Count > groupCount {
+			return 0, 0, fmt.Errorf("groups.count (%d) must be in [0, group_count=%d]", g.Count, groupCount)
+		}
+		if g.Size < 0 || g.Size > entityCount {
+			return 0, 0, fmt.Errorf("groups.size (%d) must be in [0, entity_count=%d]", g.Size, entityCount)
+		}
+		return g.Count, g.Size, nil
+	}
+
+	switch g.Preset {
+	case "", "balanced":
+		return groupCount, ceilDiv(entityCount, groupCount), nil
+	case "empty":
+		return 0, 0, nil
+	case "full":
+		return groupCount, entityCount, nil
+	default:
+		return 0, 0, fmt.Errorf("invalid groups preset %q: must be \"balanced\", \"empty\", or \"full\"", g.Preset)
+	}
+}
+
+// configureAttack returns the method and path prefix for the selected workload
+// (populate falls back to a health check).
+func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix string) {
+	switch cfg.Workload {
+	case identityWorkloadLogin:
+		return http.MethodPost, "/v1/" + filepath.ToSlash(filepath.Join("auth", userpassMountPath(runID)))
+	case identityWorkloadGroupRead:
+		return http.MethodGet, "/v1/identity/group/id/"
+	default: // identityWorkloadPopulate
+		return http.MethodGet, identityNoWorkloadPath
+	}
+}
+
+// deleteEach deletes each key under pathPrefix concurrently (keys may be ids or
+// names, whichever the caller's endpoint uses).
+func deleteEach(client *api.Client, pathPrefix string, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	jobs := make(chan string, identityConcurrency)
+	errs := make(chan error, len(keys))
+
+	var wg sync.WaitGroup
+	for range identityConcurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for key := range jobs {
+				if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
+					errs <- fmt.Errorf("error deleting %s%s: %v", pathPrefix, key, err)
+				}
+			}
+		}()
+	}
+
+	for _, key := range keys {
+		jobs <- key
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+
+	var allErrs []error
+	for err := range errs {
+		allErrs = append(allErrs, err)
+	}
+	return errors.Join(allErrs...)
+}

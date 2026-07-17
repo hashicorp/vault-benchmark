@@ -18,10 +18,10 @@ workload (see Notes).
 - `alias_count` `(int: 0)` - Number of entities that also get a userpass alias, created for the first `alias_count` entities. On this single mount an alias maps 1:1 to an entity, so `alias_count` must be `<= entity_count`. (Giving one entity multiple aliases requires multiple mounts, a future feature.)
 - `login_users` `(int: 100)` - Number of real (bcrypt) userpass users to create, for the first `login_users` entities. These users are the login-resolution verification sample at setup **and** the pool the `login` workload attacks. A user needs an alias to resolve, so the effective count is capped at `alias_count` (with `alias_count = 0` no users are created and no verification runs). Users are not part of the identity lifecycle; raising this only slows setup.
 - `group_count` `(int: 0)` - Number of internal groups to create. `0` creates none.
-- `groups` `(block)` - Optional block controlling how the `group_count` groups are filled with entities. Omit it for an even split. Set either a `preset` or `count`+`size` (not both):
-  - `preset = "even"` (default) - Entities partitioned across all groups; every entity lands in one group (~`entity_count / group_count` members each).
+- `groups` `(block)` - Optional block controlling how the `group_count` groups are filled with entities. Omit it for a balanced split. Set either a `preset` or `count`+`size` (not both):
+  - `preset = "balanced"` (default) - Entities partitioned across all groups; every entity lands in one group (~`entity_count / group_count` members each).
   - `preset = "empty"` - All groups are created with no members.
-  - `preset = "max"` - Every group holds all `entity_count` entities.
+  - `preset = "full"` - Every group holds all `entity_count` entities.
   - `count = N, size = M` - `N` of the groups hold `M` members each; the rest are empty. `N` must be `<= group_count` and `M <= entity_count`.
 
 ## Example HCL
@@ -52,7 +52,7 @@ test "identity" "identity_group_read" {
     entity_count = 1000
     group_count  = 1000
     groups {
-      preset = "even"
+      preset = "balanced"
     }
   }
 }
