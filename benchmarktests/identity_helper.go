@@ -234,9 +234,7 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 	}
 
 	jobs := make(chan int, identityConcurrency)
-	// TODO(phase 6): sized to the job count so no worker blocks on send, but that
-	// reserves a job-count-sized buffer even on success; revisit in the
-	// concurrency review.
+	// Buffered to the job count so a worker reporting an error never blocks on send.
 	errs := make(chan error, end-start+1)
 
 	var wg sync.WaitGroup

@@ -6,9 +6,6 @@ package benchmarktests
 // Identity benchmarks Vault's identity store: setup seeds entities (with optional
 // aliases, userpass users, and groups), then the attack drives the selected
 // workload. See docs/tests/identity.md for the config surface and rationale.
-//
-// TODO(phase 6): this branch sits atop the concurrency branch (a work-first PR);
-// revisit and refine that merged concurrency implementation once it lands.
 
 import (
 	"errors"
