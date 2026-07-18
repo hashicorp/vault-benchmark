@@ -64,8 +64,9 @@ type Identity struct {
 
 	// Attack request state, precomputed in Setup so Target stays a cheap assembler.
 	method     string   // HTTP method
-	password   string   // userpass password for login bodies
-	loginUsers int      // resolved login pool, min(login_users, alias_count)
+	password   string   // shared userpass password for seeded users
+	loginBody  []byte   // precomputed login request body (login workload)
+	loginUsers int      // resolved login pool, min(login_users, alias_count, entity_count)
 	groupIDs   []string // group ids read at random by group_read
 
 	logger hclog.Logger
@@ -157,7 +158,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	runID, err := uuid.GenerateUUID()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate run id: %v", err)
+		return nil, fmt.Errorf("failed to generate run id: %w", err)
 	}
 
 	result := &Identity{
@@ -201,6 +202,9 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	result.method, result.pathPrefix = configureAttack(i.config, runID)
+	if i.config.Workload == identityWorkloadLogin {
+		result.loginBody = fmt.Appendf(nil, `{"password": "%s"}`, result.password)
+	}
 	result.header = generateHeader(client)
 
 	return result, nil
@@ -351,7 +355,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 	case identityWorkloadLogin:
 		user := objectName(i.mountName, "entity", i.runID, rand.Intn(i.loginUsers))
 		t.URL += "/login/" + user
-		t.Body = fmt.Appendf(nil, `{"password": "%s"}`, i.password)
+		t.Body = i.loginBody
 	case identityWorkloadGroupRead:
 		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
 	}
@@ -390,7 +394,7 @@ func (i *Identity) Cleanup(client *api.Client) error {
 	if i.config.AliasCount > 0 {
 		mountPath := userpassMountPath(i.runID)
 		if err := client.Sys().DisableAuth(mountPath); err != nil {
-			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %v", mountPath, err))
+			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %w", mountPath, err))
 		}
 	}
 

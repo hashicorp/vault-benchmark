@@ -30,21 +30,34 @@ func objectName(mountName, kind, runID string, idx int) string {
 	return mountName + "-" + kind + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// enableUserpass enables the run-scoped userpass mount (disabled in Cleanup) and
-// returns the two non-derivable values later steps need: the mount accessor (to
-// bind entity aliases) and a shared password for its users.
+// enableUserpass sets up the run-scoped userpass auth (disabled in Cleanup): it
+// generates the shared password and enables the mount, then returns the two values
+// later steps can't derive -- the mount accessor (aliases bind to the mount by
+// accessor, not path) and that password (for the mount's users).
 func enableUserpass(client *api.Client, runID string) (accessor, password string, err error) {
 	password, err = generatePassword()
 	if err != nil {
 		return "", "", fmt.Errorf("error generating userpass password: %w", err)
 	}
 
-	accessor, err = enableUserpassMount(client, userpassMountPath(runID))
-	if err != nil {
-		return "", "", err
+	mountPath := userpassMountPath(runID)
+	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
+		return "", "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
 	}
 
-	return accessor, password, nil
+	mounts, err := client.Sys().ListAuth()
+	if err != nil {
+		return "", "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
+	}
+	mount, ok := mounts[mountPath+"/"]
+	if !ok {
+		return "", "", fmt.Errorf("auth mount %q not found after enable", mountPath)
+	}
+	if mount.Accessor == "" {
+		return "", "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
+	}
+
+	return mount.Accessor, password, nil
 }
 
 // addEntityAlias binds name -> entityID as an entity alias on the userpass mount
@@ -96,31 +109,6 @@ func validateLogin(client *api.Client, mountPath, name, password, expectedEntity
 	}
 
 	return nil
-}
-
-// enableUserpassMount enables the run-scoped userpass mount at mountPath and returns
-// its accessor (needed to bind entity aliases). The path is derived from a fresh run
-// id so it never pre-exists; enabling then reading back the accessor is all that is
-// required.
-func enableUserpassMount(client *api.Client, mountPath string) (string, error) {
-	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
-		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
-	}
-
-	authMounts, err := client.Sys().ListAuth()
-	if err != nil {
-		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
-	}
-
-	authMount, ok := authMounts[mountPath+"/"]
-	if !ok {
-		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
-	}
-	if authMount.Accessor == "" {
-		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
-	}
-
-	return authMount.Accessor, nil
 }
 
 // generatePassword returns a strong throwaway password shared by all users.
