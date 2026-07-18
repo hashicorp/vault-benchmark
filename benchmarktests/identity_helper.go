@@ -23,9 +23,11 @@ func userpassMountPath(runID string) string {
 	return userpassMountBase + "-" + runID
 }
 
-// entityName derives a run-unique entity name of the form mountName-entity-runID-idx.
-func entityName(mountName, runID string, idx int) string {
-	return mountName + "-entity-" + runID + "-" + strconv.Itoa(idx)
+// objectName derives a run-unique object name of the form mountName-kind-runID-idx
+// (kind is "entity" or "group"). It is the single naming authority that creation and
+// cleanup re-derive from, so names are never stored.
+func objectName(mountName, kind, runID string, idx int) string {
+	return mountName + "-" + kind + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
 // enableUserpass enables the run-scoped userpass mount (disabled in Cleanup) and
@@ -37,7 +39,7 @@ func enableUserpass(client *api.Client, runID string) (accessor, password string
 		return "", "", fmt.Errorf("error generating userpass password: %w", err)
 	}
 
-	accessor, err = ensureMount(client, userpassMountPath(runID))
+	accessor, err = enableUserpassMount(client, userpassMountPath(runID))
 	if err != nil {
 		return "", "", err
 	}
@@ -96,40 +98,24 @@ func validateLogin(client *api.Client, mountPath, name, password, expectedEntity
 	return nil
 }
 
-func ensureMount(client *api.Client, mountPath string) (string, error) {
-	authMountKey := mountPath + "/"
-
-	authMounts, err := client.Sys().ListAuth()
-	if err != nil {
-		return "", fmt.Errorf("error listing auth mounts: %w", err)
-	}
-
-	if authMount, ok := authMounts[authMountKey]; ok {
-		if authMount.Type != "userpass" {
-			return "", fmt.Errorf("auth mount %q exists with type %q, expected userpass", mountPath, authMount.Type)
-		}
-
-		if authMount.Accessor == "" {
-			return "", fmt.Errorf("auth mount %q has empty accessor", mountPath)
-		}
-
-		return authMount.Accessor, nil
-	}
-
+// enableUserpassMount enables the run-scoped userpass mount at mountPath and returns
+// its accessor (needed to bind entity aliases). The path is derived from a fresh run
+// id so it never pre-exists; enabling then reading back the accessor is all that is
+// required.
+func enableUserpassMount(client *api.Client, mountPath string) (string, error) {
 	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
 		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
 	}
 
-	authMounts, err = client.Sys().ListAuth()
+	authMounts, err := client.Sys().ListAuth()
 	if err != nil {
 		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
 	}
 
-	authMount, ok := authMounts[authMountKey]
+	authMount, ok := authMounts[mountPath+"/"]
 	if !ok {
 		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
 	}
-
 	if authMount.Accessor == "" {
 		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
 	}
@@ -235,6 +221,9 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 
 	jobs := make(chan int, identityConcurrency)
 	// Buffered to the job count so a worker reporting an error never blocks on send.
+	// TODO(future): drain errs via a collector goroutine so this buffer can shrink to
+	// O(workers) instead of O(jobs); deferred as it adds coordination for a transient
+	// success-path allocation.
 	errs := make(chan error, end-start+1)
 
 	var wg sync.WaitGroup
@@ -264,13 +253,14 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 	return errors.Join(allErrs...)
 }
 
-// deleteEach deletes each key under pathPrefix concurrently (keys may be ids or
-// names, whichever the caller's endpoint uses).
-func deleteEach(client *api.Client, pathPrefix string, keys []string) error {
-	return runConcurrent(0, len(keys)-1, func(idx int) error {
-		key := keys[idx]
+// deleteConcurrent deletes count keys under pathPrefix concurrently. keyFn maps each
+// index to its key (an id from a slice, or a name re-derived from the index), so
+// callers that can derive keys avoid materializing them.
+func deleteConcurrent(client *api.Client, pathPrefix string, count int, keyFn func(idx int) string) error {
+	return runConcurrent(0, count-1, func(idx int) error {
+		key := keyFn(idx)
 		if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
-			return fmt.Errorf("error deleting %s%s: %v", pathPrefix, key, err)
+			return fmt.Errorf("error deleting %s%s: %w", pathPrefix, key, err)
 		}
 		return nil
 	})
