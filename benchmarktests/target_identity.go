@@ -23,21 +23,16 @@ const (
 
 	identityPassword = "id-pw"
 
-	// Workload modes selected by the workload config field.
 	identityWorkloadPopulate  = "populate"
 	identityWorkloadLogin     = "login"
 	identityWorkloadGroupRead = "group_read"
 
-	// No-op attack target for the populate workload.
 	identityNoWorkloadPath = "/v1/sys/health"
 
-	// Parallel workers for entity/group creation, validation, and cleanup.
 	// TODO: worth revisiting at true scale -- whether the ceiling is client-side or
 	// Vault-internal contention is an empirical question; dynamic sizing may help.
 	identityConcurrency = 10
 
-	// Progress updates logged per setup phase (roughly quintiles), so the cadence
-	// scales with entity count rather than a fixed stride.
 	identityProgressDivisions = 5
 )
 
@@ -46,22 +41,16 @@ func init() {
 	TestList[IdentityTestType] = func() BenchmarkBuilder { return &Identity{} }
 }
 
-// Identity carries only the state Target/Cleanup read; setup-only data (e.g.
-// entity ids) stays local to Setup.
 type Identity struct {
-	pathPrefix string // attack URL prefix
+	pathPrefix string
 	header     http.Header
 	config     *IdentityConfig
+	mountName  string
+	runID      string // per-run UUID; seeds every object name so each run is isolated
 
-	// mountName (from the framework) and runID (per-run UUID) seed every run-scoped
-	// object name, so Target and Cleanup re-derive names instead of storing them.
-	mountName string
-	runID     string
-
-	// Attack request state, precomputed in Setup so Target stays a cheap assembler.
-	method     string   // HTTP method
-	loginBody  []byte   // precomputed login request body (login workload)
-	loginUsers int      // resolved login pool, min(login_users, alias_count, entity_count)
+	method     string
+	loginBody  []byte
+	loginUsers int      // min(login_users, alias_count, entity_count)
 	groupIDs   []string // live ids for group_read; removing that workload simplifies this + Cleanup
 
 	logger hclog.Logger
@@ -80,8 +69,9 @@ type IdentityConfig struct {
 	// TODO: nested groups -- member_group_ids for org-hierarchy shapes (policy resolution walks the tree).
 }
 
-// GroupConfig shapes how the group_count groups are filled: omit for a balanced
-// split, or set a preset, or count+size for a partial allocation.
+// GroupConfig controls member assignment for the group_count groups:
+// omit or preset="balanced" spreads entities evenly; "empty" fills nothing;
+// "full" puts all entities in every group; count+size fills only count groups.
 type GroupConfig struct {
 	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
 	Count  int    `hcl:"count,optional"`  // partial: groups that get members
@@ -109,14 +99,11 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	c := testConfig.Config
 	i.config = c
 
-	// entity_count drives every slice/alloc in setup; a non-positive value is a
-	// no-op run (and an illegal make), so it is the one count we guard.
 	if c.EntityCount <= 0 {
 		return fmt.Errorf("entity_count must be greater than 0")
 	}
 
-	// A login user needs an alias to resolve, so the pool is capped at alias_count,
-	// and clamped to entity_count so validateLogins never indexes out of bounds.
+	// Capped at alias_count (a user needs an alias) and entity_count (validateLogins indexes by entity).
 	// TODO: revisit this clamp once aliases block lands (alias_count may exceed entity_count by design).
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
@@ -124,7 +111,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	// TODO: each new workload touches three switches (here, Target, configureAttack); bundle if this grows.
 	switch c.Workload {
 	case identityWorkloadPopulate:
-		// Seed only: no prerequisites.
 	case identityWorkloadLogin:
 		if i.loginUsers <= 0 {
 			return fmt.Errorf("workload %q requires login_users > 0 and alias_count > 0 so logins resolve to seeded entities", identityWorkloadLogin)
@@ -141,8 +127,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-// Target builds the request for the configured workload, adjusting the base
-// target's URL (and body, for login).
 func (i *Identity) Target(client *api.Client) vegeta.Target {
 	t := vegeta.Target{
 		Method: i.method,
@@ -171,9 +155,6 @@ func (i *Identity) Cleanup(client *api.Client) error {
 
 	var allErrs []error
 
-	// Groups are held by id (attack state), so delete by id. Entities aren't kept,
-	// so re-derive each name from its index (matching creation) and delete by name,
-	// which also drops that entity's aliases. Both re-derive rather than storing keys.
 	if err := deleteConcurrent(i.logger, "group deletion", client, "identity/group/id/", len(i.groupIDs), func(idx int) string {
 		return i.groupIDs[idx]
 	}); err != nil {
@@ -186,8 +167,6 @@ func (i *Identity) Cleanup(client *api.Client) error {
 		allErrs = append(allErrs, err)
 	}
 
-	// Disabling the run-scoped userpass mount drops all its users in one call; its
-	// path is derived from the run id.
 	if i.config.AliasCount > 0 {
 		mountPath := userpassMountPath(i.runID)
 		if err := client.Sys().DisableAuth(mountPath); err != nil {
@@ -206,10 +185,7 @@ func (i *Identity) GetTargetInfo() TargetInfo {
 }
 
 func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	// identity is a built-in path, so this target manages no secret mount and
-	// ignores topLevelConfig.RandomMounts: there is no user-named mount to
-	// randomize, and the per-run UUID baked into every object name already gives
-	// each run its own isolated namespace.
+	// identity is a built-in path; RandomMounts is ignored and the runID already isolates each run.
 	i.logger = targetLogger.Named(IdentityTestType)
 
 	runID, err := uuid.GenerateUUID()
@@ -225,8 +201,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		loginUsers: i.loginUsers,
 	}
 
-	// A userpass mount is only needed when entities get aliases (users imply
-	// aliases, being capped at alias_count); accessor stays empty otherwise.
+	// Accessor is the one value that can't be derived later; aliases bind by accessor, not path.
 	var accessor string
 	if i.config.AliasCount > 0 {
 		accessor, err = enableUserpass(client, runID)
@@ -268,18 +243,12 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 func (i *Identity) Flags(fs *flag.FlagSet) {}
 
-// createEntities creates EntityCount entities concurrently: the first AliasCount
-// get an alias and the first loginUsers also get a userpass user (loginUsers <=
-// alias_count, so every user is aliased). Ids are collected only when a later step
-// reads them, sized to what that step actually needs: every entity when groups
-// select members from the full pool (createGroups can land on any entity via
-// wraparound), or just the login pool when only validation reads them, since
-// nothing else ever indexes past loginUsers. Each id is written at its own index
-// so the slice stays ordered without a lock.
 func (i *Identity) createEntities(client *api.Client, accessor string) ([]string, error) {
 	total := i.config.EntityCount
 	mountPath := userpassMountPath(i.runID)
 
+	// Sized to what later steps actually need: full slice when groups read any entity,
+	// login pool only when only validation reads them.
 	var entityIDs []string
 	switch {
 	case i.config.GroupCount > 0:
@@ -326,9 +295,6 @@ func (i *Identity) createEntities(client *api.Client, accessor string) ([]string
 	return entityIDs, nil
 }
 
-// createGroups creates GroupCount internal groups concurrently. The first
-// groupFill groups each get groupCap members drawn deterministically from the
-// created entities; any remaining groups are empty (per the allocation).
 func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFill, groupCap int) ([]string, error) {
 	total := i.config.GroupCount
 	groupIDs := make([]string, total)
@@ -365,9 +331,6 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 	return groupIDs, nil
 }
 
-// validateLogins logs in as each of the loginUsers seeded users and confirms the
-// token resolves to the expected entity. Concurrent and collect-all: the login
-// pool is small (capped at login_users), so verifying every user is cheap.
 func (i *Identity) validateLogins(client *api.Client, entityIDs []string) error {
 	mountPath := userpassMountPath(i.runID)
 

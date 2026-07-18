@@ -19,22 +19,18 @@ import (
 
 const userpassMountBase = "userpass"
 
-// userpassMountPath is the run-scoped userpass mount path (userpass-<runID>),
-// derived from the run id so setup and cleanup agree without storing it.
 func userpassMountPath(runID string) string {
 	return userpassMountBase + "-" + runID
 }
 
-// objectName derives a run-unique object name of the form mountName-kind-runID-idx
-// (kind is "entity" or "group"). It is the single naming authority that creation and
-// cleanup re-derive from, so names are never stored.
-func objectName(mountName, kind, runID string, idx int) string {
-	return mountName + "-" + kind + "-" + runID + "-" + strconv.Itoa(idx)
+// objectName derives a run-unique name of the form mountName-typ-runID-idx.
+// Single naming authority for creation and cleanup; names are never stored.
+func objectName(mountName, typ, runID string, idx int) string {
+	return mountName + "-" + typ + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// enableUserpass sets up the run-scoped userpass auth (disabled in Cleanup) and
-// returns its accessor, the one value later steps can't derive (aliases bind to
-// the mount by accessor, not path).
+// enableUserpass returns the mount accessor -- the one value later steps can't
+// derive (aliases bind to the mount by accessor, not path).
 func enableUserpass(client *api.Client, runID string) (accessor string, err error) {
 	mountPath := userpassMountPath(runID)
 	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
@@ -56,9 +52,6 @@ func enableUserpass(client *api.Client, runID string) (accessor string, err erro
 	return mount.Accessor, nil
 }
 
-// addEntityAlias binds name -> entityID as an entity alias on the userpass mount
-// (via its accessor), so a login as name resolves to that entity. The entity is
-// only loginable once addUserpassUser gives name a credential.
 func addEntityAlias(client *api.Client, accessor, name, entityID string) error {
 	_, err := client.Logical().Write("identity/entity-alias", map[string]any{
 		"name":           name,
@@ -71,11 +64,8 @@ func addEntityAlias(client *api.Client, accessor, name, entityID string) error {
 	return nil
 }
 
-// addUserpassUser creates a userpass user named name with the shared
-// identityPassword on mountPath, making an already-aliased entity loginable.
 func addUserpassUser(client *api.Client, mountPath, name string) error {
-	// ToSlash keeps forward slashes on Windows.
-	userPath := filepath.ToSlash(filepath.Join("auth", mountPath, "users", name))
+	userPath := filepath.ToSlash(filepath.Join("auth", mountPath, "users", name)) // ToSlash for Windows
 	_, err := client.Logical().Write(userPath, map[string]any{
 		"password": identityPassword,
 	})
@@ -85,8 +75,6 @@ func addUserpassUser(client *api.Client, mountPath, name string) error {
 	return nil
 }
 
-// validateLogin logs in as one seeded user on mountPath and confirms the token
-// resolves to expectedEntityID.
 func validateLogin(client *api.Client, mountPath, name, expectedEntityID string) error {
 	loginPath := filepath.ToSlash(filepath.Join("auth", mountPath, "login", name))
 	secret, err := client.Logical().Write(loginPath, map[string]any{
@@ -107,7 +95,6 @@ func validateLogin(client *api.Client, mountPath, name, expectedEntityID string)
 	return nil
 }
 
-// idFromResponse extracts the "id" field from an entity/group response.
 func idFromResponse(resp *api.Secret) (string, error) {
 	if resp == nil || resp.Data == nil {
 		return "", fmt.Errorf("empty response data")
@@ -126,8 +113,8 @@ func idFromResponse(resp *api.Secret) (string, error) {
 	return id, nil
 }
 
-// selectGroupMembers returns groupSize entity ids for groupIndex, walking the
-// slice with wraparound so membership is deterministic.
+// selectGroupMembers returns groupSize entity ids for groupIndex using
+// wraparound, so membership is deterministic across any entity count.
 func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string {
 	members := make([]string, 0, groupSize)
 	start := (groupIndex * groupSize) % len(entityIDs)
@@ -137,13 +124,12 @@ func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string 
 	return members
 }
 
-// parseGroups turns the group allocation into the number of groups that hold
-// members and the members per filled group (E is entity_count):
+// parseGroups resolves the group allocation into (filled, size):
 //
-//	balanced (default): entities partitioned across all groups (~E/group_count each)
-//	empty             : no group holds members
-//	full              : every group holds all E entities
-//	count+size        : count groups hold size members each, the rest empty
+//	balanced (default): ~entity_count/group_count members per group
+//	empty             : no members
+//	full              : all entities in every group
+//	count+size        : count groups get size members, the rest empty
 func parseGroups(g *GroupConfig, groupCount, entityCount int) (filled, size int, err error) {
 	if groupCount <= 0 {
 		return 0, 0, nil
@@ -177,8 +163,6 @@ func parseGroups(g *GroupConfig, groupCount, entityCount int) (filled, size int,
 	}
 }
 
-// configureAttack returns the method and path prefix for the selected workload
-// (populate falls back to a health check).
 func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix string) {
 	switch cfg.Workload {
 	case identityWorkloadLogin:
@@ -190,25 +174,17 @@ func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix stri
 	}
 }
 
-// runConcurrent runs fn for every index in [start, end] across identityConcurrency
-// workers, collecting all errors (collect-all). Callers pass 0-based ranges. An
-// empty range (end < start) is a no-op.
 func runConcurrent(start, end int, fn func(idx int) error) error {
 	if end < start {
 		return nil
 	}
 
 	jobs := make(chan int, identityConcurrency)
-	// Buffered to the worker count so a worker never blocks on send while the
-	// collector goroutine below drains it.
-	errs := make(chan error, identityConcurrency)
+	errs := make(chan error, identityConcurrency) // bounded to workers so sends never block
 
-	// Collects errors as workers send them, so errs stays small instead of
-	// scaling with job count; allErrs is safe unsynchronized since this goroutine
-	// is its only writer.
 	var allErrs []error
 	collected := make(chan struct{})
-	go func() {
+	go func() { // sole writer of allErrs; no synchronization needed
 		for err := range errs {
 			allErrs = append(allErrs, err)
 		}
@@ -239,11 +215,8 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 	return errors.Join(allErrs...)
 }
 
-// runPhase runs fn concurrently across [0, total), logging a start line (with any
-// extra key/value pairs), progress at roughly identityProgressDivisions cadence,
-// and a complete line with elapsed time -- the shared shape of every setup and
-// cleanup phase that scales with a count. A non-positive total logs nothing and
-// runs nothing, so callers don't need their own guard for empty phases.
+// runPhase logs start/progress/complete around a concurrent phase.
+// A non-positive total is a no-op.
 func runPhase(logger hclog.Logger, phase string, total int, fn func(idx int) error, startFields ...any) error {
 	if total <= 0 {
 		return nil
@@ -273,10 +246,6 @@ func runPhase(logger hclog.Logger, phase string, total int, fn func(idx int) err
 	return nil
 }
 
-// deleteConcurrent deletes count keys under pathPrefix concurrently, logging
-// progress via runPhase. keyFn maps each index to its key (an id from a slice, or
-// a name re-derived from the index), so callers that can derive keys avoid
-// materializing them.
 func deleteConcurrent(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count int, keyFn func(idx int) string) error {
 	return runPhase(logger, phase, count, func(idx int) error {
 		key := keyFn(idx)
