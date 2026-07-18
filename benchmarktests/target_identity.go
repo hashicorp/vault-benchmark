@@ -3,10 +3,6 @@
 
 package benchmarktests
 
-// Identity benchmarks Vault's identity store: setup seeds entities (with optional
-// aliases, userpass users, and groups), then the attack drives the selected
-// workload. See docs/tests/identity.md for the config surface and rationale.
-
 import (
 	"errors"
 	"flag"
@@ -36,6 +32,8 @@ const (
 	identityNoWorkloadPath = "/v1/sys/health"
 
 	// Parallel workers for entity/group creation, validation, and cleanup.
+	// TODO: worth revisiting at true scale -- whether the ceiling is client-side or
+	// Vault-internal contention is an empirical question; dynamic sizing may help.
 	identityConcurrency = 10
 
 	// Progress updates logged per setup phase (roughly quintiles), so the cadence
@@ -64,7 +62,7 @@ type Identity struct {
 	method     string   // HTTP method
 	loginBody  []byte   // precomputed login request body (login workload)
 	loginUsers int      // resolved login pool, min(login_users, alias_count, entity_count)
-	groupIDs   []string // group ids read at random by group_read
+	groupIDs   []string // live ids for group_read; removing that workload simplifies this + Cleanup
 
 	logger hclog.Logger
 }
@@ -77,9 +75,9 @@ type IdentityConfig struct {
 	GroupCount  int          `hcl:"group_count,optional"`
 	Groups      *GroupConfig `hcl:"groups,block"`
 
-	// TODO(future): aliases -- an allocation block (like groups) that fans entities
-	// across multiple userpass mounts for >1 alias/entity (roadmap phase 5).
-	// TODO(future): policies -- optional policy attach (mirror userpass token_policies).
+	// TODO: aliases -- allocation block (like groups) for >1 alias/entity across mounts.
+	// TODO: policies -- attach token_policies to entities/groups.
+	// TODO: nested groups -- member_group_ids for org-hierarchy shapes (policy resolution walks the tree).
 }
 
 // GroupConfig shapes how the group_count groups are filled: omit for a balanced
@@ -118,15 +116,12 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	}
 
 	// A login user needs an alias to resolve, so the pool is capped at alias_count,
-	// and also clamped to entity_count so validateLogins never indexes past the
-	// entities that exist (alias_count is intentionally not bounded by entity_count).
-	// TODO(future): once the aliases allocation block lands (>1 alias/entity across
-	// mounts, like groups), alias_count may exceed entity_count by design; revisit
-	// this clamp and the validateLogins indexing so the sample maps to real entities.
+	// and clamped to entity_count so validateLogins never indexes out of bounds.
+	// TODO: revisit this clamp once aliases block lands (alias_count may exceed entity_count by design).
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
-	// Guard each workload's prerequisites so the attack phase can't silently do
-	// nothing for the whole run.
+	// TODO: guard alias_count/group_count/login_users for non-negative values.
+	// TODO: each new workload touches three switches (here, Target, configureAttack); bundle if this grows.
 	switch c.Workload {
 	case identityWorkloadPopulate:
 		// Seed only: no prerequisites.
@@ -169,6 +164,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 func (i *Identity) Cleanup(client *api.Client) error {
 	if i.config.Workload == identityWorkloadPopulate {
+		// TODO: no confirmation prompt; objects stay on Vault until manually removed.
 		i.logger.Info("populate workload; leaving seeded identity objects in place")
 		return nil
 	}
@@ -344,6 +340,7 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 			members = selectGroupMembers(entityIDs, idx, groupCap)
 		}
 
+		// TODO: member_group_ids not written; no nested-group hierarchy support yet.
 		resp, err := client.Logical().Write("identity/group", map[string]any{
 			"name":              groupName,
 			"type":              "internal",
