@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"sync/atomic"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -26,6 +24,8 @@ import (
 
 const (
 	IdentityTestType = "identity"
+
+	identityPassword = "id-pw"
 
 	// Workload modes selected by the workload config field.
 	identityWorkloadPopulate  = "populate"
@@ -48,11 +48,9 @@ func init() {
 	TestList[IdentityTestType] = func() BenchmarkBuilder { return &Identity{} }
 }
 
-// Identity seeds identity objects during setup and drives the workload attack.
-// It carries only the state Target/Cleanup read; setup-only data (e.g. entity
-// ids) stays local to Setup.
+// Identity carries only the state Target/Cleanup read; setup-only data (e.g.
+// entity ids) stays local to Setup.
 type Identity struct {
-	// Standard target fields.
 	pathPrefix string // attack URL prefix
 	header     http.Header
 	config     *IdentityConfig
@@ -64,7 +62,6 @@ type Identity struct {
 
 	// Attack request state, precomputed in Setup so Target stays a cheap assembler.
 	method     string   // HTTP method
-	password   string   // shared userpass password for seeded users
 	loginBody  []byte   // precomputed login request body (login workload)
 	loginUsers int      // resolved login pool, min(login_users, alias_count, entity_count)
 	groupIDs   []string // group ids read at random by group_read
@@ -121,11 +118,11 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	}
 
 	// A login user needs an alias to resolve, so the pool is capped at alias_count,
-	// and also clamped to entity_count so validateAliases never indexes past the
+	// and also clamped to entity_count so validateLogins never indexes past the
 	// entities that exist (alias_count is intentionally not bounded by entity_count).
 	// TODO(future): once the aliases allocation block lands (>1 alias/entity across
 	// mounts, like groups), alias_count may exceed entity_count by design; revisit
-	// this clamp and the validateAliases indexing so the sample maps to real entities.
+	// this clamp and the validateLogins indexing so the sample maps to real entities.
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
 	// Guard each workload's prerequisites so the attack phase can't silently do
@@ -146,199 +143,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 			c.Workload, identityWorkloadPopulate, identityWorkloadLogin, identityWorkloadGroupRead)
 	}
 
-	return nil
-}
-
-func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	// identity is a built-in path, so this target manages no secret mount and
-	// ignores topLevelConfig.RandomMounts: there is no user-named mount to
-	// randomize, and the per-run UUID baked into every object name already gives
-	// each run its own isolated namespace.
-	i.logger = targetLogger.Named(IdentityTestType)
-
-	runID, err := uuid.GenerateUUID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate run id: %w", err)
-	}
-
-	result := &Identity{
-		config:     i.config,
-		logger:     i.logger,
-		mountName:  mountName,
-		runID:      runID,
-		loginUsers: i.loginUsers,
-	}
-
-	// A userpass mount is only needed when entities get aliases (users imply
-	// aliases, being capped at alias_count); accessor stays empty otherwise.
-	var accessor string
-	if i.config.AliasCount > 0 {
-		accessor, result.password, err = enableUserpass(client, runID)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	entityIDs, err := result.createEntities(client, accessor)
-	if err != nil {
-		return nil, err
-	}
-
-	if i.config.GroupCount > 0 {
-		groupFill, groupCap, err := parseGroups(i.config.Groups, i.config.GroupCount, i.config.EntityCount)
-		if err != nil {
-			return nil, err
-		}
-		result.groupIDs, err = result.createGroups(client, entityIDs, groupFill, groupCap)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if i.loginUsers > 0 {
-		if err := result.validateAliases(client, entityIDs); err != nil {
-			return nil, err
-		}
-	}
-
-	result.method, result.pathPrefix = configureAttack(i.config, runID)
-	if i.config.Workload == identityWorkloadLogin {
-		result.loginBody = fmt.Appendf(nil, `{"password": "%s"}`, result.password)
-	}
-	result.header = generateHeader(client)
-
-	return result, nil
-}
-
-// createEntities creates EntityCount entities concurrently: the first AliasCount
-// get an alias and the first loginUsers also get a userpass user (loginUsers <=
-// alias_count, so every user is aliased). Ids are collected only when a later step
-// reads them (groups or validation), each at its index so the slice stays ordered
-// without a lock.
-func (i *Identity) createEntities(client *api.Client, accessor string) ([]string, error) {
-	start := time.Now()
-	total := i.config.EntityCount
-	i.logger.Info("entity population start", "total", total,
-		"aliases", i.config.AliasCount, "login_users", i.loginUsers)
-
-	// Computed once; used only by entities that get a user.
-	mountPath := userpassMountPath(i.runID)
-
-	// Skip the entity_count-sized slice unless groups or validation read the ids.
-	var entityIDs []string
-	if i.config.GroupCount > 0 || i.loginUsers > 0 {
-		entityIDs = make([]string, total)
-	}
-
-	progressInterval := ceilDiv(total, identityProgressDivisions)
-	var done atomic.Int64
-
-	err := runConcurrent(0, total-1, func(idx int) error {
-		name := objectName(i.mountName, "entity", i.runID, idx)
-
-		resp, err := client.Logical().Write("identity/entity", map[string]any{
-			"name": name,
-		})
-		if err != nil {
-			return fmt.Errorf("error creating identity entity %q: %w", name, err)
-		}
-
-		id, err := idFromResponse(resp)
-		if err != nil {
-			return fmt.Errorf("error reading identity entity id for %q: %w", name, err)
-		}
-
-		if entityIDs != nil {
-			entityIDs[idx] = id
-		}
-
-		if idx < i.config.AliasCount {
-			if err := addEntityAlias(client, accessor, name, id); err != nil {
-				return err
-			}
-		}
-		if idx < i.loginUsers {
-			if err := addUserpassUser(client, mountPath, name, i.password); err != nil {
-				return err
-			}
-		}
-
-		n := done.Add(1)
-		if n%int64(progressInterval) == 0 || int(n) == total {
-			i.logger.Info("entity population", "progress", fmt.Sprintf("%d/%d", n, total))
-		}
-		return nil
-	})
-	if err != nil {
-		return entityIDs, err
-	}
-
-	i.logger.Info("entity population complete", "total", total, "elapsed", time.Since(start).String())
-	return entityIDs, nil
-}
-
-// createGroups creates GroupCount internal groups concurrently. The first
-// groupFill groups each get groupCap members drawn deterministically from the
-// created entities; any remaining groups are empty (per the allocation).
-func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFill, groupCap int) ([]string, error) {
-	start := time.Now()
-	total := i.config.GroupCount
-	i.logger.Info("group population start", "total", total, "filled", groupFill,
-		"members_per_group", groupCap)
-
-	groupIDs := make([]string, total)
-
-	err := runConcurrent(0, total-1, func(idx int) error {
-		groupName := objectName(i.mountName, "group", i.runID, idx)
-		var members []string
-		if idx < groupFill {
-			members = selectGroupMembers(entityIDs, idx, groupCap)
-		}
-
-		resp, err := client.Logical().Write("identity/group", map[string]any{
-			"name":              groupName,
-			"type":              "internal",
-			"member_entity_ids": members,
-		})
-		if err != nil {
-			return fmt.Errorf("error creating identity group %q: %w", groupName, err)
-		}
-
-		id, err := idFromResponse(resp)
-		if err != nil {
-			return fmt.Errorf("error reading identity group id for %q: %w", groupName, err)
-		}
-
-		groupIDs[idx] = id
-		return nil
-	})
-	if err != nil {
-		return groupIDs, err
-	}
-
-	i.logger.Info("group population complete", "total", total, "elapsed", time.Since(start).String())
-	return groupIDs, nil
-}
-
-// validateAliases logs in as each of the loginUsers seeded users and confirms the
-// token resolves to the expected entity. Concurrent and collect-all: the login
-// pool is small (capped at login_users), so verifying every user is cheap.
-func (i *Identity) validateAliases(client *api.Client, entityIDs []string) error {
-	start := time.Now()
-	total := i.loginUsers
-	i.logger.Info("login resolution validation start", "users", total)
-
-	mountPath := userpassMountPath(i.runID)
-
-	err := runConcurrent(0, total-1, func(idx int) error {
-		name := objectName(i.mountName, "entity", i.runID, idx)
-		return validateLogin(client, mountPath, name, i.password, entityIDs[idx])
-	})
-	if err != nil {
-		return err
-	}
-
-	i.logger.Info("login resolution validation complete", "users", total, "elapsed", time.Since(start).String())
 	return nil
 }
 
@@ -369,21 +173,18 @@ func (i *Identity) Cleanup(client *api.Client) error {
 		return nil
 	}
 
-	start := time.Now()
-	i.logger.Info("cleanup start", "groups", len(i.groupIDs), "entities", i.config.EntityCount)
-
 	var allErrs []error
 
 	// Groups are held by id (attack state), so delete by id. Entities aren't kept,
 	// so re-derive each name from its index (matching creation) and delete by name,
 	// which also drops that entity's aliases. Both re-derive rather than storing keys.
-	if err := deleteConcurrent(client, "identity/group/id/", len(i.groupIDs), func(idx int) string {
+	if err := deleteConcurrent(i.logger, "group deletion", client, "identity/group/id/", len(i.groupIDs), func(idx int) string {
 		return i.groupIDs[idx]
 	}); err != nil {
 		allErrs = append(allErrs, err)
 	}
 
-	if err := deleteConcurrent(client, "identity/entity/name/", i.config.EntityCount, func(idx int) string {
+	if err := deleteConcurrent(i.logger, "entity deletion", client, "identity/entity/name/", i.config.EntityCount, func(idx int) string {
 		return objectName(i.mountName, "entity", i.runID, idx)
 	}); err != nil {
 		allErrs = append(allErrs, err)
@@ -398,7 +199,6 @@ func (i *Identity) Cleanup(client *api.Client) error {
 		}
 	}
 
-	i.logger.Info("cleanup complete", "elapsed", time.Since(start).String())
 	return errors.Join(allErrs...)
 }
 
@@ -409,4 +209,173 @@ func (i *Identity) GetTargetInfo() TargetInfo {
 	}
 }
 
+func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+	// identity is a built-in path, so this target manages no secret mount and
+	// ignores topLevelConfig.RandomMounts: there is no user-named mount to
+	// randomize, and the per-run UUID baked into every object name already gives
+	// each run its own isolated namespace.
+	i.logger = targetLogger.Named(IdentityTestType)
+
+	runID, err := uuid.GenerateUUID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate run id: %w", err)
+	}
+
+	result := &Identity{
+		config:     i.config,
+		logger:     i.logger,
+		mountName:  mountName,
+		runID:      runID,
+		loginUsers: i.loginUsers,
+	}
+
+	// A userpass mount is only needed when entities get aliases (users imply
+	// aliases, being capped at alias_count); accessor stays empty otherwise.
+	var accessor string
+	if i.config.AliasCount > 0 {
+		accessor, err = enableUserpass(client, runID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	entityIDs, err := result.createEntities(client, accessor)
+	if err != nil {
+		return nil, err
+	}
+
+	if i.config.GroupCount > 0 {
+		groupFill, groupCap, err := parseGroups(i.config.Groups, i.config.GroupCount, i.config.EntityCount)
+		if err != nil {
+			return nil, err
+		}
+		result.groupIDs, err = result.createGroups(client, entityIDs, groupFill, groupCap)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if i.loginUsers > 0 {
+		if err := result.validateLogins(client, entityIDs); err != nil {
+			return nil, err
+		}
+	}
+
+	result.method, result.pathPrefix = configureAttack(i.config, runID)
+	if i.config.Workload == identityWorkloadLogin {
+		result.loginBody = fmt.Appendf(nil, `{"password": "%s"}`, identityPassword)
+	}
+	result.header = generateHeader(client)
+
+	return result, nil
+}
+
 func (i *Identity) Flags(fs *flag.FlagSet) {}
+
+// createEntities creates EntityCount entities concurrently: the first AliasCount
+// get an alias and the first loginUsers also get a userpass user (loginUsers <=
+// alias_count, so every user is aliased). Ids are collected only when a later step
+// reads them, sized to what that step actually needs: every entity when groups
+// select members from the full pool (createGroups can land on any entity via
+// wraparound), or just the login pool when only validation reads them, since
+// nothing else ever indexes past loginUsers. Each id is written at its own index
+// so the slice stays ordered without a lock.
+func (i *Identity) createEntities(client *api.Client, accessor string) ([]string, error) {
+	total := i.config.EntityCount
+	mountPath := userpassMountPath(i.runID)
+
+	var entityIDs []string
+	switch {
+	case i.config.GroupCount > 0:
+		entityIDs = make([]string, total)
+	case i.loginUsers > 0:
+		entityIDs = make([]string, i.loginUsers)
+	}
+
+	err := runPhase(i.logger, "entity population", total, func(idx int) error {
+		name := objectName(i.mountName, "entity", i.runID, idx)
+
+		resp, err := client.Logical().Write("identity/entity", map[string]any{
+			"name": name,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating identity entity %q: %w", name, err)
+		}
+
+		id, err := idFromResponse(resp)
+		if err != nil {
+			return fmt.Errorf("error reading identity entity id for %q: %w", name, err)
+		}
+
+		if idx < len(entityIDs) {
+			entityIDs[idx] = id
+		}
+
+		if idx < i.config.AliasCount {
+			if err := addEntityAlias(client, accessor, name, id); err != nil {
+				return err
+			}
+		}
+		if idx < i.loginUsers {
+			if err := addUserpassUser(client, mountPath, name); err != nil {
+				return err
+			}
+		}
+		return nil
+	}, "aliases", i.config.AliasCount, "login_users", i.loginUsers)
+	if err != nil {
+		return entityIDs, err
+	}
+
+	return entityIDs, nil
+}
+
+// createGroups creates GroupCount internal groups concurrently. The first
+// groupFill groups each get groupCap members drawn deterministically from the
+// created entities; any remaining groups are empty (per the allocation).
+func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFill, groupCap int) ([]string, error) {
+	total := i.config.GroupCount
+	groupIDs := make([]string, total)
+
+	err := runPhase(i.logger, "group population", total, func(idx int) error {
+		groupName := objectName(i.mountName, "group", i.runID, idx)
+		var members []string
+		if idx < groupFill {
+			members = selectGroupMembers(entityIDs, idx, groupCap)
+		}
+
+		resp, err := client.Logical().Write("identity/group", map[string]any{
+			"name":              groupName,
+			"type":              "internal",
+			"member_entity_ids": members,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating identity group %q: %w", groupName, err)
+		}
+
+		id, err := idFromResponse(resp)
+		if err != nil {
+			return fmt.Errorf("error reading identity group id for %q: %w", groupName, err)
+		}
+
+		groupIDs[idx] = id
+		return nil
+	}, "filled", groupFill, "members_per_group", groupCap)
+	if err != nil {
+		return groupIDs, err
+	}
+
+	return groupIDs, nil
+}
+
+// validateLogins logs in as each of the loginUsers seeded users and confirms the
+// token resolves to the expected entity. Concurrent and collect-all: the login
+// pool is small (capped at login_users), so verifying every user is cheap.
+func (i *Identity) validateLogins(client *api.Client, entityIDs []string) error {
+	mountPath := userpassMountPath(i.runID)
+
+	return runPhase(i.logger, "login resolution validation", i.loginUsers, func(idx int) error {
+		name := objectName(i.mountName, "entity", i.runID, idx)
+		return validateLogin(client, mountPath, name, entityIDs[idx])
+	})
+}

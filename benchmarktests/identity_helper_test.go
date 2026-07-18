@@ -93,7 +93,7 @@ func TestValidateLogin(t *testing.T) {
 
 			client := newTestClient(t, server.URL)
 
-			err := validateLogin(client, "userpass", "check-user", "password-value", wantEntity)
+			err := validateLogin(client, "userpass", "check-user", wantEntity)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")

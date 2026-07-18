@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
-	"github.com/sethvargo/go-password/password"
 )
 
 const userpassMountBase = "userpass"
@@ -30,34 +32,28 @@ func objectName(mountName, kind, runID string, idx int) string {
 	return mountName + "-" + kind + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// enableUserpass sets up the run-scoped userpass auth (disabled in Cleanup): it
-// generates the shared password and enables the mount, then returns the two values
-// later steps can't derive -- the mount accessor (aliases bind to the mount by
-// accessor, not path) and that password (for the mount's users).
-func enableUserpass(client *api.Client, runID string) (accessor, password string, err error) {
-	password, err = generatePassword()
-	if err != nil {
-		return "", "", fmt.Errorf("error generating userpass password: %w", err)
-	}
-
+// enableUserpass sets up the run-scoped userpass auth (disabled in Cleanup) and
+// returns its accessor, the one value later steps can't derive (aliases bind to
+// the mount by accessor, not path).
+func enableUserpass(client *api.Client, runID string) (accessor string, err error) {
 	mountPath := userpassMountPath(runID)
 	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
-		return "", "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
 	}
 
 	mounts, err := client.Sys().ListAuth()
 	if err != nil {
-		return "", "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
+		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
 	}
 	mount, ok := mounts[mountPath+"/"]
 	if !ok {
-		return "", "", fmt.Errorf("auth mount %q not found after enable", mountPath)
+		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
 	}
 	if mount.Accessor == "" {
-		return "", "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
+		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
 	}
 
-	return mount.Accessor, password, nil
+	return mount.Accessor, nil
 }
 
 // addEntityAlias binds name -> entityID as an entity alias on the userpass mount
@@ -75,13 +71,13 @@ func addEntityAlias(client *api.Client, accessor, name, entityID string) error {
 	return nil
 }
 
-// addUserpassUser creates a userpass user named name with the shared password on
-// mountPath, making an already-aliased entity loginable.
-func addUserpassUser(client *api.Client, mountPath, name, password string) error {
+// addUserpassUser creates a userpass user named name with the shared
+// identityPassword on mountPath, making an already-aliased entity loginable.
+func addUserpassUser(client *api.Client, mountPath, name string) error {
 	// ToSlash keeps forward slashes on Windows.
 	userPath := filepath.ToSlash(filepath.Join("auth", mountPath, "users", name))
 	_, err := client.Logical().Write(userPath, map[string]any{
-		"password": password,
+		"password": identityPassword,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating userpass user %q: %w", name, err)
@@ -91,10 +87,10 @@ func addUserpassUser(client *api.Client, mountPath, name, password string) error
 
 // validateLogin logs in as one seeded user on mountPath and confirms the token
 // resolves to expectedEntityID.
-func validateLogin(client *api.Client, mountPath, name, password, expectedEntityID string) error {
+func validateLogin(client *api.Client, mountPath, name, expectedEntityID string) error {
 	loginPath := filepath.ToSlash(filepath.Join("auth", mountPath, "login", name))
 	secret, err := client.Logical().Write(loginPath, map[string]any{
-		"password": password,
+		"password": identityPassword,
 	})
 	if err != nil {
 		return fmt.Errorf("login resolution check failed for user %q: %w", name, err)
@@ -109,11 +105,6 @@ func validateLogin(client *api.Client, mountPath, name, password, expectedEntity
 	}
 
 	return nil
-}
-
-// generatePassword returns a strong throwaway password shared by all users.
-func generatePassword() (string, error) {
-	return password.Generate(64, 10, 0, false, true)
 }
 
 // idFromResponse extracts the "id" field from an entity/group response.
@@ -208,11 +199,21 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 	}
 
 	jobs := make(chan int, identityConcurrency)
-	// Buffered to the job count so a worker reporting an error never blocks on send.
-	// TODO(future): drain errs via a collector goroutine so this buffer can shrink to
-	// O(workers) instead of O(jobs); deferred as it adds coordination for a transient
-	// success-path allocation.
-	errs := make(chan error, end-start+1)
+	// Buffered to the worker count so a worker never blocks on send while the
+	// collector goroutine below drains it.
+	errs := make(chan error, identityConcurrency)
+
+	// Collects errors as workers send them, so errs stays small instead of
+	// scaling with job count; allErrs is safe unsynchronized since this goroutine
+	// is its only writer.
+	var allErrs []error
+	collected := make(chan struct{})
+	go func() {
+		for err := range errs {
+			allErrs = append(allErrs, err)
+		}
+		close(collected)
+	}()
 
 	var wg sync.WaitGroup
 	for range identityConcurrency {
@@ -233,19 +234,51 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 	close(jobs)
 	wg.Wait()
 	close(errs)
+	<-collected
 
-	var allErrs []error
-	for err := range errs {
-		allErrs = append(allErrs, err)
-	}
 	return errors.Join(allErrs...)
 }
 
-// deleteConcurrent deletes count keys under pathPrefix concurrently. keyFn maps each
-// index to its key (an id from a slice, or a name re-derived from the index), so
-// callers that can derive keys avoid materializing them.
-func deleteConcurrent(client *api.Client, pathPrefix string, count int, keyFn func(idx int) string) error {
-	return runConcurrent(0, count-1, func(idx int) error {
+// runPhase runs fn concurrently across [0, total), logging a start line (with any
+// extra key/value pairs), progress at roughly identityProgressDivisions cadence,
+// and a complete line with elapsed time -- the shared shape of every setup and
+// cleanup phase that scales with a count. A non-positive total logs nothing and
+// runs nothing, so callers don't need their own guard for empty phases.
+func runPhase(logger hclog.Logger, phase string, total int, fn func(idx int) error, startFields ...any) error {
+	if total <= 0 {
+		return nil
+	}
+
+	start := time.Now()
+	logger.Info(phase+" start", append([]any{"total", total}, startFields...)...)
+
+	progressInterval := ceilDiv(total, identityProgressDivisions)
+	var done atomic.Int64
+
+	err := runConcurrent(0, total-1, func(idx int) error {
+		if err := fn(idx); err != nil {
+			return err
+		}
+		n := done.Add(1)
+		if n%int64(progressInterval) == 0 || int(n) == total {
+			logger.Info(phase, "progress", fmt.Sprintf("%d/%d", n, total))
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	logger.Info(phase+" complete", "total", total, "elapsed", time.Since(start).String())
+	return nil
+}
+
+// deleteConcurrent deletes count keys under pathPrefix concurrently, logging
+// progress via runPhase. keyFn maps each index to its key (an id from a slice, or
+// a name re-derived from the index), so callers that can derive keys avoid
+// materializing them.
+func deleteConcurrent(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count int, keyFn func(idx int) string) error {
+	return runPhase(logger, phase, count, func(idx int) error {
 		key := keyFn(idx)
 		if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
 			return fmt.Errorf("error deleting %s%s: %w", pathPrefix, key, err)
