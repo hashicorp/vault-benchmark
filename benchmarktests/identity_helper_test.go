@@ -12,29 +12,21 @@ import (
 	"github.com/hashicorp/vault/api"
 )
 
-// newTestClient returns a Vault API client pointed at addr with retries
-// disabled so error responses surface immediately.
 func newTestClient(t *testing.T, addr string) *api.Client {
 	t.Helper()
-
 	cfg := api.DefaultConfig()
 	cfg.Address = addr
 	cfg.MaxRetries = 0
-
 	client, err := api.NewClient(cfg)
 	if err != nil {
 		t.Fatalf("error creating api client: %v", err)
 	}
 	client.SetToken("test-token")
-
 	return client
 }
 
-// fakeUserpass serves the minimal userpass surface validateLogin touches: login
-// returns the response the test configures.
 func fakeUserpass(t *testing.T, loginStatus int, loginBody string) *httptest.Server {
 	t.Helper()
-
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/login/") {
 			w.WriteHeader(loginStatus)
@@ -61,7 +53,6 @@ func TestValidateLogin(t *testing.T) {
 			name:        "resolves to expected entity",
 			loginStatus: http.StatusOK,
 			loginBody:   `{"auth":{"entity_id":"entity-abc","client_token":"t","policies":["default"]}}`,
-			wantErr:     false,
 		},
 		{
 			name:        "resolves to wrong entity",
@@ -91,9 +82,7 @@ func TestValidateLogin(t *testing.T) {
 			server := fakeUserpass(t, tc.loginStatus, tc.loginBody)
 			defer server.Close()
 
-			client := newTestClient(t, server.URL)
-
-			err := validateLogin(client, "userpass", "check-user", wantEntity)
+			err := validateLogin(newTestClient(t, server.URL), "userpass", "check-user", wantEntity)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")

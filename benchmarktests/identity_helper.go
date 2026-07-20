@@ -23,8 +23,6 @@ func userpassMountPath(runID string) string {
 	return userpassMountBase + "-" + runID
 }
 
-// objectName derives a run-unique name of the form mountName-typ-runID-idx.
-// Single naming authority for creation and cleanup; names are never stored.
 func objectName(mountName, typ, runID string, idx int) string {
 	return mountName + "-" + typ + "-" + runID + "-" + strconv.Itoa(idx)
 }
@@ -114,12 +112,18 @@ func idFromResponse(resp *api.Secret) (string, error) {
 }
 
 // selectGroupMembers returns groupSize entity ids for groupIndex using
-// wraparound, so membership is deterministic across any entity count.
+// wraparound so membership is deterministic across any entity count.
+// Returns a sub-slice when the window fits without wrapping (zero copy);
+// allocates only when the window wraps past the end of entityIDs.
 func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string {
+	n := len(entityIDs)
+	start := (groupIndex * groupSize) % n
+	if start+groupSize <= n {
+		return entityIDs[start : start+groupSize]
+	}
 	members := make([]string, 0, groupSize)
-	start := (groupIndex * groupSize) % len(entityIDs)
 	for offset := range groupSize {
-		members = append(members, entityIDs[(start+offset)%len(entityIDs)])
+		members = append(members, entityIDs[(start+offset)%n])
 	}
 	return members
 }
@@ -179,12 +183,13 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 		return nil
 	}
 
-	jobs := make(chan int, identityConcurrency)
-	errs := make(chan error, identityConcurrency) // bounded to workers so sends never block
+	n := identityConcurrency
+	jobs := make(chan int, n)
+	errs := make(chan error, n)
 
 	var allErrs []error
 	collected := make(chan struct{})
-	go func() { // sole writer of allErrs; no synchronization needed
+	go func() {
 		for err := range errs {
 			allErrs = append(allErrs, err)
 		}
@@ -192,7 +197,7 @@ func runConcurrent(start, end int, fn func(idx int) error) error {
 	}()
 
 	var wg sync.WaitGroup
-	for range identityConcurrency {
+	for range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

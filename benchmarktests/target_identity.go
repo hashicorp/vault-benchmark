@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strconv"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -29,15 +30,16 @@ const (
 
 	identityNoWorkloadPath = "/v1/sys/health"
 
-	// TODO: worth revisiting at true scale -- whether the ceiling is client-side or
-	// Vault-internal contention is an empirical question; dynamic sizing may help.
-	identityConcurrency = 10
+	// Serial is faster against real Vault: the identity store serializes writes at the
+	// storage layer, so goroutine overhead exceeds any parallelism benefit.
+	// TODO: re-evaluate against integrated-storage clusters; if serial holds, remove this
+	// constant and inline 1 directly in runConcurrent.
+	identityConcurrency = 1
 
 	identityProgressDivisions = 5
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[IdentityTestType] = func() BenchmarkBuilder { return &Identity{} }
 }
 
@@ -48,10 +50,11 @@ type Identity struct {
 	mountName  string
 	runID      string // per-run UUID; seeds every object name so each run is isolated
 
-	method     string
-	loginBody  []byte
-	loginUsers int      // min(login_users, alias_count, entity_count)
-	groupIDs   []string // live ids for group_read; removing that workload simplifies this + Cleanup
+	method      string
+	loginBody   []byte
+	loginUsers  int      // min(login_users, alias_count, entity_count)
+	loginPrefix string   // precomputed "mountName-entity-runID-"; avoids per-tick string allocs in Target
+	groupIDs    []string // live ids for group_read; removing that workload simplifies this + Cleanup
 
 	logger hclog.Logger
 }
@@ -136,8 +139,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 	switch i.config.Workload {
 	case identityWorkloadLogin:
-		user := objectName(i.mountName, "entity", i.runID, rand.Intn(i.loginUsers))
-		t.URL += "/login/" + user
+		t.URL += "/login/" + i.loginPrefix + strconv.Itoa(rand.Intn(i.loginUsers))
 		t.Body = i.loginBody
 	case identityWorkloadGroupRead:
 		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
@@ -194,11 +196,12 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	result := &Identity{
-		config:     i.config,
-		logger:     i.logger,
-		mountName:  mountName,
-		runID:      runID,
-		loginUsers: i.loginUsers,
+		config:      i.config,
+		logger:      i.logger,
+		mountName:   mountName,
+		runID:       runID,
+		loginUsers:  i.loginUsers,
+		loginPrefix: mountName + "-entity-" + runID + "-",
 	}
 
 	// Accessor is the one value that can't be derived later; aliases bind by accessor, not path.
