@@ -15,17 +15,21 @@ will read from these keys, and the write operations overwrite them.
 
 ```hcl
 test "kvv2_read" "kvv2_read_test" {
-    weight = 50
+    weight      = 50
+
     config {
-        numkvs = 100
+        setup_delay = "2s"
+        numkvs      = 100
     }
 }
 
 test "kvv2_write" "kvv2_write_test" {
-    weight = 50
+    weight      = 50
+
     config {
-        numkvs = 10
-        kvsize = 1000
+        setup_delay = "2s"
+        numkvs      = 10
+        kvsize      = 1000
     }
 }
 ```
