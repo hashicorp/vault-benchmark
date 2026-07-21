@@ -278,3 +278,8 @@ func natSort(s []string) {
 		return natLess(s[i], s[j])
 	})
 }
+
+// ceilDiv returns ceil(a/b) for b > 0.
+func ceilDiv(a, b int) int {
+	return (a + b - 1) / b
+}

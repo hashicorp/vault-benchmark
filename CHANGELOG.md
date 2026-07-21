@@ -4,6 +4,10 @@
 
 ## [Unreleased](https://github.com/hashicorp/vault-benchmark/tree/HEAD)
 
+### Improvements
+
+- Consolidate identity_group_read into identity as a workload option [\#268](https://github.com/hashicorp/vault-benchmark/pull/268)
+
 ## [v0.4.1](https://github.com/hashicorp/vault-benchmark/tree/v0.4.1) (Dec 29, 2025)
 
 ### Features
