@@ -60,15 +60,16 @@ type Identity struct {
 }
 
 type IdentityConfig struct {
-	Workload    string       `hcl:"workload,optional"`
-	EntityCount int          `hcl:"entity_count,optional"`
-	AliasCount  int          `hcl:"alias_count,optional"`
-	LoginUsers  int          `hcl:"login_users,optional"`
-	GroupCount  int          `hcl:"group_count,optional"`
-	Groups      *GroupConfig `hcl:"groups,block"`
+	Workload    string          `hcl:"workload,optional"`
+	EntityCount int             `hcl:"entity_count,optional"`
+	AliasCount  int             `hcl:"alias_count,optional"`
+	LoginUsers  int             `hcl:"login_users,optional"`
+	GroupCount  int             `hcl:"group_count,optional"`
+	Groups      *GroupConfig    `hcl:"groups,block"`
+	Aliases     *AliasesConfig  `hcl:"aliases,block"`
+	PolicyCount int             `hcl:"policy_count,optional"`
+	Policies    *PoliciesConfig `hcl:"policies,block"`
 
-	// TODO: aliases -- allocation block (like groups) for >1 alias/entity across mounts.
-	// TODO: policies -- attach token_policies to entities/groups.
 	// TODO: nested groups -- member_group_ids for org-hierarchy shapes (policy resolution walks the tree).
 }
 
@@ -79,6 +80,24 @@ type GroupConfig struct {
 	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
 	Count  int    `hcl:"count,optional"`  // partial: groups that get members
 	Size   int    `hcl:"size,optional"`   // partial: members per filled group
+}
+
+// AliasesConfig controls alias distribution across entities for the alias_count budget:
+// omit or preset="balanced" spreads aliases evenly; "empty" fills nothing;
+// "full" gives every entity alias_count aliases; count+size fills only count entities.
+type AliasesConfig struct {
+	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
+	Count  int    `hcl:"count,optional"`  // partial: entities that get aliases
+	Size   int    `hcl:"size,optional"`   // partial: aliases per filled entity
+}
+
+// PoliciesConfig controls policy distribution across entities for the policy_count budget:
+// omit or preset="balanced" spreads policies evenly; "empty" fills nothing;
+// "full" attaches all policies to every entity; count+size fills only count entities.
+type PoliciesConfig struct {
+	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
+	Count  int    `hcl:"count,optional"`  // partial: entities that get policies
+	Size   int    `hcl:"size,optional"`   // partial: policies per filled entity
 }
 
 func (i *Identity) ParseConfig(body hcl.Body) error {
@@ -107,7 +126,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	}
 
 	// Capped at alias_count (a user needs an alias) and entity_count (validateLogins indexes by entity).
-	// TODO: revisit this clamp once aliases block lands (alias_count may exceed entity_count by design).
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
 	// TODO: guard alias_count/group_count/login_users for non-negative values.
@@ -156,6 +174,14 @@ func (i *Identity) Cleanup(client *api.Client) error {
 	}
 
 	var allErrs []error
+
+	if i.config.PolicyCount > 0 {
+		if err := deleteConcurrent(i.logger, "policy deletion", client, "sys/policies/acl/", i.config.PolicyCount, func(idx int) string {
+			return objectName(i.mountName, "policy", i.runID, idx)
+		}); err != nil {
+			allErrs = append(allErrs, err)
+		}
+	}
 
 	if err := deleteConcurrent(i.logger, "group deletion", client, "identity/group/id/", len(i.groupIDs), func(idx int) string {
 		return i.groupIDs[idx]
@@ -213,7 +239,28 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	entityIDs, err := result.createEntities(client, accessor)
+	var aliasFill, aliasCap int
+	if i.config.AliasCount > 0 {
+		aliasFill, aliasCap, err = parseAliases(i.config.Aliases, i.config.AliasCount, i.config.EntityCount)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var policyNames []string
+	var polFill, polSize int
+	if i.config.PolicyCount > 0 {
+		polFill, polSize, err = parsePolicies(i.config.Policies, i.config.PolicyCount, i.config.EntityCount)
+		if err != nil {
+			return nil, err
+		}
+		policyNames, err = result.createPolicies(client)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	entityIDs, err := result.createEntities(client, accessor, aliasFill, aliasCap, policyNames, polFill, polSize)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +270,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		if err != nil {
 			return nil, err
 		}
-		result.groupIDs, err = result.createGroups(client, entityIDs, groupFill, groupCap)
+		result.groupIDs, err = result.createGroups(client, entityIDs, groupFill, groupCap, policyNames, polFill, polSize)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +293,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 func (i *Identity) Flags(fs *flag.FlagSet) {}
 
-func (i *Identity) createEntities(client *api.Client, accessor string) ([]string, error) {
+func (i *Identity) createEntities(client *api.Client, accessor string, aliasFill, aliasCap int, policyNames []string, polFill, polSize int) ([]string, error) {
 	total := i.config.EntityCount
 	mountPath := userpassMountPath(i.runID)
 
@@ -263,9 +310,14 @@ func (i *Identity) createEntities(client *api.Client, accessor string) ([]string
 	err := runPhase(i.logger, "entity population", total, func(idx int) error {
 		name := objectName(i.mountName, "entity", i.runID, idx)
 
-		resp, err := client.Logical().Write("identity/entity", map[string]any{
+		body := map[string]any{
 			"name": name,
-		})
+		}
+		if idx < polFill {
+			body["policies"] = selectPolicyNames(policyNames, idx, polSize)
+		}
+
+		resp, err := client.Logical().Write("identity/entity", body)
 		if err != nil {
 			return fmt.Errorf("error creating identity entity %q: %w", name, err)
 		}
@@ -279,9 +331,12 @@ func (i *Identity) createEntities(client *api.Client, accessor string) ([]string
 			entityIDs[idx] = id
 		}
 
-		if idx < i.config.AliasCount {
-			if err := addEntityAlias(client, accessor, name, id); err != nil {
-				return err
+		if idx < aliasFill {
+			for a := range aliasCap {
+				aliasName := name + "-" + strconv.Itoa(a)
+				if err := addEntityAlias(client, accessor, aliasName, id); err != nil {
+					return err
+				}
 			}
 		}
 		if idx < i.loginUsers {
@@ -290,7 +345,7 @@ func (i *Identity) createEntities(client *api.Client, accessor string) ([]string
 			}
 		}
 		return nil
-	}, "aliases", i.config.AliasCount, "login_users", i.loginUsers)
+	}, "filled", aliasFill, "aliases_per_entity", aliasCap, "login_users", i.loginUsers, "pol_filled", polFill, "policies_per_entity", polSize)
 	if err != nil {
 		return entityIDs, err
 	}
@@ -298,7 +353,29 @@ func (i *Identity) createEntities(client *api.Client, accessor string) ([]string
 	return entityIDs, nil
 }
 
-func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFill, groupCap int) ([]string, error) {
+func (i *Identity) createPolicies(client *api.Client) ([]string, error) {
+	total := i.config.PolicyCount
+	policyNames := make([]string, total)
+
+	err := runPhase(i.logger, "policy population", total, func(idx int) error {
+		name := objectName(i.mountName, "policy", i.runID, idx)
+		_, err := client.Logical().Write("sys/policies/acl/"+name, map[string]any{
+			"policy": `path "secret/*" { capabilities = ["read"] }`,
+		})
+		if err != nil {
+			return fmt.Errorf("error creating policy %q: %w", name, err)
+		}
+		policyNames[idx] = name
+		return nil
+	}, "total", total)
+	if err != nil {
+		return policyNames, err
+	}
+
+	return policyNames, nil
+}
+
+func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFill, groupCap int, policyNames []string, polFill, polSize int) ([]string, error) {
 	total := i.config.GroupCount
 	groupIDs := make([]string, total)
 
@@ -309,12 +386,17 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 			members = selectGroupMembers(entityIDs, idx, groupCap)
 		}
 
-		// TODO: member_group_ids not written; no nested-group hierarchy support yet.
-		resp, err := client.Logical().Write("identity/group", map[string]any{
+		body := map[string]any{
 			"name":              groupName,
 			"type":              "internal",
 			"member_entity_ids": members,
-		})
+		}
+		if idx < polFill {
+			body["policies"] = selectPolicyNames(policyNames, idx, polSize)
+		}
+
+		// TODO: member_group_ids not written; no nested-group hierarchy support yet.
+		resp, err := client.Logical().Write("identity/group", body)
 		if err != nil {
 			return fmt.Errorf("error creating identity group %q: %w", groupName, err)
 		}
