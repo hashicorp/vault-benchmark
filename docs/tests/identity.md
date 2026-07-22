@@ -13,7 +13,7 @@ selected `workload` during the attack phase.
   - `login` - Log in as randomly selected users from the login pool. Requires `login_users > 0` and `alias_count > 0`.
   - `group_read` - Read randomly selected groups by id. Requires `group_count > 0`.
 - `entity_count` `(int: 1000)` - Number of Identity entities to create during setup. Primary scale axis.
-- `alias_count` `(int: 0)` - Total number of aliases to create across entities. Must be `<= entity_count` when using the default single-alias behaviour; pairs with `login_users` to make entities loginable. See also the optional `aliases` block below.
+- `alias_count` `(int: 0)` - Total number of aliases to create across entities. Pairs with `login_users` to make entities loginable. When `alias_count > entity_count`, entities receive more than one alias (e.g. `alias_count = 3000` with `entity_count = 1000` gives 3 aliases per entity under `balanced`). The benchmark provisions one userpass auth mount per alias slot, so `ceil(alias_count / entity_count)` mounts are created. See also the optional `aliases` block below.
 - `login_users` `(int: 100)` - Sample of users verified at setup (and, for the `login` workload). This checks alias resolution is correct; leave it at the default unless you have a specific reason to change it -- corruption is typically systemic, so a small sample catches it about as reliably as a large one, independent of `entity_count`.
 - `group_count` `(int: 0)` - Number of internal groups to create; `0` creates none. Pairs with an optional `groups` block (see below) that controls how members are assigned.
 - `policy_count` `(int: 0)` - Number of Vault ACL policies to create; `0` creates none. Each policy is a minimal `path "secret/*" { capabilities = ["read"] }` placeholder. Pairs with an optional `policies` block (see below) that controls which entities and groups receive them.
@@ -27,7 +27,7 @@ relevant when `alias_count > 0`. Omitting the block is equivalent to
 - `preset` `(string: "balanced")` - Named distribution strategy. One of:
   - `balanced` (default) - aliases spread evenly across all entities (`ceil(alias_count / entity_count)` per entity)
   - `empty` - no aliases are created regardless of `alias_count`
-  - `full` - every entity receives `alias_count` aliases
+  - `full` - every entity receives `alias_count` aliases. One userpass mount is provisioned per alias slot, so `alias_count` mounts are created in total.
 - `count` `(int: 0)` - Manual mode: number of entities that receive aliases. Cannot be combined with `preset`.
 - `size` `(int: 0)` - Manual mode: number of aliases each filled entity receives. Cannot be combined with `preset`.
 
@@ -171,6 +171,23 @@ test "identity" "identity_partial_policies" {
     policies {
       count = 100
       size  = 5
+    }
+  }
+}
+```
+
+Give every entity 5 aliases (one per auth mount slot), using `full`:
+
+```hcl
+test "identity" "identity_full_aliases" {
+  weight = 100
+  config {
+    workload     = "login"
+    entity_count = 1000
+    alias_count  = 5        # 5 aliases per entity; 5 userpass mounts are created
+    login_users  = 100
+    aliases {
+      preset = "full"
     }
   }
 }

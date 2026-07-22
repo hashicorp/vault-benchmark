@@ -55,6 +55,8 @@ type Identity struct {
 	loginUsers  int      // min(login_users, alias_count, entity_count)
 	loginPrefix string   // precomputed "mountName-entity-runID-"; avoids per-tick string allocs in Target
 	groupIDs    []string // live ids for group_read; removing that workload simplifies this + Cleanup
+	accessors   []string // one userpass mount accessor per alias slot (len == aliasCap)
+	aliasCap    int      // aliases per filled entity; needed by Cleanup to disable all mounts
 
 	logger hclog.Logger
 }
@@ -195,8 +197,8 @@ func (i *Identity) Cleanup(client *api.Client) error {
 		allErrs = append(allErrs, err)
 	}
 
-	if i.config.AliasCount > 0 {
-		mountPath := userpassMountPath(i.runID)
+	for slot := range i.aliasCap {
+		mountPath := userpassSlotMountPath(i.runID, slot)
 		if err := client.Sys().DisableAuth(mountPath); err != nil {
 			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %w", mountPath, err))
 		}
@@ -230,15 +232,6 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		loginPrefix: mountName + "-entity-" + runID + "-",
 	}
 
-	// Accessor is the one value that can't be derived later; aliases bind by accessor, not path.
-	var accessor string
-	if i.config.AliasCount > 0 {
-		accessor, err = enableUserpass(client, runID)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	var aliasFill, aliasCap int
 	if i.config.AliasCount > 0 {
 		aliasFill, aliasCap, err = parseAliases(i.config.Aliases, i.config.AliasCount, i.config.EntityCount)
@@ -246,6 +239,18 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 			return nil, err
 		}
 	}
+
+	// One userpass mount per alias slot so each entity can hold aliasCap aliases.
+	// Accessors are the one value that can't be derived later; aliases bind by accessor, not path.
+	var accessors []string
+	if aliasCap > 0 {
+		accessors, err = enableUserpassMounts(client, runID, aliasCap)
+		if err != nil {
+			return nil, err
+		}
+	}
+	result.accessors = accessors
+	result.aliasCap = aliasCap
 
 	var policyNames []string
 	var polFill, polSize int
@@ -260,7 +265,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	entityIDs, err := result.createEntities(client, accessor, aliasFill, aliasCap, policyNames, polFill, polSize)
+	entityIDs, err := result.createEntities(client, accessors, aliasFill, aliasCap, policyNames, polFill, polSize)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +298,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 func (i *Identity) Flags(fs *flag.FlagSet) {}
 
-func (i *Identity) createEntities(client *api.Client, accessor string, aliasFill, aliasCap int, policyNames []string, polFill, polSize int) ([]string, error) {
+func (i *Identity) createEntities(client *api.Client, accessors []string, aliasFill, aliasCap int, policyNames []string, polFill, polSize int) ([]string, error) {
 	total := i.config.EntityCount
 	mountPath := userpassMountPath(i.runID)
 
@@ -333,8 +338,16 @@ func (i *Identity) createEntities(client *api.Client, accessor string, aliasFill
 
 		if idx < aliasFill {
 			for a := range aliasCap {
-				aliasName := name + "-" + strconv.Itoa(a)
-				if err := addEntityAlias(client, accessor, aliasName, id); err != nil {
+				// Alias 0 must match the userpass username (name) so that
+				// validateLogin and the login workload resolve to the correct entity.
+				// Additional aliases (slots 1..N) each land on their own mount
+				// accessor so Vault's one-alias-per-entity-per-accessor constraint
+				// is satisfied, and get a numeric suffix to keep names unique.
+				aliasName := name
+				if a > 0 {
+					aliasName = name + "-" + strconv.Itoa(a)
+				}
+				if err := addEntityAlias(client, accessors[a], aliasName, id); err != nil {
 					return err
 				}
 			}

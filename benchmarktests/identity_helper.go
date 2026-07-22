@@ -27,27 +27,43 @@ func objectName(mountName, typ, runID string, idx int) string {
 	return mountName + "-" + typ + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// enableUserpass returns the mount accessor -- the one value later steps can't
-// derive (aliases bind to the mount by accessor, not path).
-func enableUserpass(client *api.Client, runID string) (accessor string, err error) {
-	mountPath := userpassMountPath(runID)
-	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
-		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+// userpassSlotMountPath returns the mount path for alias slot a.
+// Slot 0 is the login mount (username == alias name); slots 1..N are bloat-only.
+func userpassSlotMountPath(runID string, slot int) string {
+	if slot == 0 {
+		return userpassMountBase + "-" + runID
+	}
+	return userpassMountBase + "-" + runID + "-" + strconv.Itoa(slot)
+}
+
+// enableUserpassMounts enables `count` userpass mounts (one per alias slot) and
+// returns their accessors in slot order.  Slot 0 is always the login mount.
+func enableUserpassMounts(client *api.Client, runID string, count int) ([]string, error) {
+	accessors := make([]string, count)
+	for slot := range count {
+		mountPath := userpassSlotMountPath(runID, slot)
+		if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
+			return nil, fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+		}
 	}
 
+	// One ListAuth call to resolve all accessors at once.
 	mounts, err := client.Sys().ListAuth()
 	if err != nil {
-		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
+		return nil, fmt.Errorf("error listing auth mounts: %w", err)
 	}
-	mount, ok := mounts[mountPath+"/"]
-	if !ok {
-		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
+	for slot := range count {
+		mountPath := userpassSlotMountPath(runID, slot)
+		mount, ok := mounts[mountPath+"/"]
+		if !ok {
+			return nil, fmt.Errorf("auth mount %q not found after enable", mountPath)
+		}
+		if mount.Accessor == "" {
+			return nil, fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
+		}
+		accessors[slot] = mount.Accessor
 	}
-	if mount.Accessor == "" {
-		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
-	}
-
-	return mount.Accessor, nil
+	return accessors, nil
 }
 
 func addEntityAlias(client *api.Client, accessor, name, entityID string) error {
