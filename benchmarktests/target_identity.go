@@ -240,6 +240,13 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
+	// If aliases resolve to no filled entities OR no aliases per entity (e.g.
+	// preset="empty", or count+size with size=0), no userpass mounts are enabled
+	// and no login users can be created or validated.
+	if aliasFill == 0 || aliasCap == 0 {
+		result.loginUsers = 0
+	}
+
 	// One userpass mount per alias slot so each entity can hold aliasCap aliases.
 	// Accessors are the one value that can't be derived later; aliases bind by accessor, not path.
 	var accessors []string
@@ -281,7 +288,7 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	if i.loginUsers > 0 {
+	if result.loginUsers > 0 {
 		if err := result.validateLogins(client, entityIDs); err != nil {
 			return nil, err
 		}
