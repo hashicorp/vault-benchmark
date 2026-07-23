@@ -27,7 +27,7 @@ relevant when `alias_count > 0`. Omitting the block is equivalent to
 - `preset` `(string: "balanced")` - Named distribution strategy. One of:
   - `balanced` (default) - aliases spread evenly across all entities (`ceil(alias_count / entity_count)` per entity)
   - `empty` - no aliases are created regardless of `alias_count`
-  - `full` - every entity receives `alias_count` aliases. One userpass mount is provisioned per alias slot, so `alias_count` mounts are created in total.
+  - `full` - every entity receives `alias_count` aliases each. Because `alias_count` is used directly as the aliases-per-entity cap, `alias_count` userpass mounts are created (one per slot). Note: with `full` the total aliases written is `entity_count × alias_count`, not just `alias_count`.
 - `count` `(int: 0)` - Manual mode: number of entities that receive aliases. Cannot be combined with `preset`.
 - `size` `(int: 0)` - Manual mode: number of aliases each filled entity receives. Cannot be combined with `preset`.
 
@@ -49,7 +49,9 @@ Only relevant when `group_count > 0`. Omitting the block is equivalent to
 Controls how the `policy_count` policies are distributed as `token_policies`
 across entities **and** groups. Only relevant when `policy_count > 0`. Omitting
 the block is equivalent to `preset = "balanced"`. The same distribution
-parameters apply independently to both entities and groups.
+parameters are applied to both entities and groups using a single shared
+`parsePolicies` result — `count` and `size` control both sets together, not
+each set separately.
 
 - `preset` `(string: "balanced")` - Named distribution strategy. One of:
   - `balanced` (default) - policies spread evenly across all entities/groups (`ceil(policy_count / entity_count)` per object)
@@ -202,6 +204,8 @@ test "identity" "identity_seed" {
     # populate always keeps its objects, and the attack phase still runs for
     # the full global `duration` (nothing to skip to) -- keep duration short,
     # e.g. "1s".
+    # Note: setup still runs a login-resolution validation for up to
+    # login_users (default 100) users when alias_count > 0. This is expected.
     workload      = "populate"
     entity_count  = 10000
     alias_count   = 10000
