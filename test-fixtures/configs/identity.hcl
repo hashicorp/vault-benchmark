@@ -31,35 +31,40 @@ test "identity" "identity_login" {
   }
 }
 
-# Login with multiple aliases per entity: 3 aliases spread evenly across
-# all entities via the aliases block.
+# Login with full alias bloating: every entity gets all 5 alias slots
+# (5 userpass mounts are created). Demonstrates the "full" preset.
 test "identity" "identity_login_multi_alias" {
   weight = 25
   config {
     workload     = "login"
     entity_count = 100
-    alias_count  = 300
+    alias_count  = 5
     login_users  = 50
     aliases {
-      preset = "balanced"
+      preset = "full"
     }
   }
 }
 
-# Read internal groups by id under load. Policies are spread evenly across
-# all entities and groups via the policies block.
+# Read groups under load. aliases preset="empty" shows that alias_count can be
+# declared but suppressed entirely. policies preset="full" attaches all 5
+# policies to every entity and group. Demonstrates "empty" and "full" presets.
 test "identity" "identity_group_read" {
   weight = 25
   config {
     workload      = "group_read"
     entity_count  = 100
+    alias_count   = 100
     group_count   = 10
     policy_count  = 5
     groups {
       preset = "balanced"
     }
+    aliases {
+      preset = "empty"
+    }
     policies {
-      preset = "balanced"
+      preset = "full"
     }
   }
 }
