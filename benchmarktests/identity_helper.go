@@ -27,27 +27,43 @@ func objectName(mountName, typ, runID string, idx int) string {
 	return mountName + "-" + typ + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// enableUserpass returns the mount accessor -- the one value later steps can't
-// derive (aliases bind to the mount by accessor, not path).
-func enableUserpass(client *api.Client, runID string) (accessor string, err error) {
-	mountPath := userpassMountPath(runID)
-	if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
-		return "", fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+// userpassSlotMountPath returns the mount path for alias slot a.
+// Slot 0 is the login mount (username == alias name); slots 1..N are bloat-only.
+func userpassSlotMountPath(runID string, slot int) string {
+	if slot == 0 {
+		return userpassMountBase + "-" + runID
+	}
+	return userpassMountBase + "-" + runID + "-" + strconv.Itoa(slot)
+}
+
+// enableUserpassMounts enables `count` userpass mounts (one per alias slot) and
+// returns their accessors in slot order.  Slot 0 is always the login mount.
+func enableUserpassMounts(client *api.Client, runID string, count int) ([]string, error) {
+	accessors := make([]string, count)
+	for slot := range count {
+		mountPath := userpassSlotMountPath(runID, slot)
+		if err := client.Sys().EnableAuthWithOptions(mountPath, &api.EnableAuthOptions{Type: "userpass"}); err != nil {
+			return nil, fmt.Errorf("error enabling userpass auth mount %q: %w", mountPath, err)
+		}
 	}
 
+	// One ListAuth call to resolve all accessors at once.
 	mounts, err := client.Sys().ListAuth()
 	if err != nil {
-		return "", fmt.Errorf("error listing auth mounts after enabling %q: %w", mountPath, err)
+		return nil, fmt.Errorf("error listing auth mounts: %w", err)
 	}
-	mount, ok := mounts[mountPath+"/"]
-	if !ok {
-		return "", fmt.Errorf("auth mount %q not found after enable", mountPath)
+	for slot := range count {
+		mountPath := userpassSlotMountPath(runID, slot)
+		mount, ok := mounts[mountPath+"/"]
+		if !ok {
+			return nil, fmt.Errorf("auth mount %q not found after enable", mountPath)
+		}
+		if mount.Accessor == "" {
+			return nil, fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
+		}
+		accessors[slot] = mount.Accessor
 	}
-	if mount.Accessor == "" {
-		return "", fmt.Errorf("auth mount %q has empty accessor after enable", mountPath)
-	}
-
-	return mount.Accessor, nil
+	return accessors, nil
 }
 
 func addEntityAlias(client *api.Client, accessor, name, entityID string) error {
@@ -128,6 +144,23 @@ func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string 
 	return members
 }
 
+// selectPolicyNames returns polSize policy names for entityIndex using
+// wraparound so assignment is deterministic across any policy count.
+// Returns a sub-slice when the window fits without wrapping (zero copy);
+// allocates only when the window wraps past the end of policyNames.
+func selectPolicyNames(policyNames []string, entityIndex, polSize int) []string {
+	n := len(policyNames)
+	start := (entityIndex * polSize) % n
+	if start+polSize <= n {
+		return policyNames[start : start+polSize]
+	}
+	selected := make([]string, 0, polSize)
+	for offset := range polSize {
+		selected = append(selected, policyNames[(start+offset)%n])
+	}
+	return selected
+}
+
 // parseGroups resolves the group allocation into (filled, size):
 //
 //	balanced (default): ~entity_count/group_count members per group
@@ -164,6 +197,84 @@ func parseGroups(g *GroupConfig, groupCount, entityCount int) (filled, size int,
 		return groupCount, entityCount, nil
 	default:
 		return 0, 0, fmt.Errorf("invalid groups preset %q: must be \"balanced\", \"empty\", or \"full\"", g.Preset)
+	}
+}
+
+// parseAliases resolves the alias allocation into (filled, size):
+//
+//	balanced (default): ~alias_count/entity_count aliases per entity
+//	empty             : no aliases
+//	full              : alias_count aliases on every entity
+//	count+size        : count entities get size aliases, the rest empty
+func parseAliases(a *AliasesConfig, aliasCount, entityCount int) (filled, size int, err error) {
+	if aliasCount <= 0 {
+		return 0, 0, nil
+	}
+	if a == nil {
+		return entityCount, ceilDiv(aliasCount, entityCount), nil
+	}
+
+	if a.Count > 0 || a.Size > 0 {
+		if a.Preset != "" {
+			return 0, 0, fmt.Errorf("aliases: set either preset or count+size, not both")
+		}
+		if a.Count < 0 || a.Count > entityCount {
+			return 0, 0, fmt.Errorf("aliases.count (%d) must be in [0, entity_count=%d]", a.Count, entityCount)
+		}
+		if a.Size < 0 || a.Size > aliasCount {
+			return 0, 0, fmt.Errorf("aliases.size (%d) must be in [0, alias_count=%d]", a.Size, aliasCount)
+		}
+		return a.Count, a.Size, nil
+	}
+
+	switch a.Preset {
+	case "", "balanced":
+		return entityCount, ceilDiv(aliasCount, entityCount), nil
+	case "empty":
+		return 0, 0, nil
+	case "full":
+		return entityCount, aliasCount, nil
+	default:
+		return 0, 0, fmt.Errorf("invalid aliases preset %q: must be \"balanced\", \"empty\", or \"full\"", a.Preset)
+	}
+}
+
+// parsePolicies resolves the policy allocation into (filled, size):
+//
+//	balanced (default): ~policy_count/entity_count policies per entity
+//	empty             : no policies
+//	full              : policy_count policies on every entity
+//	count+size        : count entities get size policies, the rest empty
+func parsePolicies(p *PoliciesConfig, policyCount, entityCount int) (filled, size int, err error) {
+	if policyCount <= 0 {
+		return 0, 0, nil
+	}
+	if p == nil {
+		return entityCount, ceilDiv(policyCount, entityCount), nil
+	}
+
+	if p.Count > 0 || p.Size > 0 {
+		if p.Preset != "" {
+			return 0, 0, fmt.Errorf("policies: set either preset or count+size, not both")
+		}
+		if p.Count < 0 || p.Count > entityCount {
+			return 0, 0, fmt.Errorf("policies.count (%d) must be in [0, entity_count=%d]", p.Count, entityCount)
+		}
+		if p.Size < 0 || p.Size > policyCount {
+			return 0, 0, fmt.Errorf("policies.size (%d) must be in [0, policy_count=%d]", p.Size, policyCount)
+		}
+		return p.Count, p.Size, nil
+	}
+
+	switch p.Preset {
+	case "", "balanced":
+		return entityCount, ceilDiv(policyCount, entityCount), nil
+	case "empty":
+		return 0, 0, nil
+	case "full":
+		return entityCount, policyCount, nil
+	default:
+		return 0, 0, fmt.Errorf("invalid policies preset %q: must be \"balanced\", \"empty\", or \"full\"", p.Preset)
 	}
 }
 

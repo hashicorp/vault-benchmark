@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 
 # General identity showcase: one run exercising every workload the target
-# supports. Kept small and short so it stays a smoke test; the docs carry the
+# supports, including the aliases and policies allocation blocks.
+# Kept small and short so it stays a smoke test; the docs carry the
 # per-workload examples.
 
 duration      = "10s"
@@ -12,7 +13,7 @@ cleanup       = true
 
 # Seed-only: builds an identity dataset, then idles on sys/health.
 test "identity" "identity_populate" {
-  weight = 34
+  weight = 25
   config {
     workload     = "populate"
     entity_count = 100
@@ -21,7 +22,7 @@ test "identity" "identity_populate" {
 
 # Log in as seeded users, validating that aliases resolve correctly.
 test "identity" "identity_login" {
-  weight = 33
+  weight = 25
   config {
     workload     = "login"
     entity_count = 100
@@ -30,16 +31,40 @@ test "identity" "identity_login" {
   }
 }
 
-# Read internal groups by id under load. An omitted groups block spreads
-# entities evenly across groups; shown here explicitly.
-test "identity" "identity_group_read" {
-  weight = 33
+# Login with full alias bloating: every entity gets all 5 alias slots
+# (5 userpass mounts are created). Demonstrates the "full" preset.
+test "identity" "identity_login_multi_alias" {
+  weight = 25
   config {
-    workload     = "group_read"
+    workload     = "login"
     entity_count = 100
-    group_count  = 100
+    alias_count  = 5
+    login_users  = 50
+    aliases {
+      preset = "full"
+    }
+  }
+}
+
+# Read groups under load. aliases preset="empty" shows that alias_count can be
+# declared but suppressed entirely. policies preset="full" attaches all 5
+# policies to every entity and group. Demonstrates "empty" and "full" presets.
+test "identity" "identity_group_read" {
+  weight = 25
+  config {
+    workload      = "group_read"
+    entity_count  = 100
+    alias_count   = 100
+    group_count   = 10
+    policy_count  = 5
     groups {
       preset = "balanced"
+    }
+    aliases {
+      preset = "empty"
+    }
+    policies {
+      preset = "full"
     }
   }
 }
