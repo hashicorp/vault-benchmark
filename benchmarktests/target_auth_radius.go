@@ -37,7 +37,7 @@ func init() {
 type RADIUSAuth struct {
 	pathPrefix string
 	authUser   string
-	authPass   string
+	body       []byte
 	header     http.Header
 	config     *RADIUSAuthTestConfig
 	logger     hclog.Logger
@@ -122,7 +122,7 @@ func (r *RADIUSAuth) Target(client *api.Client) vegeta.Target {
 		Method: RADIUSAuthTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/login/" + r.authUser,
 		Header: r.header,
-		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, r.authPass)),
+		Body:   r.body,
 	}
 }
 
@@ -196,7 +196,7 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   r.config.RADIUSTestUserConfig.Username,
-		authPass:   r.config.RADIUSTestUserConfig.Password,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, r.config.RADIUSTestUserConfig.Password),
 		logger:     r.logger,
 	}, nil
 }

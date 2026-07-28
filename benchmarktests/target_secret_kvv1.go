@@ -40,10 +40,10 @@ func init() {
 type KVV1Test struct {
 	pathPrefix string
 	header     http.Header
+	writeBody  []byte
 	config     *KVV1SecretTestConfig
 	action     string
 	numKVs     int
-	kvSize     int
 	logger     hclog.Logger
 }
 
@@ -81,11 +81,10 @@ func (k *KVV1Test) read(client *api.Client) vegeta.Target {
 
 func (k *KVV1Test) write(client *api.Client) vegeta.Target {
 	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	value := strings.Repeat("a", k.kvSize)
 	return vegeta.Target{
 		Method: KVV1WriteTestMethod,
 		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
-		Body:   []byte(`{"data": {"foo": "` + value + `"}}`),
+		Body:   k.writeBody,
 		Header: k.header,
 	}
 }
@@ -176,7 +175,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		action:     k.action,
 		header:     headers,
 		numKVs:     k.config.NumKVs,
-		kvSize:     k.config.KVSize,
+		writeBody:  fmt.Appendf(nil, `{"data": {"foo": "%s"}}`, strings.Repeat("a", k.config.KVSize)),
 		logger:     k.logger,
 	}, nil
 }

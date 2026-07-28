@@ -4,14 +4,10 @@
 package benchmarktests
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
@@ -290,84 +286,13 @@ func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix stri
 }
 
 func runConcurrent(start, end int, fn func(idx int) error) error {
-	if end < start {
-		return nil
-	}
-
-	n := identityConcurrency
-	jobs := make(chan int, n)
-	errs := make(chan error, n)
-
-	var allErrs []error
-	collected := make(chan struct{})
-	go func() {
-		for err := range errs {
-			allErrs = append(allErrs, err)
-		}
-		close(collected)
-	}()
-
-	var wg sync.WaitGroup
-	for range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for idx := range jobs {
-				if err := fn(idx); err != nil {
-					errs <- err
-				}
-			}
-		}()
-	}
-
-	for idx := start; idx <= end; idx++ {
-		jobs <- idx
-	}
-	close(jobs)
-	wg.Wait()
-	close(errs)
-	<-collected
-
-	return errors.Join(allErrs...)
+	return runConcurrentN(identityConcurrency, start, end, fn)
 }
 
-// runPhase logs start/progress/complete around a concurrent phase.
-// A non-positive total is a no-op.
 func runPhase(logger hclog.Logger, phase string, total int, fn func(idx int) error, startFields ...any) error {
-	if total <= 0 {
-		return nil
-	}
-
-	start := time.Now()
-	logger.Info(phase+" start", append([]any{"total", total}, startFields...)...)
-
-	progressInterval := ceilDiv(total, identityProgressDivisions)
-	var done atomic.Int64
-
-	err := runConcurrent(0, total-1, func(idx int) error {
-		if err := fn(idx); err != nil {
-			return err
-		}
-		n := done.Add(1)
-		if n%int64(progressInterval) == 0 || int(n) == total {
-			logger.Info(phase, "progress", fmt.Sprintf("%d/%d", n, total))
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	logger.Info(phase+" complete", "total", total, "elapsed", time.Since(start).String())
-	return nil
+	return runPhaseN(logger, phase, identityConcurrency, total, fn, startFields...)
 }
 
 func deleteConcurrent(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count int, keyFn func(idx int) string) error {
-	return runPhase(logger, phase, count, func(idx int) error {
-		key := keyFn(idx)
-		if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
-			return fmt.Errorf("error deleting %s%s: %w", pathPrefix, key, err)
-		}
-		return nil
-	})
+	return deleteConcurrentN(logger, phase, client, pathPrefix, count, identityConcurrency, keyFn)
 }

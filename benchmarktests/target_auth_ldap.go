@@ -37,7 +37,7 @@ func init() {
 type LDAPAuth struct {
 	pathPrefix string
 	authUser   string
-	authPass   string
+	body       []byte
 	header     http.Header
 	config     *LDAPAuthTestConfig
 	logger     hclog.Logger
@@ -131,7 +131,7 @@ func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
 		Method: "POST",
 		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
 		Header: l.header,
-		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, l.authPass)),
+		Body:   l.body,
 	}
 }
 
@@ -192,7 +192,7 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   l.config.LDAPTestUserConfig.Username,
-		authPass:   l.config.LDAPTestUserConfig.Password,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, l.config.LDAPTestUserConfig.Password),
 		logger:     l.logger,
 	}, nil
 }

@@ -45,8 +45,7 @@ func init() {
 
 type GCPAuth struct {
 	pathPrefix string
-	roleName   string
-	jwt        string
+	body       []byte
 	header     http.Header
 	timeout    time.Duration
 	config     *GCPAuthTestConfig
@@ -113,7 +112,7 @@ func (g *GCPAuth) Target(client *api.Client) vegeta.Target {
 		Method: GCPAuthTestMethod,
 		URL:    client.Address() + g.pathPrefix + "/login",
 		Header: g.header,
-		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, g.roleName, g.jwt)),
+		Body:   g.body,
 	}
 }
 
@@ -210,8 +209,11 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	return &GCPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		jwt:        jwt,
-		roleName:   g.config.GCPTestRoleConfig.Name,
+		// TODO: for GCE-path roles (type != "iam"), the JWT comes from the GCE metadata
+		// service with a fixed ~1h TTL not controlled by max_jwt_exp. Benchmarks longer
+		// than 1h will silently accumulate 401 failures. For iam-path roles, max_jwt_exp
+		// is validated against Duration in Setup so the body is safe for the run.
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
 		timeout:    g.timeout,
 		logger:     g.logger,
 	}, nil

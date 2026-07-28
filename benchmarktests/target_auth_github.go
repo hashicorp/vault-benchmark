@@ -34,7 +34,7 @@ func init() {
 
 type GitHubAuth struct {
 	pathPrefix string
-	token      string
+	body       []byte
 	header     http.Header
 	config     *GitHubAuthTestConfig
 	logger     hclog.Logger
@@ -96,7 +96,7 @@ func (g *GitHubAuth) Target(client *api.Client) vegeta.Target {
 		Method: "POST",
 		URL:    client.Address() + g.pathPrefix + "/login",
 		Header: g.header,
-		Body:   []byte(fmt.Sprintf(`{"token": "%s"}`, g.token)),
+		Body:   g.body,
 	}
 }
 
@@ -156,7 +156,7 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	return &GitHubAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		token:      g.config.GitHubTestUserConfig.Token,
+		body:       fmt.Appendf(nil, `{"token": "%s"}`, g.config.GitHubTestUserConfig.Token),
 		logger:     g.logger,
 	}, nil
 }

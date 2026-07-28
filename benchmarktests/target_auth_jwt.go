@@ -27,34 +27,28 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	JWTAuthTestType   = "jwt_auth"
 	JWTAuthTestMethod = "POST"
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[JWTAuthTestType] = func() BenchmarkBuilder { return &JWTAuth{} }
 }
 
-// JWT Auth Test Struct
 type JWTAuth struct {
 	pathPrefix string
-	role       string
+	body       []byte
 	header     http.Header
-	token      string
 	config     *JWTAuthTestConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type JWTAuthTestConfig struct {
 	JWTAuthConfig *JWTAuthConfig `hcl:"auth,block"`
 	JWTRoleConfig *JWTRoleConfig `hcl:"role,block"`
 }
 
-// JWT Auth Config
 type JWTAuthConfig struct {
 	OIDCDiscoveryUrl     string   `hcl:"oidc_discovery_url,optional"`
 	OIDCDiscoveryCaPEM   string   `hcl:"oidc_discovery_ca_pem,optional"`
@@ -72,7 +66,6 @@ type JWTAuthConfig struct {
 	NamespaceInState     *bool    `hcl:"namespace_in_state,optional"`
 }
 
-// JWT Role Config
 type JWTRoleConfig struct {
 	Name                 string                 `hcl:"name,optional"`
 	RoleType             string                 `hcl:"role_type,optional"`
@@ -134,7 +127,7 @@ func (j *JWTAuth) Target(client *api.Client) vegeta.Target {
 		Method: JWTAuthTestMethod,
 		URL:    client.Address() + j.pathPrefix + "/login",
 		Header: j.header,
-		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, j.role, j.token)),
+		Body:   j.body,
 	}
 }
 
@@ -223,8 +216,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	return &JWTAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		role:       j.config.JWTRoleConfig.Name,
-		token:      jwtData,
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, j.config.JWTRoleConfig.Name, jwtData),
 		logger:     j.logger,
 	}, nil
 }

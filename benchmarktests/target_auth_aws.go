@@ -22,7 +22,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	AWSAuthTestType   = "aws_auth"
 	AWSAuthTestMethod = "POST"
@@ -31,13 +30,12 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
 
 type AWSAuth struct {
 	pathPrefix string
-	loginData  map[string]interface{}
+	loginData  map[string]any
 	header     http.Header
 	config     *AWSAuthTestConfig
 	logger     hclog.Logger
@@ -122,6 +120,9 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 }
 
 func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
+	// AWS IAM auth uses a presigned STS GetCallerIdentity request whose signature
+	// expires (~15 min). GenerateLoginData must be called per-tick; precomputing
+	// the body once in Setup would cause all requests to fail after expiry.
 	jsonData, _ := json.Marshal(a.loginData)
 	return vegeta.Target{
 		Method: "POST",
@@ -159,7 +160,6 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		}
 	}
 
-	// Create AWS Auth mount
 	a.logger.Trace(mountLogMessage("auth", "aws", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "aws",
@@ -170,28 +170,24 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	setupLogger := a.logger.Named(authPath)
 
-	// Decode AWSConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("aws auth"))
 	awsAuthConfig, err := structToMap(a.config.AWSAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding aws auth config from struct: %v", err)
 	}
 
-	// Write AWS config
 	setupLogger.Trace(writingLogMessage("aws auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config/client", awsAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing aws auth config: %v", err)
 	}
 
-	// Decode AWSTestUserConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("aws auth user"))
 	awsAuthUser, err := structToMap(a.config.AWSTestUserConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding aws auth user from struct: %v", err)
 	}
 
-	// Create AWS Test Role
 	setupLogger.Trace(writingLogMessage("aws auth user config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, awsAuthUser)
 	if err != nil {
@@ -233,5 +229,4 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (a *AWSAuth) Flags(fs *flag.FlagSet) {}

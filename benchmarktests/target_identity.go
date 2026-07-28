@@ -35,8 +35,6 @@ const (
 	// TODO: re-evaluate against integrated-storage clusters; if serial holds, remove this
 	// constant and inline 1 directly in runConcurrent.
 	identityConcurrency = 1
-
-	identityProgressDivisions = 5
 )
 
 func init() {

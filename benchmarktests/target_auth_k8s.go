@@ -34,8 +34,7 @@ func init() {
 
 type KubeAuth struct {
 	pathPrefix string
-	roleName   string
-	jwt        string
+	body       []byte
 	header     http.Header
 	timeout    time.Duration
 	config     *KubeAuthTestConfig
@@ -99,7 +98,7 @@ func (k *KubeAuth) Target(client *api.Client) vegeta.Target {
 		Method: KubeAuthTestMethod,
 		URL:    client.Address() + k.pathPrefix + "/login",
 		Header: k.header,
-		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, k.roleName, k.jwt)),
+		Body:   k.body,
 	}
 }
 
@@ -184,8 +183,7 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	return &KubeAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		roleName:   k.config.KubeTestRoleConfig.Name,
-		jwt:        jwt,
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubeTestRoleConfig.Name, jwt),
 		timeout:    k.timeout,
 		logger:     k.logger,
 	}, nil
