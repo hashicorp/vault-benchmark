@@ -209,10 +209,8 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	return &GCPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		// TODO: for GCE-path roles (type != "iam"), the JWT comes from the GCE metadata
-		// service with a fixed ~1h TTL not controlled by max_jwt_exp. Benchmarks longer
-		// than 1h will silently accumulate 401 failures. For iam-path roles, max_jwt_exp
-		// is validated against Duration in Setup so the body is safe for the run.
+		// TODO: GCE-path roles use a metadata-service JWT with a ~1h TTL; benchmarks
+		// longer than 1h will accumulate 401s. IAM-path roles are safe (max_jwt_exp enforced).
 		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
 		timeout:    g.timeout,
 		logger:     g.logger,
@@ -269,7 +267,7 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 			}
 		}
 
-		jwtPayload := map[string]interface{}{
+		jwtPayload := map[string]any{
 			"aud": fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name),
 			"sub": serviceAccount,
 			"exp": time.Now().Add(ttl).Unix(),

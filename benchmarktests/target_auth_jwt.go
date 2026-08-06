@@ -76,7 +76,7 @@ type JWTRoleConfig struct {
 	ExpirationLeeway     int                    `hcl:"expiration_leeway,optional"`
 	NotBeforeLeeway      int                    `hcl:"not_before_leeway,optional"`
 	BoundSubject         string                 `hcl:"bound_subject,optional"`
-	BoundClaims          map[string]interface{} `hcl:"bound_claims,optional"`
+	BoundClaims          map[string]any `hcl:"bound_claims,optional"`
 	BoundClaimsType      string                 `hcl:"bound_claims_type,optional"`
 	GroupsClaim          string                 `hcl:"groups_claim,optional"`
 	ClaimMappings        map[string]string      `hcl:"claim_mappings,optional"`
@@ -96,9 +96,6 @@ type JWTRoleConfig struct {
 	TokenType            string                 `hcl:"token_type,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
 		Config *JWTAuthTestConfig `hcl:"config,block"`

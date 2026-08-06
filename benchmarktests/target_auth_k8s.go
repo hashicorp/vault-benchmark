@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	KubeAuthTestType               = "kube_auth"
 	KubeAuthTestMethod             = "POST"
@@ -189,5 +188,4 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (k *KubeAuth) Flags(fs *flag.FlagSet) {}

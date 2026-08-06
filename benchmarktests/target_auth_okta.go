@@ -4,7 +4,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -37,7 +36,6 @@ type OktaAuth struct {
 	config     *OktaAuthTestConfig
 	logger     hclog.Logger
 }
-
 
 type OktaAuthTestConfig struct {
 	OktaAuthConfig *OktaAuthConfig `hcl:"auth,block"`
@@ -151,7 +149,7 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	if len(o.config.OktaUserConfig.Groups) > 0 || len(o.config.OktaUserConfig.Policies) > 0 {
 		setupLogger.Trace(writingLogMessage("okta user config"))
-		userConfig := map[string]interface{}{}
+		userConfig := map[string]any{}
 
 		if len(o.config.OktaUserConfig.Groups) > 0 {
 			userConfig["groups"] = o.config.OktaUserConfig.Groups
@@ -166,18 +164,10 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	loginData := map[string]interface{}{
-		"password": o.config.OktaUserConfig.Password,
-	}
-	loginBody, err := json.Marshal(loginData)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling Okta login data: %w", err)
-	}
-
 	return &OktaAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       loginBody,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, o.config.OktaUserConfig.Password),
 		username:   o.config.OktaUserConfig.Username,
 		logger:     o.logger,
 	}, nil

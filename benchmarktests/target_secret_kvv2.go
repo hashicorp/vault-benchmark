@@ -151,8 +151,8 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := k.logger.Named(mountPath)
 
-	secval := map[string]interface{}{
-		"data": map[string]interface{}{
+	secval := map[string]any{
+		"data": map[string]any{
 			"foo": 1,
 		},
 	}
@@ -162,12 +162,14 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	// * Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
 	time.Sleep(2 * time.Second)
 
-	setupLogger.Trace("seeding secrets")
-	for i := 1; i <= k.config.NumKVs; i++ {
-		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
+	if err := runPhase(setupLogger, "seed secrets", kvSeedConcurrency, k.config.NumKVs, func(idx int) error {
+		_, err := client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(idx+1), secval)
 		if err != nil {
-			return nil, fmt.Errorf("error writing kv secret: %v", err)
+			return fmt.Errorf("error writing kvv2 secret: %w", err)
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	return &KVV2Test{

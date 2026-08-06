@@ -32,7 +32,7 @@ var (
 	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
 
-func omitEmpty(in interface{}) {
+func omitEmpty(in any) {
 	r := reflect.ValueOf(in)
 	for _, e := range r.MapKeys() {
 		// If the value is its zero value, we don't want to add it to
@@ -46,8 +46,8 @@ func omitEmpty(in interface{}) {
 
 // structToMap decodes the config structs defined in tests to maps so
 // they can be passed in as part of the Vault API request
-func structToMap(in interface{}) (map[string]interface{}, error) {
-	tMap := make(map[string]interface{})
+func structToMap(in any) (map[string]any, error) {
+	tMap := make(map[string]any)
 	tDecoderConfig := mapstructure.DecoderConfig{
 		Result:  &tMap,
 		TagName: "hcl",

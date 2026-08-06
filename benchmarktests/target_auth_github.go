@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	GitHubAuthTestType      = "github_auth"
 	GitHubAuthTestMethod    = "POST"
@@ -161,5 +160,4 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (g *GitHubAuth) Flags(fs *flag.FlagSet) {}

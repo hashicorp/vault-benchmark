@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	RADIUSAuthTestType       = "radius_auth"
 	RADIUSAuthTestMethod     = "POST"
@@ -182,7 +181,7 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	// Register the test user with Vault RADIUS auth
 	if len(r.config.RADIUSTestUserConfig.Policies) > 0 {
 		setupLogger.Trace(writingLogMessage("radius user config"), "username", r.config.RADIUSTestUserConfig.Username)
-		userConfig := map[string]interface{}{
+		userConfig := map[string]any{
 			"policies": strings.Join(r.config.RADIUSTestUserConfig.Policies, ","),
 		}
 		userPath := "auth/" + authPath + "/users/" + r.config.RADIUSTestUserConfig.Username
@@ -201,5 +200,4 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (r *RADIUSAuth) Flags(fs *flag.FlagSet) {}

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
 )
 
@@ -283,16 +282,4 @@ func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix stri
 	default: // identityWorkloadPopulate
 		return http.MethodGet, identityNoWorkloadPath
 	}
-}
-
-func runConcurrent(start, end int, fn func(idx int) error) error {
-	return runConcurrentN(identityConcurrency, start, end, fn)
-}
-
-func runPhase(logger hclog.Logger, phase string, total int, fn func(idx int) error, startFields ...any) error {
-	return runPhaseN(logger, phase, identityConcurrency, total, fn, startFields...)
-}
-
-func deleteConcurrent(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count int, keyFn func(idx int) string) error {
-	return deleteConcurrentN(logger, phase, client, pathPrefix, count, identityConcurrency, keyFn)
 }

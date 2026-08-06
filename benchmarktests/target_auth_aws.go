@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-secure-stdlib/awsutil"
@@ -33,9 +35,20 @@ func init() {
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
 
+type cachedBody struct {
+	mu     sync.Mutex
+	body   []byte
+	expiry time.Time
+}
+
+// awsSigV4TTL is the AWS SigV4 signature validity window; hardcoded by the AWS spec.
+const awsSigV4TTL = 15 * time.Minute
+
+const awsBodyRefreshMargin = 1 * time.Minute
+
 type AWSAuth struct {
 	pathPrefix string
-	loginData  map[string]any
+	login      cachedBody
 	header     http.Header
 	config     *AWSAuthTestConfig
 	logger     hclog.Logger
@@ -107,7 +120,6 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	// Empty Credentials check
 	if a.config.AWSAuthConfig.AccessKey == "" {
 		return fmt.Errorf("no aws access_key provided but required")
 	}
@@ -120,16 +132,47 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 }
 
 func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
-	// AWS IAM auth uses a presigned STS GetCallerIdentity request whose signature
-	// expires (~15 min). GenerateLoginData must be called per-tick; precomputing
-	// the body once in Setup would cause all requests to fail after expiry.
-	jsonData, _ := json.Marshal(a.loginData)
+	a.login.mu.Lock()
+	if time.Now().After(a.login.expiry) {
+		if body, err := a.buildLoginBody(); err == nil {
+			a.login.body = body
+			a.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
+		}
+	}
+	body := a.login.body
+	a.login.mu.Unlock()
+
 	return vegeta.Target{
-		Method: "POST",
+		Method: AWSAuthTestMethod,
 		URL:    client.Address() + a.pathPrefix + "/login",
 		Header: a.header,
-		Body:   jsonData,
+		Body:   body,
 	}
+}
+
+func (a *AWSAuth) buildLoginBody() ([]byte, error) {
+	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	region := a.config.AWSAuthConfig.STSRegion
+	switch region {
+	case "":
+		region = awsutil.DefaultRegion
+	case "auto":
+		region = ""
+	}
+
+	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthConfig.IAMServerIDHeaderValue, region, a.logger)
+	if err != nil {
+		return nil, err
+	}
+	if loginData == nil {
+		return nil, fmt.Errorf("got nil response from GenerateLoginData")
+	}
+	loginData["role"] = a.config.AWSTestUserConfig.Role
+	return json.Marshal(loginData)
 }
 
 func (a *AWSAuth) Cleanup(client *api.Client) error {
@@ -194,39 +237,21 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error writing aws auth user: %v", err)
 	}
 
-	headerValue := a.config.AWSAuthConfig.IAMServerIDHeaderValue
-
-	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	region := a.config.AWSAuthConfig.STSRegion
-	switch region {
-	case "":
-		// The CLI has always defaulted to "us-east-1" if a region is not provided.
-		region = awsutil.DefaultRegion
-	case "auto":
-		// Beginning in 1.10 we also accept the "auto" value, which uses the region detection logic in
-		// awsutil.GetRegion() to determine the region. That behavior is triggered when region = "".
-		region = ""
-	}
-
-	loginData, err := awsutil.GenerateLoginData(creds, headerValue, region, a.logger)
-	if err != nil {
-		return nil, err
-	}
-	if loginData == nil {
-		return nil, fmt.Errorf("got nil response from GenerateLoginData")
-	}
-	loginData["role"] = a.config.AWSTestUserConfig.Role // add role to login data
-
-	return &AWSAuth{
+	result := &AWSAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		loginData:  loginData,
+		config:     a.config,
 		logger:     a.logger,
-	}, nil
+	}
+
+	body, err := result.buildLoginBody()
+	if err != nil {
+		return nil, fmt.Errorf("error generating initial AWS login body: %w", err)
+	}
+	result.login.body = body
+	result.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
+
+	return result, nil
 }
 
 func (a *AWSAuth) Flags(fs *flag.FlagSet) {}

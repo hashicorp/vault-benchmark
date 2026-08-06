@@ -294,7 +294,7 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	case "decrypt":
 		// First encrypt some data to get ciphertext
-		testEncryptData := map[string]interface{}{
+		testEncryptData := map[string]any{
 			"plaintext": base64Payload,
 		}
 
@@ -359,7 +359,7 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		g.config.GCPKMSVerifyConfig.Digest = digest
 
 		// Sign the digest
-		signData := map[string]interface{}{
+		signData := map[string]any{
 			"digest":      digest,
 			"key_version": g.config.GCPKMSVerifyConfig.KeyVersion,
 		}
@@ -397,7 +397,7 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	case "reencrypt":
 		// First encrypt some data to get ciphertext
-		testEncryptData := map[string]interface{}{
+		testEncryptData := map[string]any{
 			"plaintext": base64Payload,
 		}
 
@@ -492,7 +492,7 @@ func (g *GCPKMSTest) registerExistingKey(client *api.Client, secretPath string, 
 	// Build full crypto key resource ID for registration
 	fullCryptoKeyID := fmt.Sprintf("%s/cryptoKeys/%s", keyConfig.KeyRing, keyConfig.CryptoKey)
 
-	registerData := map[string]interface{}{
+	registerData := map[string]any{
 		"crypto_key": fullCryptoKeyID,
 		"verify":     true,
 	}

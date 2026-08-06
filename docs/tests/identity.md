@@ -60,7 +60,11 @@ each set separately.
 - `count` `(int: 0)` - Manual mode: number of entities/groups that receive policies. Cannot be combined with `preset`.
 - `size` `(int: 0)` - Manual mode: number of policies attached to each filled entity/group. Cannot be combined with `preset`.
 
-## Example HCL
+## Setup behavior
+
+Identity setup (entity, alias, group, and policy creation) runs serially against Vault by design. The identity store serializes writes internally regardless of storage backend, so concurrent writes produce more goroutine overhead than throughput gain. Engineers who want to test different concurrency values locally can adjust `identityConcurrency` in `benchmarktests/concurrency_helper.go`; the default of `1` is correct for all standard deployment configurations.
+
+
 
 Log in as seeded users, validating that aliases resolve correctly:
 

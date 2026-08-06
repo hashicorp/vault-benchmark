@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	LDAPAuthTestType               = "ldap_auth"
 	LDAPAuthTestMethod             = "POST"
@@ -197,5 +196,4 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (l *LDAPAuth) Flags(fs *flag.FlagSet) {}

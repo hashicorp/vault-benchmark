@@ -14,21 +14,29 @@ import (
 	"github.com/hashicorp/vault/api"
 )
 
-// progressDivisions controls how many progress log lines runPhaseN emits per phase.
-const progressDivisions = 5
+const (
+	progressDivisions = 5
 
-// No retries or backoff: failures are collected and returned as-is.
-// A Vault write failure during setup indicates a configuration problem, not a transient condition.
-// TODO: per-workload retry/backoff when transient 429s during setup become a
-// reported issue; generic backoff here would mask real failures.
-func runConcurrentN(n, start, end int, fn func(idx int) error) error {
+	// Default worker pool size for setup and cleanup phases. Serial (n=1) is
+	// correct for standard Vault deployments: the storage layer serializes
+	// writes, so additional goroutines add overhead without throughput gain.
+	// Raise when profiling against an integrated-storage cluster locally.
+	identityConcurrency = 1
+	kvSeedConcurrency   = 1
+)
+
+// runConcurrent runs fn over [start, end] using n workers, collecting all errors.
+// Not retried: a write failure during setup indicates a config problem, not a transient condition.
+func runConcurrent(n, start, end int, fn func(idx int) error) error {
+	if n <= 0 {
+		return fmt.Errorf("runConcurrent: n must be > 0, got %d", n)
+	}
 	if end < start {
 		return nil
 	}
 
 	total := end - start + 1
 	jobs := make(chan int, n)
-	// Sized to total jobs so workers never block on send, even under total failure.
 	errs := make(chan error, total)
 
 	var allErrs []error
@@ -64,7 +72,7 @@ func runConcurrentN(n, start, end int, fn func(idx int) error) error {
 	return errors.Join(allErrs...)
 }
 
-func runPhaseN(logger hclog.Logger, phase string, n, total int, fn func(idx int) error, startFields ...any) error {
+func runPhase(logger hclog.Logger, phase string, n, total int, fn func(idx int) error, startFields ...any) error {
 	if total <= 0 {
 		return nil
 	}
@@ -75,7 +83,7 @@ func runPhaseN(logger hclog.Logger, phase string, n, total int, fn func(idx int)
 	progressInterval := ceilDiv(total, progressDivisions)
 	var done atomic.Int64
 
-	err := runConcurrentN(n, 0, total-1, func(idx int) error {
+	err := runConcurrent(n, 0, total-1, func(idx int) error {
 		if err := fn(idx); err != nil {
 			return err
 		}
@@ -93,8 +101,8 @@ func runPhaseN(logger hclog.Logger, phase string, n, total int, fn func(idx int)
 	return nil
 }
 
-func deleteConcurrentN(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count, n int, keyFn func(idx int) string) error {
-	return runPhaseN(logger, phase, n, count, func(idx int) error {
+func deletePhase(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count, n int, keyFn func(idx int) string) error {
+	return runPhase(logger, phase, n, count, func(idx int) error {
 		key := keyFn(idx)
 		if _, err := client.Logical().Delete(pathPrefix + key); err != nil {
 			return fmt.Errorf("error deleting %s%s: %w", pathPrefix, key, err)

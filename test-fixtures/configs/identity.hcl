@@ -17,6 +17,8 @@ test "identity" "identity_populate" {
   config {
     workload     = "populate"
     entity_count = 100
+    alias_count = 10
+    group_count = 10
   }
 }
 
