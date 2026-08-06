@@ -83,7 +83,7 @@ type JWTRoleConfig struct {
 	ExpirationLeeway     int                    `hcl:"expiration_leeway,optional"`
 	NotBeforeLeeway      int                    `hcl:"not_before_leeway,optional"`
 	BoundSubject         string                 `hcl:"bound_subject,optional"`
-	BoundClaims          map[string]interface{} `hcl:"bound_claims,optional"`
+	BoundClaims          map[string]any `hcl:"bound_claims,optional"`
 	BoundClaimsType      string                 `hcl:"bound_claims_type,optional"`
 	GroupsClaim          string                 `hcl:"groups_claim,optional"`
 	ClaimMappings        map[string]string      `hcl:"claim_mappings,optional"`

@@ -60,8 +60,8 @@ type SSHIssuedCertConfig struct {
 	ValidPrincipals string                 `hcl:"valid_principals,optional"`
 	CertType        string                 `hcl:"cert_type,optional"`
 	KeyID           string                 `hcl:"key_id,optional"`
-	CriticalOptions map[string]interface{} `hcl:"critical_options,optional"`
-	Extensions      map[string]interface{} `hcl:"extensions,optional"`
+	CriticalOptions map[string]any `hcl:"critical_options,optional"`
+	Extensions      map[string]any `hcl:"extensions,optional"`
 }
 
 type SSHRoleConfig struct {
@@ -98,7 +98,7 @@ type SSHRoleConfig struct {
 	AllowSubdomains        bool                   `hcl:"allow_subdomains,optional"`
 	AllowUserKeyIDs        bool                   `hcl:"allow_user_key_ids,optional"`
 	KeyIDFormat            string                 `hcl:"key_id_format,optional"`
-	AllowedUserKeyLengths  map[string]interface{} `hcl:"allowed_user_key_lengths,optional"`
+	AllowedUserKeyLengths  map[string]any `hcl:"allowed_user_key_lengths,optional"`
 	AlgorithmSigner        string                 `hcl:"algorithm_signer,optional"`
 	NotBeforeDuration      string                 `hcl:"not_before_duration,optional"`
 }

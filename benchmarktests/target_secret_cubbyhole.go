@@ -148,7 +148,7 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	setupLogger.Trace(writingLogMessage("cubbyhole secret"), "key", secretPath)
 	secretDataPath := fmt.Sprintf("cubbyhole/%s", secretPath)
 
-	secretData := map[string]interface{}{
+	secretData := map[string]any{
 		"foo": "bar",
 	}
 	_, err := client.Logical().Write(secretDataPath, secretData)
