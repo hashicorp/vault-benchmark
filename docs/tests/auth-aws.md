@@ -37,9 +37,7 @@ This benchmark tests the performance of logins using the AWS auth method.
 
 ## Notes
 
-vault-benchmark uses the AWS IAM auth method (presigned STS `GetCallerIdentity` requests). AWS SigV4 signatures have a fixed 15-minute validity window enforced server-side. To avoid request failures on long-running benchmarks, vault-benchmark refreshes the signed body automatically every 14 minutes using a mutex-protected cache. Engineers running benchmarks longer than 15 minutes will see a brief refresh pause roughly every 14 minutes; this is expected and does not indicate a configuration problem.
-
-
+The login body contains a presigned STS `GetCallerIdentity` request; AWS SigV4 signatures expire after 15 minutes. vault-benchmark refreshes automatically every 14 minutes — occasional latency spikes at the refresh boundary are expected.
 
 ```hcl
 test "aws_auth" "aws_test_1" {

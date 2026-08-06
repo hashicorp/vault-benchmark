@@ -31,7 +31,6 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Constants for test
 const (
 	GCPAuthTestType     = "gcp_auth"
 	GCPAuthTestMethod   = "POST"
@@ -39,7 +38,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[GCPAuthTestType] = func() BenchmarkBuilder { return &GCPAuth{} }
 }
 
@@ -47,7 +45,6 @@ type GCPAuth struct {
 	pathPrefix string
 	body       []byte
 	header     http.Header
-	timeout    time.Duration
 	config     *GCPAuthTestConfig
 	logger     hclog.Logger
 }
@@ -153,7 +150,6 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 	setupLogger := g.logger.Named(authPath)
 
-	// check if the provided argument should be read from file
 	creds := g.config.GCPAuthConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
 		contents, err := os.ReadFile(creds[1:])
@@ -170,7 +166,8 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error parsing gcp auth config from struct: %v", err)
 	}
 
-	// Check that JWT TTL is not shorter than benchmark test duration
+	// GCP's JWT TTL must cover the full benchmark duration; a shorter TTL would make
+	// tokens expire mid-run and cause auth failures on every tick after expiry.
 	parsedTTL, err := time.ParseDuration(g.config.GCPTestRoleConfig.MaxJWTExp)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing JWT TTL from configuration: %v", err)
@@ -181,7 +178,6 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		setupLogger.Warn(warnMsg)
 	}
 
-	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
 	if err != nil {
@@ -194,7 +190,6 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Write GCP Role
 	setupLogger.Trace(writingLogMessage("role"), "name", g.config.GCPTestRoleConfig.Name)
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, GCPRoleConfig)
 	if err != nil {
@@ -209,15 +204,16 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	return &GCPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		// TODO: GCE-path roles use a metadata-service JWT with a ~1h TTL; benchmarks
-		// longer than 1h will accumulate 401s. IAM-path roles are safe (max_jwt_exp enforced).
-		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
-		timeout:    g.timeout,
-		logger:     g.logger,
+		// TODO: apply cachedBody refresh pattern (see target_auth_aws.go) split by role type:
+		// IAM-path (type=="iam") can refresh via getSignedJwt on expiry; GCE-path must call
+		// the metadata server per-tick since the token is issued at call time and is not
+		// re-signable. Deferred because GCE-path changes Target() semantics (per-tick network
+		// I/O) and needs its own test coverage against a real GCE instance.
+		body:   fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
+		logger: g.logger,
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (g *GCPAuth) Flags(fs *flag.FlagSet) {}
 
 func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
@@ -231,8 +227,6 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 	httpClient := oauth2.NewClient(ctx, tokenSource)
 
 	var serviceAccount string
-	// Select one of the configured service accounts if more than 1
-	rand.Seed(time.Now().Unix())
 	if len(config.GCPTestRoleConfig.BoundServiceAccounts) > 0 {
 		n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
 		serviceAccount = config.GCPTestRoleConfig.BoundServiceAccounts[n]
@@ -243,7 +237,6 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 	}
 
 	if config.GCPTestRoleConfig.Type != "iam" {
-		// Check if the metadata server is available.
 		if !metadata.OnGCE() {
 			return "", fmt.Errorf("could not obtain service account from credentials (are you using Application Default Credentials?). You must provide a service account to authenticate as")
 		}

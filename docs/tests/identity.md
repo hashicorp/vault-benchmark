@@ -62,9 +62,7 @@ each set separately.
 
 ## Setup behavior
 
-Identity setup (entity, alias, group, and policy creation) runs serially against Vault by design. The identity store serializes writes internally regardless of storage backend, so concurrent writes produce more goroutine overhead than throughput gain. Engineers who want to test different concurrency values locally can adjust `identityConcurrency` in `benchmarktests/concurrency_helper.go`; the default of `1` is correct for all standard deployment configurations.
-
-
+Setup runs serially by design: the identity store serializes writes internally, so concurrent goroutines add overhead without throughput gain. To experiment with higher concurrency locally, adjust `identityConcurrency` in `benchmarktests/concurrency_helper.go`.
 
 Log in as seeded users, validating that aliases resolve correctly:
 

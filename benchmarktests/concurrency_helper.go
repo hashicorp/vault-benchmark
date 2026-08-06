@@ -17,27 +17,27 @@ import (
 const (
 	progressDivisions = 5
 
-	// Default worker pool size for setup and cleanup phases. Serial (n=1) is
-	// correct for standard Vault deployments: the storage layer serializes
-	// writes, so additional goroutines add overhead without throughput gain.
-	// Raise when profiling against an integrated-storage cluster locally.
+	// identityConcurrency and kvSeedConcurrency are independent tuning axes: identity
+	// setup hits the identity store (always serialized by Vault regardless of storage
+	// backend), while KV setup hits the secrets engine (may benefit from n>1 on
+	// integrated-storage clusters). Both default to 1 (serial). To experiment locally,
+	// raise the relevant constant; do not raise on production clusters without profiling.
 	identityConcurrency = 1
 	kvSeedConcurrency   = 1
 )
 
-// runConcurrent runs fn over [start, end] using n workers, collecting all errors.
 // Not retried: a write failure during setup indicates a config problem, not a transient condition.
-func runConcurrent(n, start, end int, fn func(idx int) error) error {
+// When n=1 exactly one worker goroutine is started; only one RPC is in flight at a time (serial).
+func runConcurrent(n, count int, fn func(idx int) error) error {
 	if n <= 0 {
 		return fmt.Errorf("runConcurrent: n must be > 0, got %d", n)
 	}
-	if end < start {
+	if count <= 0 {
 		return nil
 	}
 
-	total := end - start + 1
 	jobs := make(chan int, n)
-	errs := make(chan error, total)
+	errs := make(chan error, count)
 
 	var allErrs []error
 	collected := make(chan struct{})
@@ -61,7 +61,7 @@ func runConcurrent(n, start, end int, fn func(idx int) error) error {
 		}()
 	}
 
-	for idx := start; idx <= end; idx++ {
+	for idx := range count {
 		jobs <- idx
 	}
 	close(jobs)
@@ -83,7 +83,7 @@ func runPhase(logger hclog.Logger, phase string, n, total int, fn func(idx int) 
 	progressInterval := ceilDiv(total, progressDivisions)
 	var done atomic.Int64
 
-	err := runConcurrent(n, 0, total-1, func(idx int) error {
+	err := runConcurrent(n, total, func(idx int) error {
 		if err := fn(idx); err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func runPhase(logger hclog.Logger, phase string, n, total int, fn func(idx int) 
 	return nil
 }
 
-func deletePhase(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, count, n int, keyFn func(idx int) string) error {
+func deletePhase(logger hclog.Logger, phase string, client *api.Client, pathPrefix string, n, count int, keyFn func(idx int) string) error {
 	return runPhase(logger, phase, n, count, func(idx int) error {
 		key := keyFn(idx)
 		if _, err := client.Logical().Delete(pathPrefix + key); err != nil {

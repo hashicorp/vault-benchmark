@@ -213,7 +213,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	}
 
 	// Prepare key data for TOTP operations
-	keyData := map[string]any{
+	keyData := map[string]interface{}{
 		"generate":     t.config.Generate,
 		"issuer":       t.config.Issuer,
 		"account_name": t.config.AccountName,
@@ -240,7 +240,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	baseURL := fmt.Sprintf("%s/v1/%s", client.Address(), mountPath)
 
 	// Optimization: Pre-marshal JSON for create operations (simplified keyData for creation)
-	createKeyData := map[string]any{
+	createKeyData := map[string]interface{}{
 		"generate":     true,
 		"issuer":       configCopy.Issuer,
 		"account_name": configCopy.AccountName,

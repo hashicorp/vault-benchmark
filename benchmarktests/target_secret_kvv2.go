@@ -157,9 +157,10 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		},
 	}
 
-	// TODO: Find more deterministic way of avoiding this
-	// Avoid error of the form:
-	// * Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
+	// Vault v2 KV mount upgrade is asynchronous: the backend briefly rejects
+	// writes with "Upgrading from non-versioned to versioned data". There is
+	// no stable API signal to poll; a fixed sleep is the current workaround.
+	// TODO: replace with a poll-until-ready loop if Vault exposes a readiness endpoint.
 	time.Sleep(2 * time.Second)
 
 	if err := runPhase(setupLogger, "seed secrets", kvSeedConcurrency, k.config.NumKVs, func(idx int) error {

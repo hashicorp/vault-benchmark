@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -27,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[KubeAuthTestType] = func() BenchmarkBuilder { return &KubeAuth{} }
 }
 
@@ -35,7 +33,6 @@ type KubeAuth struct {
 	pathPrefix string
 	body       []byte
 	header     http.Header
-	timeout    time.Duration
 	config     *KubeAuthTestConfig
 	logger     hclog.Logger
 }
@@ -152,7 +149,6 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		return nil, fmt.Errorf("error parsing kubernetes auth config from struct: %v", err)
 	}
 
-	// Write Kubernetes config
 	setupLogger.Trace(writingLogMessage("kubernetes auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
 	if err != nil {
@@ -165,14 +161,12 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Write Kubernetes Role
 	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
 	}
 
-	// Load JWT
 	setupLogger.Trace("reading default service account token from file")
 	jwt, err := readTokenFromFile(DefaultServiceAccountTokenPath)
 	if err != nil {
@@ -182,8 +176,11 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	return &KubeAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
+		// TODO: projected service account tokens rotate (default 1h in most clusters).
+		// Benchmarks longer than the token TTL will silently accumulate 401s. Apply the
+		// cachedBody refresh pattern from target_auth_aws.go; refresh would re-read from
+		// DefaultServiceAccountTokenPath (kubelet rotates the file in place).
 		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubeTestRoleConfig.Name, jwt),
-		timeout:    k.timeout,
 		logger:     k.logger,
 	}, nil
 }

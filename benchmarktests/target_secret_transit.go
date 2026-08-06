@@ -80,7 +80,7 @@ type TransitConfigSign struct {
 	HashAlgorithm       string        `hcl:"hash_algorithm,optional"`
 	Input               string        `hcl:"input,optional"`
 	Reference           string        `hcl:"reference,optional"`
-	BatchInput          []any `hcl:"batch_input,optional"`
+	BatchInput          []interface{} `hcl:"batch_input,optional"`
 	Context             string        `hcl:"context,optional"`
 	Prehashed           bool          `hcl:"prehashed,optional"`
 	SignatureAlgorithm  string        `hcl:"signature_algorithm,optional"`
@@ -96,7 +96,7 @@ type TransitConfigVerify struct {
 	Signature           string        `hcl:"signature,optional"`
 	HMAC                string        `hcl:"hmac,optional"`
 	Reference           string        `hcl:"reference,optional"`
-	BatchInput          []any `hcl:"batch_input,optional"`
+	BatchInput          []interface{} `hcl:"batch_input,optional"`
 	Context             string        `hcl:"context,optional"`
 	Prehashed           bool          `hcl:"prehashed,optional"`
 	SignatureAlgorithm  string        `hcl:"signature_algorithm,optional"`
@@ -113,7 +113,7 @@ type TransitConfigEncrypt struct {
 	KeyVersion                 int           `hcl:"key_version,optional"`
 	Nonce                      string        `hcl:"nonce,optional"`
 	Reference                  string        `hcl:"reference,optional"`
-	BatchInput                 []any `hcl:"batch_input,optional"`
+	BatchInput                 []interface{} `hcl:"batch_input,optional"`
 	Type                       string        `hcl:"type,optional"`
 	ConvergentEncryption       bool          `hcl:"convergent_encryption,optional"`
 	PartialFailureResponseCode int           `hcl:"partial_failure_response_code,optional"`
@@ -127,7 +127,7 @@ type TransitConfigDecrypt struct {
 	Context                    string        `hcl:"context,optional"`
 	Nonce                      string        `hcl:"nonce,optional"`
 	Reference                  string        `hcl:"reference,optional"`
-	BatchInput                 []any `hcl:"batch_input,optional"`
+	BatchInput                 []interface{} `hcl:"batch_input,optional"`
 	PartialFailureResponseCode int           `hcl:"partial_failure_response_code,optional"`
 }
 
@@ -346,7 +346,7 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	case "decrypt":
 		// Encrypt test payload
-		testEncryptData := map[string]any{
+		testEncryptData := map[string]interface{}{
 			"plaintext": base64Payload,
 		}
 

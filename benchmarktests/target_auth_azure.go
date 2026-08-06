@@ -56,7 +56,7 @@ type AzureAuthConfig struct {
 }
 
 type AzureAuthRole struct {
-	Name                     string   `hcl:"string,optional"`
+	Name                     string   `hcl:"name,optional"`
 	BoundServicePrincipalIDs []string `hcl:"bound_service_principal_ids,optional"`
 	BoundGroupIDs            []string `hcl:"bound_group_ids,optional"`
 	BoundLocations           []string `hcl:"bound_locations,optional"`
@@ -195,6 +195,10 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 		return nil, fmt.Errorf("error marshaling Azure login data: %w", err)
 	}
 
+	// TODO: the Azure JWT in azureBody (from AzureAuthUser.JWT) typically expires in 1h.
+	// Benchmarks longer than 1h will silently accumulate 401s. Apply the cachedBody refresh
+	// pattern from target_auth_aws.go; the refresh call would re-marshal azureAuthUser with
+	// a new JWT obtained from the operator's token source.
 	return &AzureAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),

@@ -27,7 +27,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[GitHubAuthTestType] = func() BenchmarkBuilder { return &GitHubAuth{} }
 }
 
@@ -82,7 +81,6 @@ func (g *GitHubAuth) ParseConfig(body hcl.Body) error {
 	}
 	g.config = testConfig.Config
 
-	// Empty Credentials check
 	if g.config.GitHubTestUserConfig.Token == "" {
 		return fmt.Errorf("no github test user token provided but required")
 	}
@@ -127,7 +125,6 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		}
 	}
 
-	// Create GitHub Auth mount
 	g.logger.Trace(mountLogMessage("auth", "github", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "github",
@@ -138,16 +135,14 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := g.logger.Named(authPath)
 
-	// Decode GitHubConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("github auth"))
-	ldapAuthConfig, err := structToMap(g.config.GitHubAuthConfig)
+	githubAuthConfig, err := structToMap(g.config.GitHubAuthConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding github auth config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing github auth config from struct: %v", err)
 	}
 
-	// Write GitHub config
 	setupLogger.Trace(writingLogMessage("github auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", githubAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing github auth config: %v", err)
 	}

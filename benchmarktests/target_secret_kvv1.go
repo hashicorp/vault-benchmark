@@ -143,7 +143,8 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := k.logger.Named(mountPath)
 
-	secval := map[string]any{		"data": map[string]any{
+	secval := map[string]any{
+		"data": map[string]any{
 			"foo": 1,
 		},
 	}

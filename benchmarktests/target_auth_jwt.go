@@ -76,7 +76,7 @@ type JWTRoleConfig struct {
 	ExpirationLeeway     int                    `hcl:"expiration_leeway,optional"`
 	NotBeforeLeeway      int                    `hcl:"not_before_leeway,optional"`
 	BoundSubject         string                 `hcl:"bound_subject,optional"`
-	BoundClaims          map[string]any `hcl:"bound_claims,optional"`
+	BoundClaims          map[string]interface{} `hcl:"bound_claims,optional"`
 	BoundClaimsType      string                 `hcl:"bound_claims_type,optional"`
 	GroupsClaim          string                 `hcl:"groups_claim,optional"`
 	ClaimMappings        map[string]string      `hcl:"claim_mappings,optional"`
@@ -156,7 +156,6 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		}
 	}
 
-	// Create JWT Auth mount
 	j.logger.Trace(mountLogMessage("auth", "jwt", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "jwt",
@@ -173,34 +172,29 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		log.Fatalf(err.Error())
 	}
 
-	// Default `jwt_validation_pubkeys` if neither `jwt_validation_pubkeys`, `jwks_url` nor `oidc_discovery_url` are set
 	if j.config.JWTAuthConfig.JWTValidationPubKeys == nil && j.config.JWTAuthConfig.JWKSUrl == "" && j.config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
 		setupLogger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
 		j.config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
-	// Decode JWTAuthConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("jwt auth"))
 	jwtAuthConfig, err := structToMap(j.config.JWTAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing jwt auth config from struct: %v", err)
 	}
 
-	// Write JWT config
 	setupLogger.Trace(writingLogMessage("jwt auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt config: %v", err)
 	}
 
-	// Decode JWTRoleConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	jwtRoleConfig, err := structToMap(j.config.JWTRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Write JWT role
 	setupLogger.Trace(writingLogMessage("role"), "name", j.config.JWTRoleConfig.Name)
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
@@ -208,7 +202,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace("generating test jwt")
-	jwtData, _ := j.getTestJWT(privKey)
+	jwtData := j.getTestJWT(privKey)
 
 	return &JWTAuth{
 		header:     generateHeader(client),
@@ -220,11 +214,12 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
-func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
+func (j *JWTAuth) getTestJWT(privKey string) string {
 	cl := sqjwt.Claims{
 		Subject:   j.config.JWTRoleConfig.BoundSubject,
 		Issuer:    j.config.JWTAuthConfig.BoundIssuer,
 		NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+		Expiry:    sqjwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		Audience:  append(sqjwt.Audience{}, j.config.JWTRoleConfig.BoundAudiences...),
 	}
 
@@ -256,17 +251,15 @@ func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
 		log.Fatal(err)
 	}
 
-	return raw, key
+	return raw
 }
 
 func generateECDSAKeys() (string, string, error) {
-	// Generate a new ECDSA private key
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate ECDSA private key: %w", err)
 	}
 
-	// Encode the private key in PEM format
 	privKeyBytes, err := x509.MarshalECPrivateKey(privKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encode ECDSA private key: %w", err)
@@ -276,7 +269,6 @@ func generateECDSAKeys() (string, string, error) {
 		Bytes: privKeyBytes,
 	})
 
-	// Encode the public key in PEM format
 	pubKeyBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encode ECDSA public key: %w", err)

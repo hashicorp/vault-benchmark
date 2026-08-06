@@ -94,7 +94,7 @@ type TransformInputConfig struct {
 	Metadata       string        `hcl:"metadata,optional"`
 	Tweak          string        `hcl:"tweak,optional"`
 	Reference      string        `hcl:"reference,optional"`
-	BatchInput     []any `hcl:"batch_input,optional"`
+	BatchInput     []interface{} `hcl:"batch_input,optional"`
 }
 
 func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {

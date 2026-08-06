@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -35,16 +34,11 @@ func init() {
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
 
-type cachedBody struct {
-	mu     sync.Mutex
-	body   []byte
-	expiry time.Time
-}
-
 // awsSigV4TTL is the AWS SigV4 signature validity window; hardcoded by the AWS spec.
-const awsSigV4TTL = 15 * time.Minute
-
-const awsBodyRefreshMargin = 1 * time.Minute
+const (
+	awsSigV4TTL          = 15 * time.Minute
+	awsBodyRefreshMargin = 1 * time.Minute
+)
 
 type AWSAuth struct {
 	pathPrefix string
@@ -134,7 +128,9 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
 	a.login.mu.Lock()
 	if time.Now().After(a.login.expiry) {
-		if body, err := a.buildLoginBody(); err == nil {
+		if body, err := a.buildLoginBody(); err != nil {
+			a.logger.Warn("failed to refresh AWS login body; using stale credentials", "error", err)
+		} else {
 			a.login.body = body
 			a.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
 		}
@@ -148,31 +144,6 @@ func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
 		Header: a.header,
 		Body:   body,
 	}
-}
-
-func (a *AWSAuth) buildLoginBody() ([]byte, error) {
-	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	region := a.config.AWSAuthConfig.STSRegion
-	switch region {
-	case "":
-		region = awsutil.DefaultRegion
-	case "auto":
-		region = ""
-	}
-
-	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthConfig.IAMServerIDHeaderValue, region, a.logger)
-	if err != nil {
-		return nil, err
-	}
-	if loginData == nil {
-		return nil, fmt.Errorf("got nil response from GenerateLoginData")
-	}
-	loginData["role"] = a.config.AWSTestUserConfig.Role
-	return json.Marshal(loginData)
 }
 
 func (a *AWSAuth) Cleanup(client *api.Client) error {
@@ -255,3 +226,28 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 }
 
 func (a *AWSAuth) Flags(fs *flag.FlagSet) {}
+
+func (a *AWSAuth) buildLoginBody() ([]byte, error) {
+	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	region := a.config.AWSAuthConfig.STSRegion
+	switch region {
+	case "":
+		region = awsutil.DefaultRegion
+	case "auto":
+		region = ""
+	}
+
+	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthConfig.IAMServerIDHeaderValue, region, a.logger)
+	if err != nil {
+		return nil, err
+	}
+	if loginData == nil {
+		return nil, fmt.Errorf("got nil response from GenerateLoginData")
+	}
+	loginData["role"] = a.config.AWSTestUserConfig.Role
+	return json.Marshal(loginData)
+}

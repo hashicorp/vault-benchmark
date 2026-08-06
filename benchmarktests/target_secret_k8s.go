@@ -189,7 +189,7 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 	}
 
 	// Build request body for credential generation
-	requestBody := map[string]any{
+	requestBody := map[string]interface{}{
 		"kubernetes_namespace": namespace,
 	}
 

@@ -383,7 +383,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	}
 
 	rootSetupLogger.Trace("configuring urls")
-	_, err = cli.Logical().Write(filepath.Join(rootPath, "config", "urls"), map[string]any{
+	_, err = cli.Logical().Write(filepath.Join(rootPath, "config", "urls"), map[string]interface{}{
 		"issuing_certificates":    fmt.Sprintf("%s/v1/%s/ca", cli.Address(), rootPath),
 		"crl_distribution_points": []string{fmt.Sprintf("%s/v1/%s/crl", cli.Address(), rootPath)},
 	})
@@ -451,7 +451,7 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 
 	// Set Intermediate signed certificate
 	intSetupLogger.Trace("setting intermediate signed cert")
-	_, err = cli.Logical().Write(filepath.Join(intPath, "intermediate", "set-signed"), map[string]any{
+	_, err = cli.Logical().Write(filepath.Join(intPath, "intermediate", "set-signed"), map[string]interface{}{
 		"certificate": strings.Join([]string{resp.Data["certificate"].(string), resp.Data["issuing_ca"].(string)}, "\n"),
 	})
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -32,7 +33,16 @@ var (
 	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
 
-func omitEmpty(in any) {
+// cachedBody holds a precomputed request body that expires and must be periodically refreshed.
+// mu serializes refreshes so concurrent Vegeta workers don't race on body/expiry writes.
+// Must not be copied after first use — embed by value only in structs accessed exclusively via pointer.
+type cachedBody struct {
+	mu     sync.Mutex
+	body   []byte
+	expiry time.Time
+}
+
+func omitEmpty(in interface{}) {
 	r := reflect.ValueOf(in)
 	for _, e := range r.MapKeys() {
 		// If the value is its zero value, we don't want to add it to
@@ -44,10 +54,10 @@ func omitEmpty(in any) {
 	}
 }
 
-// structToMap decodes the config structs defined in tests to maps so
-// they can be passed in as part of the Vault API request
-func structToMap(in any) (map[string]any, error) {
-	tMap := make(map[string]any)
+// structToMap decodes config structs to maps using the hcl tag as the key name,
+// dropping zero-value fields so they don't override Vault server defaults.
+func structToMap(in interface{}) (map[string]interface{}, error) {
+	tMap := make(map[string]interface{})
 	tDecoderConfig := mapstructure.DecoderConfig{
 		Result:  &tMap,
 		TagName: "hcl",
@@ -66,9 +76,7 @@ func structToMap(in any) (map[string]any, error) {
 	return tMap, nil
 }
 
-// GenerateCert creates a new leaf cert from provided CA template and signer
 func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer) (string, string, error) {
-	// Create the private key
 	signer, keyPEM, err := privateKey()
 	if err != nil {
 		return "", "", fmt.Errorf("error generating private key for server certificate: %v", err)
@@ -94,7 +102,6 @@ func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer) (str
 		hostname = "localhost"
 	}
 
-	// Create the leaf cert
 	template := x509.Certificate{
 		SerialNumber:   sn,
 		Subject:        pkix.Name{CommonName: hostname},
@@ -122,17 +129,12 @@ func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer) (str
 	return buf.String(), keyPEM, nil
 }
 
-// GenerateCA generates a new self-signed CA cert and returns a
-// CaCert struct containing the PEM encoded cert,
-// X509 Certificate Template, and crypto.Signer
 func GenerateCA() (*CaCert, error) {
-	// Create the private key we'll use for this CA cert.
 	signer, _, err := privateKey()
 	if err != nil {
 		return nil, fmt.Errorf("error generating private key for CA: %v", err)
 	}
 
-	// The serial number for the cert
 	sn, err := serialNumber()
 	if err != nil {
 		return nil, fmt.Errorf("error generating serial number: %v", err)
@@ -143,7 +145,6 @@ func GenerateCA() (*CaCert, error) {
 		return nil, fmt.Errorf("error getting subject key id from key: %v", err)
 	}
 
-	// Create the CA cert
 	template := x509.Certificate{
 		SerialNumber:          sn,
 		Subject:               pkix.Name{CommonName: "Vault Benchmark CA"},
@@ -176,8 +177,6 @@ func GenerateCA() (*CaCert, error) {
 	}, nil
 }
 
-// privateKey returns a new ECDSA-based private key. Both a crypto.Signer
-// and the key in PEM format are returned.
 func privateKey() (crypto.Signer, string, error) {
 	pk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -198,7 +197,6 @@ func privateKey() (crypto.Signer, string, error) {
 	return pk, buf.String(), nil
 }
 
-// serialNumber generates a new random serial number.
 func serialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
 }
@@ -272,7 +270,6 @@ func natLess(a, b string) bool {
 	return len(a)-i < len(b)-j
 }
 
-// natSort sorts a slice of strings in place using natural ordering
 func natSort(s []string) {
 	sort.Slice(s, func(i, j int) bool {
 		return natLess(s[i], s[j])
