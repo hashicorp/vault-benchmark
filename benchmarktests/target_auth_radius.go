@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	RADIUSAuthTestType       = "radius_auth"
 	RADIUSAuthTestMethod     = "POST"
@@ -30,14 +29,13 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[RADIUSAuthTestType] = func() BenchmarkBuilder { return &RADIUSAuth{} }
 }
 
 type RADIUSAuth struct {
 	pathPrefix string
 	authUser   string
-	authPass   string
+	body       []byte
 	header     http.Header
 	config     *RADIUSAuthTestConfig
 	logger     hclog.Logger
@@ -96,12 +94,10 @@ func (r *RADIUSAuth) ParseConfig(body hcl.Body) error {
 	}
 	r.config = testConfig.Config
 
-	// Validation first
 	if r.config.RADIUSAuthConfig.Host == "" {
 		return fmt.Errorf("no RADIUS host provided but required")
 	}
 
-	// Provide defaults if environment variables are not set
 	if r.config.RADIUSAuthConfig.Secret == "" {
 		return fmt.Errorf("no RADIUS secret provided but required")
 	}
@@ -122,7 +118,7 @@ func (r *RADIUSAuth) Target(client *api.Client) vegeta.Target {
 		Method: RADIUSAuthTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/login/" + r.authUser,
 		Header: r.header,
-		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, r.authPass)),
+		Body:   r.body,
 	}
 }
 
@@ -154,7 +150,6 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		}
 	}
 
-	// Create RADIUS Auth mount
 	r.logger.Trace(mountLogMessage("auth", "radius", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "radius",
@@ -165,24 +160,21 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := r.logger.Named(authPath)
 
-	// Decode RADIUSAuthConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("radius auth"))
 	radiusAuthConfig, err := structToMap(r.config.RADIUSAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding radius auth config from struct: %v", err)
 	}
 
-	// Write RADIUS config
 	setupLogger.Trace(writingLogMessage("radius auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", radiusAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing radius auth config: %v", err)
 	}
 
-	// Register the test user with Vault RADIUS auth
 	if len(r.config.RADIUSTestUserConfig.Policies) > 0 {
 		setupLogger.Trace(writingLogMessage("radius user config"), "username", r.config.RADIUSTestUserConfig.Username)
-		userConfig := map[string]interface{}{
+		userConfig := map[string]any{
 			"policies": strings.Join(r.config.RADIUSTestUserConfig.Policies, ","),
 		}
 		userPath := "auth/" + authPath + "/users/" + r.config.RADIUSTestUserConfig.Username
@@ -196,10 +188,9 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   r.config.RADIUSTestUserConfig.Username,
-		authPass:   r.config.RADIUSTestUserConfig.Password,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, r.config.RADIUSTestUserConfig.Password),
 		logger:     r.logger,
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (r *RADIUSAuth) Flags(fs *flag.FlagSet) {}

@@ -26,14 +26,13 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[UserpassTestType] = func() BenchmarkBuilder { return &UserpassAuth{} }
 }
 
 type UserpassAuth struct {
 	pathPrefix string
 	user       string
-	password   string
+	body       []byte
 	header     http.Header
 	config     *UserpassAuthConfig
 	logger     hclog.Logger
@@ -53,9 +52,6 @@ type UserpassAuthConfig struct {
 	TokenType            string   `hcl:"token_type,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
 		Config *UserpassAuthConfig `hcl:"config,block"`
@@ -79,7 +75,7 @@ func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 		Method: UserpassAuthTestMethod,
 		URL:    client.Address() + u.pathPrefix + "/login/" + u.user,
 		Header: u.header,
-		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, u.password)),
+		Body:   u.body,
 	}
 }
 
@@ -111,7 +107,6 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 		}
 	}
 
-	// Create Userpass Auth Mount
 	u.logger.Trace(mountLogMessage("auth", "userpass", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "userpass",
@@ -122,7 +117,6 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := u.logger.Named(authPath)
 
-	// Decode Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("user"))
 	userData, err := structToMap(u.config)
 	if err != nil {
@@ -140,7 +134,7 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		user:       u.config.Username,
-		password:   u.config.Password,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, u.config.Password),
 		logger:     u.logger,
 	}, nil
 }

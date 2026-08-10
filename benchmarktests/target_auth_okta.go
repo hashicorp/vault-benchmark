@@ -4,7 +4,6 @@
 package benchmarktests
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -20,21 +19,20 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	OktaAuthTestType   = "okta_auth"
 	OktaAuthTestMethod = "POST"
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[OktaAuthTestType] = func() BenchmarkBuilder { return &OktaAuth{} }
 }
 
 type OktaAuth struct {
 	pathPrefix string
-	loginData  map[string]interface{}
+	body       []byte
 	header     http.Header
+	username   string
 	config     *OktaAuthTestConfig
 	logger     hclog.Logger
 }
@@ -78,7 +76,6 @@ func (o *OktaAuth) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 	o.config = testConfig.Config
-	// Required field validation
 	if o.config.OktaAuthConfig.OrgName == "" {
 		return fmt.Errorf("no okta org_name provided but required")
 	}
@@ -92,16 +89,11 @@ func (o *OktaAuth) ParseConfig(body hcl.Body) error {
 }
 
 func (o *OktaAuth) Target(client *api.Client) vegeta.Target {
-	jsonData, err := json.Marshal(o.loginData)
-	if err != nil {
-		o.logger.Error("failed to marshal login data", "error", err)
-		return vegeta.Target{}
-	}
 	return vegeta.Target{
 		Method: OktaAuthTestMethod,
-		URL:    client.Address() + o.pathPrefix + "/login/" + o.config.OktaUserConfig.Username,
+		URL:    client.Address() + o.pathPrefix + "/login/" + o.username,
 		Header: o.header,
-		Body:   jsonData,
+		Body:   o.body,
 	}
 }
 
@@ -133,7 +125,6 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	// Create Okta Auth mount
 	o.logger.Trace(mountLogMessage("auth", "okta", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "okta",
@@ -144,24 +135,21 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := o.logger.Named(authPath)
 
-	// Decode OktaAuthConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("okta auth"))
 	oktaAuthConfig, err := structToMap(o.config.OktaAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding okta auth config from struct: %v", err)
 	}
 
-	// Write Okta config
 	setupLogger.Trace(writingLogMessage("okta auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", oktaAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing okta auth config: %v", err)
 	}
 
-	// Register the user if groups or policies are specified
 	if len(o.config.OktaUserConfig.Groups) > 0 || len(o.config.OktaUserConfig.Policies) > 0 {
 		setupLogger.Trace(writingLogMessage("okta user config"))
-		userConfig := map[string]interface{}{}
+		userConfig := map[string]any{}
 
 		if len(o.config.OktaUserConfig.Groups) > 0 {
 			userConfig["groups"] = o.config.OktaUserConfig.Groups
@@ -176,19 +164,13 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	// Prepare login data
-	loginData := map[string]interface{}{
-		"password": o.config.OktaUserConfig.Password,
-	}
-
 	return &OktaAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		loginData:  loginData,
-		config:     o.config,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, o.config.OktaUserConfig.Password),
+		username:   o.config.OktaUserConfig.Username,
 		logger:     o.logger,
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (o *OktaAuth) Flags(fs *flag.FlagSet) {}

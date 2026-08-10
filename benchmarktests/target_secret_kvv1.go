@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	KVV1ReadTestType    = "kvv1_read"
 	KVV1WriteTestType   = "kvv1_write"
@@ -40,10 +39,10 @@ func init() {
 type KVV1Test struct {
 	pathPrefix string
 	header     http.Header
+	writeBody  []byte
 	config     *KVV1SecretTestConfig
 	action     string
 	numKVs     int
-	kvSize     int
 	logger     hclog.Logger
 }
 
@@ -81,11 +80,10 @@ func (k *KVV1Test) read(client *api.Client) vegeta.Target {
 
 func (k *KVV1Test) write(client *api.Client) vegeta.Target {
 	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	value := strings.Repeat("a", k.kvSize)
 	return vegeta.Target{
 		Method: KVV1WriteTestMethod,
 		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
-		Body:   []byte(`{"data": {"foo": "` + value + `"}}`),
+		Body:   k.writeBody,
 		Header: k.header,
 	}
 }
@@ -145,8 +143,8 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := k.logger.Named(mountPath)
 
-	secval := map[string]interface{}{
-		"data": map[string]interface{}{
+	secval := map[string]any{
+		"data": map[string]any{
 			"foo": 1,
 		},
 	}
@@ -155,16 +153,20 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		client = client.WithRequestCallbacks(api.RequireState(setupIndex))
 	}
 
-	var lastIndex string
-	setupLogger.Trace("seeding secrets")
-	for i := 1; i <= k.config.NumKVs; i++ {
-		if i == k.config.NumKVs-1 {
-			client = client.WithResponseCallbacks(api.RecordState(&lastIndex))
-		}
-		_, err = client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(i), secval)
+	if err := runPhase(setupLogger, "seed secrets", kvSeedConcurrency, k.config.NumKVs, func(idx int) error {
+		_, err := client.Logical().Write(mountPath+"/secret-"+strconv.Itoa(idx+1), secval)
 		if err != nil {
-			return nil, fmt.Errorf("error writing kvv1 secret: %v", err)
+			return fmt.Errorf("error writing kvv1 secret: %w", err)
 		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	var lastIndex string
+	_, err = client.WithResponseCallbacks(api.RecordState(&lastIndex)).Logical().Write(mountPath+"/secret-0", secval)
+	if err != nil {
+		return nil, fmt.Errorf("error writing kvv1 replication probe: %w", err)
 	}
 
 	headers := http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}}
@@ -176,7 +178,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		action:     k.action,
 		header:     headers,
 		numKVs:     k.config.NumKVs,
-		kvSize:     k.config.KVSize,
+		writeBody:  fmt.Appendf(nil, `{"data": {"foo": "%s"}}`, strings.Repeat("a", k.config.KVSize)),
 		logger:     k.logger,
 	}, nil
 }

@@ -27,34 +27,28 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	JWTAuthTestType   = "jwt_auth"
 	JWTAuthTestMethod = "POST"
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[JWTAuthTestType] = func() BenchmarkBuilder { return &JWTAuth{} }
 }
 
-// JWT Auth Test Struct
 type JWTAuth struct {
 	pathPrefix string
-	role       string
+	body       []byte
 	header     http.Header
-	token      string
 	config     *JWTAuthTestConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type JWTAuthTestConfig struct {
 	JWTAuthConfig *JWTAuthConfig `hcl:"auth,block"`
 	JWTRoleConfig *JWTRoleConfig `hcl:"role,block"`
 }
 
-// JWT Auth Config
 type JWTAuthConfig struct {
 	OIDCDiscoveryUrl     string   `hcl:"oidc_discovery_url,optional"`
 	OIDCDiscoveryCaPEM   string   `hcl:"oidc_discovery_ca_pem,optional"`
@@ -72,7 +66,6 @@ type JWTAuthConfig struct {
 	NamespaceInState     *bool    `hcl:"namespace_in_state,optional"`
 }
 
-// JWT Role Config
 type JWTRoleConfig struct {
 	Name                 string                 `hcl:"name,optional"`
 	RoleType             string                 `hcl:"role_type,optional"`
@@ -103,9 +96,6 @@ type JWTRoleConfig struct {
 	TokenType            string                 `hcl:"token_type,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
 		Config *JWTAuthTestConfig `hcl:"config,block"`
@@ -134,7 +124,7 @@ func (j *JWTAuth) Target(client *api.Client) vegeta.Target {
 		Method: JWTAuthTestMethod,
 		URL:    client.Address() + j.pathPrefix + "/login",
 		Header: j.header,
-		Body:   []byte(fmt.Sprintf(`{"role": "%s", "jwt": "%s"}`, j.role, j.token)),
+		Body:   j.body,
 	}
 }
 
@@ -166,7 +156,6 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		}
 	}
 
-	// Create JWT Auth mount
 	j.logger.Trace(mountLogMessage("auth", "jwt", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "jwt",
@@ -183,34 +172,29 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		log.Fatalf(err.Error())
 	}
 
-	// Default `jwt_validation_pubkeys` if neither `jwt_validation_pubkeys`, `jwks_url` nor `oidc_discovery_url` are set
 	if j.config.JWTAuthConfig.JWTValidationPubKeys == nil && j.config.JWTAuthConfig.JWKSUrl == "" && j.config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
 		setupLogger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
 		j.config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
-	// Decode JWTAuthConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("jwt auth"))
 	jwtAuthConfig, err := structToMap(j.config.JWTAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing jwt auth config from struct: %v", err)
 	}
 
-	// Write JWT config
 	setupLogger.Trace(writingLogMessage("jwt auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing jwt config: %v", err)
 	}
 
-	// Decode JWTRoleConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	jwtRoleConfig, err := structToMap(j.config.JWTRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Write JWT role
 	setupLogger.Trace(writingLogMessage("role"), "name", j.config.JWTRoleConfig.Name)
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
 	if err != nil {
@@ -218,24 +202,24 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace("generating test jwt")
-	jwtData, _ := j.getTestJWT(privKey)
+	jwtData := j.getTestJWT(privKey)
 
 	return &JWTAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		role:       j.config.JWTRoleConfig.Name,
-		token:      jwtData,
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, j.config.JWTRoleConfig.Name, jwtData),
 		logger:     j.logger,
 	}, nil
 }
 
 func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
-func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
+func (j *JWTAuth) getTestJWT(privKey string) string {
 	cl := sqjwt.Claims{
 		Subject:   j.config.JWTRoleConfig.BoundSubject,
 		Issuer:    j.config.JWTAuthConfig.BoundIssuer,
 		NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
+		Expiry:    sqjwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		Audience:  append(sqjwt.Audience{}, j.config.JWTRoleConfig.BoundAudiences...),
 	}
 
@@ -267,17 +251,15 @@ func (j *JWTAuth) getTestJWT(privKey string) (string, *ecdsa.PrivateKey) {
 		log.Fatal(err)
 	}
 
-	return raw, key
+	return raw
 }
 
 func generateECDSAKeys() (string, string, error) {
-	// Generate a new ECDSA private key
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate ECDSA private key: %w", err)
 	}
 
-	// Encode the private key in PEM format
 	privKeyBytes, err := x509.MarshalECPrivateKey(privKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encode ECDSA private key: %w", err)
@@ -287,7 +269,6 @@ func generateECDSAKeys() (string, string, error) {
 		Bytes: privKeyBytes,
 	})
 
-	// Encode the public key in PEM format
 	pubKeyBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encode ECDSA public key: %w", err)

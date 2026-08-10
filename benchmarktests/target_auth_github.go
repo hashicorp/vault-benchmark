@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	GitHubAuthTestType      = "github_auth"
 	GitHubAuthTestMethod    = "POST"
@@ -28,13 +27,12 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[GitHubAuthTestType] = func() BenchmarkBuilder { return &GitHubAuth{} }
 }
 
 type GitHubAuth struct {
 	pathPrefix string
-	token      string
+	body       []byte
 	header     http.Header
 	config     *GitHubAuthTestConfig
 	logger     hclog.Logger
@@ -83,7 +81,6 @@ func (g *GitHubAuth) ParseConfig(body hcl.Body) error {
 	}
 	g.config = testConfig.Config
 
-	// Empty Credentials check
 	if g.config.GitHubTestUserConfig.Token == "" {
 		return fmt.Errorf("no github test user token provided but required")
 	}
@@ -96,7 +93,7 @@ func (g *GitHubAuth) Target(client *api.Client) vegeta.Target {
 		Method: "POST",
 		URL:    client.Address() + g.pathPrefix + "/login",
 		Header: g.header,
-		Body:   []byte(fmt.Sprintf(`{"token": "%s"}`, g.token)),
+		Body:   g.body,
 	}
 }
 
@@ -128,7 +125,6 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		}
 	}
 
-	// Create GitHub Auth mount
 	g.logger.Trace(mountLogMessage("auth", "github", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "github",
@@ -139,16 +135,14 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := g.logger.Named(authPath)
 
-	// Decode GitHubConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("github auth"))
-	ldapAuthConfig, err := structToMap(g.config.GitHubAuthConfig)
+	githubAuthConfig, err := structToMap(g.config.GitHubAuthConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding github auth config from struct: %v", err)
+		return nil, fmt.Errorf("error parsing github auth config from struct: %v", err)
 	}
 
-	// Write GitHub config
 	setupLogger.Trace(writingLogMessage("github auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", githubAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing github auth config: %v", err)
 	}
@@ -156,10 +150,9 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	return &GitHubAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		token:      g.config.GitHubTestUserConfig.Token,
+		body:       fmt.Appendf(nil, `{"token": "%s"}`, g.config.GitHubTestUserConfig.Token),
 		logger:     g.logger,
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (g *GitHubAuth) Flags(fs *flag.FlagSet) {}

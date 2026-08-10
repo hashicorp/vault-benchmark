@@ -30,13 +30,6 @@ const (
 
 	identityNoWorkloadPath = "/v1/sys/health"
 
-	// Serial is faster against real Vault: the identity store serializes writes at the
-	// storage layer, so goroutine overhead exceeds any parallelism benefit.
-	// TODO: re-evaluate against integrated-storage clusters; if serial holds, remove this
-	// constant and inline 1 directly in runConcurrent.
-	identityConcurrency = 1
-
-	identityProgressDivisions = 5
 )
 
 func init() {
@@ -126,11 +119,19 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	if c.EntityCount <= 0 {
 		return fmt.Errorf("entity_count must be greater than 0")
 	}
+	if c.AliasCount < 0 {
+		return fmt.Errorf("alias_count must be >= 0")
+	}
+	if c.GroupCount < 0 {
+		return fmt.Errorf("group_count must be >= 0")
+	}
+	if c.LoginUsers < 0 {
+		return fmt.Errorf("login_users must be >= 0")
+	}
 
 	// Capped at alias_count (a user needs an alias) and entity_count (validateLogins indexes by entity).
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
-	// TODO: guard alias_count/group_count/login_users for non-negative values.
 	// TODO: each new workload touches three switches (here, Target, configureAttack); bundle if this grows.
 	switch c.Workload {
 	case identityWorkloadPopulate:
@@ -178,20 +179,20 @@ func (i *Identity) Cleanup(client *api.Client) error {
 	var allErrs []error
 
 	if i.config.PolicyCount > 0 {
-		if err := deleteConcurrent(i.logger, "policy deletion", client, "sys/policies/acl/", i.config.PolicyCount, func(idx int) string {
+		if err := deletePhase(i.logger, "policy deletion", client, "sys/policies/acl/", identityConcurrency, i.config.PolicyCount, func(idx int) string {
 			return objectName(i.mountName, "policy", i.runID, idx)
 		}); err != nil {
 			allErrs = append(allErrs, err)
 		}
 	}
 
-	if err := deleteConcurrent(i.logger, "group deletion", client, "identity/group/id/", len(i.groupIDs), func(idx int) string {
+	if err := deletePhase(i.logger, "group deletion", client, "identity/group/id/", identityConcurrency, len(i.groupIDs), func(idx int) string {
 		return i.groupIDs[idx]
 	}); err != nil {
 		allErrs = append(allErrs, err)
 	}
 
-	if err := deleteConcurrent(i.logger, "entity deletion", client, "identity/entity/name/", i.config.EntityCount, func(idx int) string {
+	if err := deletePhase(i.logger, "entity deletion", client, "identity/entity/name/", identityConcurrency, i.config.EntityCount, func(idx int) string {
 		return objectName(i.mountName, "entity", i.runID, idx)
 	}); err != nil {
 		allErrs = append(allErrs, err)
@@ -319,7 +320,7 @@ func (i *Identity) createEntities(client *api.Client, accessors []string, aliasF
 		entityIDs = make([]string, i.loginUsers)
 	}
 
-	err := runPhase(i.logger, "entity population", total, func(idx int) error {
+	err := runPhase(i.logger, "entity population", identityConcurrency, total, func(idx int) error {
 		name := objectName(i.mountName, "entity", i.runID, idx)
 
 		body := map[string]any{
@@ -377,7 +378,7 @@ func (i *Identity) createPolicies(client *api.Client) ([]string, error) {
 	total := i.config.PolicyCount
 	policyNames := make([]string, total)
 
-	err := runPhase(i.logger, "policy population", total, func(idx int) error {
+	err := runPhase(i.logger, "policy population", identityConcurrency, total, func(idx int) error {
 		name := objectName(i.mountName, "policy", i.runID, idx)
 		_, err := client.Logical().Write("sys/policies/acl/"+name, map[string]any{
 			"policy": `path "secret/*" { capabilities = ["read"] }`,
@@ -399,7 +400,7 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 	total := i.config.GroupCount
 	groupIDs := make([]string, total)
 
-	err := runPhase(i.logger, "group population", total, func(idx int) error {
+	err := runPhase(i.logger, "group population", identityConcurrency, total, func(idx int) error {
 		groupName := objectName(i.mountName, "group", i.runID, idx)
 		var members []string
 		if idx < groupFill {
@@ -439,7 +440,7 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 func (i *Identity) validateLogins(client *api.Client, entityIDs []string) error {
 	mountPath := userpassMountPath(i.runID)
 
-	return runPhase(i.logger, "login resolution validation", i.loginUsers, func(idx int) error {
+	return runPhase(i.logger, "login resolution validation", identityConcurrency, i.loginUsers, func(idx int) error {
 		name := objectName(i.mountName, "entity", i.runID, idx)
 		return validateLogin(client, mountPath, name, entityIDs[idx])
 	})
