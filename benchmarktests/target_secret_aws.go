@@ -38,12 +38,14 @@ type AWSTest struct {
 	roleName   string
 	config     *AWSSecretTestConfig
 	logger     hclog.Logger
+	sealWrap   bool
 }
 
 // Main Config Struct
 type AWSSecretTestConfig struct {
 	AWSConnectionConfig *AWSConnectionConfig `hcl:"connection,block"`
 	AWSRoleConfig       *AWSRoleConfig       `hcl:"role,block"`
+	SealWrap            bool                 `hcl:"seal_wrap,optional"`
 }
 
 type AWSConnectionConfig struct {
@@ -83,6 +85,7 @@ func (a *AWSTest) ParseConfig(body hcl.Body) error {
 				Name:           "benchmark-role",
 				CredentialType: "iam_user",
 			},
+			SealWrap: false,
 		},
 	}
 
@@ -141,7 +144,8 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	a.logger.Trace(mountLogMessage("secrets", "aws", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
-		Type: "aws",
+		Type:     "aws",
+		SealWrap: a.sealWrap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error mounting aws secrets engine: %v", err)
