@@ -40,10 +40,10 @@ func init() {
 type KVV2Test struct {
 	pathPrefix string
 	header     http.Header
+	writeBody  []byte
 	config     *KVV2SecretTestConfig
 	action     string
 	numKVs     int
-	kvSize     int
 	logger     hclog.Logger
 }
 
@@ -81,12 +81,11 @@ func (k *KVV2Test) read(client *api.Client) vegeta.Target {
 
 func (k *KVV2Test) write(client *api.Client) vegeta.Target {
 	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	value := strings.Repeat("a", k.kvSize)
 	return vegeta.Target{
 		Method: "POST",
 		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
 		Header: k.header,
-		Body:   []byte(`{"data": {"foo": "` + value + `"}}`),
+		Body:   k.writeBody,
 	}
 }
 
@@ -152,30 +151,33 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := k.logger.Named(mountPath)
 
-	secval := map[string]interface{}{
-		"data": map[string]interface{}{
+	secval := map[string]any{
+		"data": map[string]any{
 			"foo": 1,
 		},
 	}
 
-	// TODO: Find more deterministic way of avoiding this
-	// Avoid error of the form:
-	// * Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
+	// Vault v2 KV mount upgrade is asynchronous: the backend briefly rejects
+	// writes with "Upgrading from non-versioned to versioned data". There is
+	// no stable API signal to poll; a fixed sleep is the current workaround.
+	// TODO: replace with a poll-until-ready loop if Vault exposes a readiness endpoint.
 	time.Sleep(2 * time.Second)
 
-	setupLogger.Trace("seeding secrets")
-	for i := 1; i <= k.config.NumKVs; i++ {
-		_, err = client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(i), secval)
+	if err := runPhase(setupLogger, "seed secrets", kvSeedConcurrency, k.config.NumKVs, func(idx int) error {
+		_, err := client.Logical().Write(mountPath+"/data/secret-"+strconv.Itoa(idx+1), secval)
 		if err != nil {
-			return nil, fmt.Errorf("error writing kv secret: %v", err)
+			return fmt.Errorf("error writing kvv2 secret: %w", err)
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	return &KVV2Test{
 		pathPrefix: "/v1/" + mountPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		numKVs:     k.config.NumKVs,
-		kvSize:     k.config.KVSize,
+		writeBody:  fmt.Appendf(nil, `{"data": {"foo": "%s"}}`, strings.Repeat("a", k.config.KVSize)),
 		logger:     k.logger,
 		action:     k.action,
 	}, nil

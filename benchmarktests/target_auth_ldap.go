@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	LDAPAuthTestType               = "ldap_auth"
 	LDAPAuthTestMethod             = "POST"
@@ -30,14 +29,13 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[LDAPAuthTestType] = func() BenchmarkBuilder { return &LDAPAuth{} }
 }
 
 type LDAPAuth struct {
 	pathPrefix string
 	authUser   string
-	authPass   string
+	body       []byte
 	header     http.Header
 	config     *LDAPAuthTestConfig
 	logger     hclog.Logger
@@ -110,7 +108,6 @@ func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	}
 	l.config = testConfig.Config
 
-	// Empty Credentials check
 	if l.config.LDAPAuthConfig.BindPass == "" {
 		return fmt.Errorf("no bindpass provided for vault to use")
 	}
@@ -131,7 +128,7 @@ func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
 		Method: "POST",
 		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
 		Header: l.header,
-		Body:   []byte(fmt.Sprintf(`{"password": "%s"}`, l.authPass)),
+		Body:   l.body,
 	}
 }
 
@@ -163,7 +160,6 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		}
 	}
 
-	// Create LDAP Auth mount
 	l.logger.Trace(mountLogMessage("auth", "ldap", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "ldap",
@@ -174,14 +170,12 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := l.logger.Named(authPath)
 
-	// Decode LDAPConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("ldap auth"))
 	ldapAuthConfig, err := structToMap(l.config.LDAPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ldap auth config from struct: %v", err)
 	}
 
-	// Write LDAP config
 	setupLogger.Trace(writingLogMessage("ldap auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
 	if err != nil {
@@ -192,10 +186,9 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		authUser:   l.config.LDAPTestUserConfig.Username,
-		authPass:   l.config.LDAPTestUserConfig.Password,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, l.config.LDAPTestUserConfig.Password),
 		logger:     l.logger,
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (l *LDAPAuth) Flags(fs *flag.FlagSet) {}

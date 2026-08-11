@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-secure-stdlib/awsutil"
@@ -22,7 +23,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	AWSAuthTestType   = "aws_auth"
 	AWSAuthTestMethod = "POST"
@@ -31,13 +31,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
 
+// awsSigV4TTL is the AWS SigV4 signature validity window; hardcoded by the AWS spec.
+const (
+	awsSigV4TTL          = 15 * time.Minute
+	awsBodyRefreshMargin = 1 * time.Minute
+)
+
 type AWSAuth struct {
 	pathPrefix string
-	loginData  map[string]interface{}
+	login      cachedBody
 	header     http.Header
 	config     *AWSAuthTestConfig
 	logger     hclog.Logger
@@ -109,7 +114,6 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	// Empty Credentials check
 	if a.config.AWSAuthConfig.AccessKey == "" {
 		return fmt.Errorf("no aws access_key provided but required")
 	}
@@ -122,12 +126,23 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 }
 
 func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
-	jsonData, _ := json.Marshal(a.loginData)
+	a.login.mu.Lock()
+	if time.Now().After(a.login.expiry) {
+		if body, err := a.buildLoginBody(); err != nil {
+			a.logger.Warn("failed to refresh AWS login body; using stale credentials", "error", err)
+		} else {
+			a.login.body = body
+			a.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
+		}
+	}
+	body := a.login.body
+	a.login.mu.Unlock()
+
 	return vegeta.Target{
-		Method: "POST",
+		Method: AWSAuthTestMethod,
 		URL:    client.Address() + a.pathPrefix + "/login",
 		Header: a.header,
-		Body:   jsonData,
+		Body:   body,
 	}
 }
 
@@ -159,7 +174,6 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		}
 	}
 
-	// Create AWS Auth mount
 	a.logger.Trace(mountLogMessage("auth", "aws", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "aws",
@@ -170,36 +184,50 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	setupLogger := a.logger.Named(authPath)
 
-	// Decode AWSConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("aws auth"))
 	awsAuthConfig, err := structToMap(a.config.AWSAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding aws auth config from struct: %v", err)
 	}
 
-	// Write AWS config
 	setupLogger.Trace(writingLogMessage("aws auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config/client", awsAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing aws auth config: %v", err)
 	}
 
-	// Decode AWSTestUserConfig struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("aws auth user"))
 	awsAuthUser, err := structToMap(a.config.AWSTestUserConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding aws auth user from struct: %v", err)
 	}
 
-	// Create AWS Test Role
 	setupLogger.Trace(writingLogMessage("aws auth user config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, awsAuthUser)
 	if err != nil {
 		return nil, fmt.Errorf("error writing aws auth user: %v", err)
 	}
 
-	headerValue := a.config.AWSAuthConfig.IAMServerIDHeaderValue
+	result := &AWSAuth{
+		header:     generateHeader(client),
+		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
+		config:     a.config,
+		logger:     a.logger,
+	}
 
+	body, err := result.buildLoginBody()
+	if err != nil {
+		return nil, fmt.Errorf("error generating initial AWS login body: %w", err)
+	}
+	result.login.body = body
+	result.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
+
+	return result, nil
+}
+
+func (a *AWSAuth) Flags(fs *flag.FlagSet) {}
+
+func (a *AWSAuth) buildLoginBody() ([]byte, error) {
 	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
 	if err != nil {
 		return nil, err
@@ -208,30 +236,18 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	region := a.config.AWSAuthConfig.STSRegion
 	switch region {
 	case "":
-		// The CLI has always defaulted to "us-east-1" if a region is not provided.
 		region = awsutil.DefaultRegion
 	case "auto":
-		// Beginning in 1.10 we also accept the "auto" value, which uses the region detection logic in
-		// awsutil.GetRegion() to determine the region. That behavior is triggered when region = "".
 		region = ""
 	}
 
-	loginData, err := awsutil.GenerateLoginData(creds, headerValue, region, a.logger)
+	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthConfig.IAMServerIDHeaderValue, region, a.logger)
 	if err != nil {
 		return nil, err
 	}
 	if loginData == nil {
 		return nil, fmt.Errorf("got nil response from GenerateLoginData")
 	}
-	loginData["role"] = a.config.AWSTestUserConfig.Role // add role to login data
-
-	return &AWSAuth{
-		header:     generateHeader(client),
-		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		loginData:  loginData,
-		logger:     a.logger,
-	}, nil
+	loginData["role"] = a.config.AWSTestUserConfig.Role
+	return json.Marshal(loginData)
 }
-
-// Func Flags accepts a flag set to assign additional flags defined in the function
-func (a *AWSAuth) Flags(fs *flag.FlagSet) {}

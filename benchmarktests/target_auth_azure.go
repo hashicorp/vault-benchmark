@@ -21,7 +21,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	AzureAuthTestType     = "azure_auth"
 	AzureAuthTestMethod   = "POST"
@@ -31,13 +30,12 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[AzureAuthTestType] = func() BenchmarkBuilder { return &AzureAuth{} }
 }
 
 type AzureAuth struct {
 	pathPrefix string
-	loginData  map[string]interface{}
+	body       []byte
 	header     http.Header
 	config     *AzureAuthTestConfig
 	logger     hclog.Logger
@@ -58,7 +56,7 @@ type AzureAuthConfig struct {
 }
 
 type AzureAuthRole struct {
-	Name                     string   `hcl:"string,optional"`
+	Name                     string   `hcl:"name,optional"`
 	BoundServicePrincipalIDs []string `hcl:"bound_service_principal_ids,optional"`
 	BoundGroupIDs            []string `hcl:"bound_group_ids,optional"`
 	BoundLocations           []string `hcl:"bound_locations,optional"`
@@ -108,7 +106,6 @@ func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	// Empty Credentials check
 	if a.config.AzureAuthUser.JWT == "" {
 		return fmt.Errorf("azure JWT required")
 	}
@@ -117,12 +114,11 @@ func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 }
 
 func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
-	jsonData, _ := json.Marshal(a.loginData)
 	return vegeta.Target{
 		Method: "POST",
 		URL:    client.Address() + a.pathPrefix + "/login",
 		Header: a.header,
-		Body:   jsonData,
+		Body:   a.body,
 	}
 }
 
@@ -154,7 +150,6 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 		}
 	}
 
-	// Create Azure Auth mount
 	a.logger.Trace(mountLogMessage("auth", "azure", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "azure",
@@ -165,50 +160,51 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 
 	setupLogger := a.logger.Named(authPath)
 
-	// Decode AzureAuthConfig struct into mapstructure to pass with request
-
 	setupLogger.Trace(parsingConfigLogMessage("azure auth"))
 	azureAuthConfig, err := structToMap(a.config.AzureAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding azure auth config from struct: %v", err)
 	}
 
-	// Write Azure config
 	setupLogger.Trace(writingLogMessage("azure auth config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/config", azureAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error writing azure auth config: %v", err)
 	}
 
-	// Decode AzureAuthRole struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
 	azureAuthRole, err := structToMap(a.config.AzureAuthRole)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding azure auth role from struct: %v", err)
 	}
 
-	// Create Azure Test Role
 	setupLogger.Trace(writingLogMessage("azure auth user config"))
 	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AzureAuthRole.Name, azureAuthRole)
 	if err != nil {
 		return nil, fmt.Errorf("error writing azure auth user: %v", err)
 	}
 
-	// Decode AzureAuthUser struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
 	azureAuthUser, err := structToMap(a.config.AzureAuthUser)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding azure auth user from struct: %v", err)
 	}
 
+	azureBody, err := json.Marshal(azureAuthUser)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling Azure login data: %w", err)
+	}
+
+	// TODO: the Azure JWT in azureBody (from AzureAuthUser.JWT) typically expires in 1h.
+	// Benchmarks longer than 1h will silently accumulate 401s. Apply the cachedBody refresh
+	// pattern from target_auth_aws.go; the refresh call would re-marshal azureAuthUser with
+	// a new JWT obtained from the operator's token source.
 	return &AzureAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		logger:     a.logger,
-		config:     a.config,
-		loginData:  azureAuthUser,
+		body:       azureBody,
 	}, nil
 }
 
-// Func Flags accepts a flag set to assign additional flags defined in the function
 func (a *AzureAuth) Flags(fs *flag.FlagSet) {}

@@ -60,7 +60,9 @@ each set separately.
 - `count` `(int: 0)` - Manual mode: number of entities/groups that receive policies. Cannot be combined with `preset`.
 - `size` `(int: 0)` - Manual mode: number of policies attached to each filled entity/group. Cannot be combined with `preset`.
 
-## Example HCL
+## Setup behavior
+
+Setup runs serially by design: the identity store serializes writes internally, so concurrent goroutines add overhead without throughput gain. To experiment with higher concurrency locally, adjust `identityConcurrency` in `benchmarktests/concurrency_helper.go`.
 
 Log in as seeded users, validating that aliases resolve correctly:
 
