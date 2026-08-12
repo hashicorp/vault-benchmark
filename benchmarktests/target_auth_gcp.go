@@ -20,7 +20,6 @@ import (
 	"github.com/hashicorp/go-gcp-common/gcputil"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-secure-stdlib/parseutil"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -108,11 +107,9 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	authPath := mountName
 	g.logger = targetLogger.Named(GCPAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("can't generate UUID for mount name: %v", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	g.logger.Trace(mountLogMessage("auth", "gcp", authPath))
@@ -159,15 +156,8 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	gcpRoleData, err := structToMap(g.config.GCPTestRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", g.config.GCPTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, gcpRoleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp role: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, g.config.GCPTestRoleConfig); err != nil {
+		return nil, err
 	}
 
 	jwt, err := getSignedJwt(g.config)

@@ -10,10 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -134,11 +132,9 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 	secretPath := mountName
 	t.logger = targetLogger.Named(TransformTokenizationTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	t.logger.Trace(mountLogMessage("secrets", "transform", secretPath))
@@ -188,29 +184,13 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(t.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", t.config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "role", t.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing role %q: %v", t.config.RoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "role", t.config.RoleConfig.Name), t.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("decoding tokenization config data")
-	tokenizationConfigData, err := structToMap(t.config.TokenizationConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding tokenization config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("tokenization transformation"), "name", t.config.TokenizationConfig.Name)
-	transformationPath := filepath.Join(secretPath, "transformations", "tokenization", t.config.TokenizationConfig.Name)
-	_, err = client.Logical().Write(transformationPath, tokenizationConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing tokenization transformation %q: %v", t.config.TokenizationConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "transformations", "tokenization", t.config.TokenizationConfig.Name), t.config.TokenizationConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("parsing test transformation input data")
@@ -243,12 +223,7 @@ func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(t.logger, client, t.pathPrefix)
 }
 
 func (t *TransformTokenizationTest) GetTargetInfo() TargetInfo {

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -119,11 +118,11 @@ func (r *RedisElastiCacheSecret) Setup(client *api.Client, mountName string, top
 	setupLogger := r.logger.Named(RedisElastiCacheSecretTestType)
 
 	if topLevelConfig.RandomMounts {
-		secretUuid, err := uuid.GenerateUUID()
+		id, err := uuid.GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
-		secretPath = fmt.Sprintf("%s-%s", mountName, secretUuid)
+		secretPath = mountName + "-" + id
 	}
 
 	setupLogger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -136,29 +135,13 @@ func (r *RedisElastiCacheSecret) Setup(client *api.Client, mountName string, top
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("database config"))
-	dbData, err := structToMap(r.config.DBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("redis elasticache db config"), "name", r.config.DBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", r.config.DBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing redis elasticache db config: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", r.config.DBConfig.Name), r.config.DBConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("static role"))
-	roleData, err := structToMap(r.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("redis elasticache static role"), "name", r.config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "static-roles", r.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing redis elasticache static role %q: %v", r.config.RoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "static-roles", r.config.RoleConfig.Name), r.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &RedisElastiCacheSecret{
@@ -178,12 +161,7 @@ func (r *RedisElastiCacheSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (r *RedisElastiCacheSecret) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(r.logger, client, r.pathPrefix)
 }
 
 func (r *RedisElastiCacheSecret) GetTargetInfo() TargetInfo {

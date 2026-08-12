@@ -14,10 +14,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -138,11 +136,9 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 	mountPath := mountName
 	s.logger = targetLogger.Named(SSHKeySignTestType)
 
-	if topLevelConfig.RandomMounts {
-		mountPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	mountPath, err = resolveMountPath(mountPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
@@ -156,29 +152,13 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 	setupLogger := s.logger.Named(mountPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("ca"))
-	caConfig, err := structToMap(s.config.CAConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing ca config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("ca config"))
-	caPath := filepath.Join(mountPath, "config", "ca")
-	_, err = client.Logical().Write(caPath, caConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ca config: %v", err)
+	if err := writeStruct(client, filepath.Join(mountPath, "config", "ca"), s.config.CAConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfig, err := structToMap(s.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
-	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ssh role: %v", err)
+	if err := writeStruct(client, filepath.Join(mountPath, "roles", s.config.RoleConfig.Name), s.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
 	if s.config.KeySigningConfig.PublicKey != nil {
@@ -246,12 +226,7 @@ func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.mountPath))
-	_, err := client.Logical().Delete(strings.Replace(s.mountPath, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(s.logger, client, s.mountPath)
 }
 
 func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {

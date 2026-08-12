@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -89,11 +87,9 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	config := c.config
 	c.logger = targetLogger.Named(NomadSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "nomad", secretPath))
@@ -107,27 +103,13 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	setupLogger := c.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("nomad"))
-	nomadConfigData, err := structToMap(config.NomadConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing nomad config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("nomad config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", nomadConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing nomad config: %v", err)
+	if err := writeStruct(client, secretPath+"/config/access", config.NomadConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	nomadRoleConfigData, err := structToMap(config.NomadRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("nomad role"), "name", config.NomadRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing nomad role: %v", err)
+	if err := writeStruct(client, secretPath+"/role/"+config.NomadRoleConfig.Name, config.NomadRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &NomadTest{
@@ -147,12 +129,7 @@ func (c *NomadTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *NomadTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(c.logger, client, c.pathPrefix)
 }
 
 func (c *NomadTest) GetTargetInfo() TargetInfo {

@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -91,11 +89,9 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 	config := t.config
 	t.logger = targetLogger.Named(TerraformSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating UUID: %v", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	t.logger.Trace(mountLogMessage("secrets", "terraform", secretPath))
@@ -109,27 +105,13 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 	setupLogger := t.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("terraform"))
-	terraformConfigData, err := structToMap(config.TerraformConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing terraform config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("terraform config"))
-	_, err = client.Logical().Write(secretPath+"/config", terraformConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing terraform config: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.TerraformConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	terraformRoleConfigData, err := structToMap(config.TerraformRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("terraform role"), "name", config.TerraformRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.TerraformRoleConfig.Name, terraformRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing terraform role: %v", err)
+	if err := writeStruct(client, secretPath+"/role/"+config.TerraformRoleConfig.Name, config.TerraformRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &TerraformTest{
@@ -149,12 +131,7 @@ func (t *TerraformTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (t *TerraformTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(t.logger, client, t.pathPrefix)
 }
 
 func (t *TerraformTest) GetTargetInfo() TargetInfo {

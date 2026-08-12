@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -73,11 +72,9 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 	authPath := mountName
 	u.logger = targetLogger.Named(UserpassTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	u.logger.Trace(mountLogMessage("auth", "userpass", authPath))
@@ -91,16 +88,8 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 	setupLogger := u.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("user"))
-	userData, err := structToMap(u.config)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing user config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("user config"))
-	userPath := filepath.Join("auth", authPath, "users", u.config.Username)
-	_, err = client.Logical().Write(userPath, userData)
-	if err != nil {
-		return nil, fmt.Errorf("error creating userpass user %q: %v", u.config.Username, err)
+	if err := writeStruct(client, filepath.Join("auth", authPath, "users", u.config.Username), u.config); err != nil {
+		return nil, err
 	}
 
 	return &UserpassAuth{

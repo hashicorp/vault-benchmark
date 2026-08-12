@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -93,11 +92,9 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	authPath := mountName
 	k.logger = targetLogger.Named(KubeAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("can't generate UUID for mount name: %v", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	k.logger.Trace(mountLogMessage("auth", "kubernetes", authPath))
@@ -110,27 +107,13 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := k.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes auth"))
-	kubeAuthConfig, err := structToMap(k.config.KubeAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing kubernetes auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("kubernetes auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing Kubernetes config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", k.config.KubeAuthConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	kubeRoleConfig, err := structToMap(k.config.KubeTestRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, k.config.KubeTestRoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("reading default service account token from file")

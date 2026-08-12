@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -95,11 +93,9 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	secretPath := mountName
 	g.logger = targetLogger.Named(RedisDynamicSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	config := g.config
@@ -136,27 +132,13 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("gcp"))
-	gcpConfigData, err := structToMap(config.GCPConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing gcp config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("gcp config"))
-	_, err = client.Logical().Write(secretPath+"/config", gcpConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp config: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.GCPConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	gcpRolesetData, err := structToMap(config.GCPRoleset)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing roleset config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("gcp roleset"), "name", config.GCPRoleset.Name)
-	_, err = client.Logical().Write(secretPath+"/roleset/"+config.GCPRoleset.Name, gcpRolesetData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp roleset: %v", err)
+	if err := writeStruct(client, secretPath+"/roleset/"+config.GCPRoleset.Name, config.GCPRoleset); err != nil {
+		return nil, err
 	}
 
 	suffix := "/token"
@@ -181,12 +163,7 @@ func (g *GCPTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (g *GCPTest) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(g.logger, client, g.pathPrefix)
 }
 
 func (g *GCPTest) GetTargetInfo() TargetInfo {

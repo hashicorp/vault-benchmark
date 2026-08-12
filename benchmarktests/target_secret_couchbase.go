@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -114,11 +112,9 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 	secretPath := mountName
 	c.logger = targetLogger.Named(CouchbaseSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -132,29 +128,13 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 	setupLogger := c.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(c.config.DBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("couchbase db config"), "name", c.config.DBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", c.config.DBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing couchbase db config: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", c.config.DBConfig.Name), c.config.DBConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(c.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("couchbase role"), "name", c.config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", c.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing couchbase role %q: %v", c.config.RoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", c.config.RoleConfig.Name), c.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &CouchbaseSecretTest{
@@ -174,12 +154,7 @@ func (c *CouchbaseSecretTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *CouchbaseSecretTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(c.logger, client, c.pathPrefix)
 }
 
 func (c *CouchbaseSecretTest) GetTargetInfo() TargetInfo {

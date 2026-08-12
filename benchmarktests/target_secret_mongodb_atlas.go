@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -106,11 +104,9 @@ func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelC
 	secretPath := mountName
 	m.logger = targetLogger.Named(MongoDBAtlasSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -124,27 +120,13 @@ func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelC
 	setupLogger := m.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbConfigData, err := structToMap(m.config.MongoDBAtlasConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding mongodb_atlas config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("mongodb_atlas config"), "name", m.config.MongoDBAtlasConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBAtlasConfig.Name, dbConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing db config: %v", err)
+	if err := writeStruct(client, secretPath+"/config/"+m.config.MongoDBAtlasConfig.Name, m.config.MongoDBAtlasConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(m.config.MongoDBAtlasRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("mongodb_atlas role"), "name", m.config.MongoDBAtlasRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBAtlasRoleConfig.Name, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing mongodb_atlas role %q: %v", m.config.MongoDBAtlasRoleConfig.Name, err)
+	if err := writeStruct(client, secretPath+"/roles/"+m.config.MongoDBAtlasRoleConfig.Name, m.config.MongoDBAtlasRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &MongoDBAtlasTest{
@@ -164,12 +146,7 @@ func (m *MongoDBAtlasTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *MongoDBAtlasTest) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(m.logger, client, m.pathPrefix)
 }
 
 func (m *MongoDBAtlasTest) GetTargetInfo() TargetInfo {

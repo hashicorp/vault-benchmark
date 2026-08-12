@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -101,11 +99,9 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	secretPath := mountName
 	c.logger = targetLogger.Named(ConsulSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "consul", secretPath))
@@ -119,15 +115,8 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	setupLogger := c.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("consul"))
-	consulConfigData, err := structToMap(c.config.ConsulConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing consul config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("consul config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", consulConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing consul config: %v", err)
+	if err := writeStruct(client, secretPath+"/config/access", c.config.ConsulConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("parsing consul version from config")
@@ -177,12 +166,7 @@ func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *ConsulTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(c.logger, client, c.pathPrefix)
 }
 
 func (c *ConsulTest) GetTargetInfo() TargetInfo {

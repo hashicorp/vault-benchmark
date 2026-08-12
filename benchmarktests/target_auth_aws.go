@@ -14,7 +14,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-secure-stdlib/awsutil"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -127,11 +126,9 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	authPath := mountName
 	a.logger = targetLogger.Named(AWSAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("auth", "aws", authPath))
@@ -145,27 +142,13 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("aws auth"))
-	awsAuthConfig, err := structToMap(a.config.AWSAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding aws auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("aws auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config/client", awsAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config/client", a.config.AWSAuthConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("aws auth user"))
-	awsAuthUser, err := structToMap(a.config.AWSTestUserConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding aws auth user from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("aws auth user config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, awsAuthUser)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws auth user: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, a.config.AWSTestUserConfig); err != nil {
+		return nil, err
 	}
 
 	result := &AWSAuth{

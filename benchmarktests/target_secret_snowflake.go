@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -152,11 +150,9 @@ func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, top
 	secretPath := mountName
 	s.logger = targetLogger.Named(SnowflakeDynamicSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -170,29 +166,13 @@ func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, top
 	setupLogger := s.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(s.config.SnowflakeDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("snowflake dynamic db config"), "name", s.config.SnowflakeDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing snowflake db config: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name), s.config.SnowflakeDBConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(s.config.SnowflakeRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("snowflake dynamic role"), "name", s.config.SnowflakeRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", s.config.SnowflakeRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing snowflake dynamic role %q: %v", s.config.SnowflakeRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", s.config.SnowflakeRoleConfig.Name), s.config.SnowflakeRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &SnowflakeDynamicSecret{
@@ -212,12 +192,7 @@ func (s *SnowflakeDynamicSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SnowflakeDynamicSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(s.logger, client, s.pathPrefix)
 }
 
 func (s *SnowflakeDynamicSecret) GetTargetInfo() TargetInfo {
@@ -302,11 +277,9 @@ func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topL
 	secretPath := mountName
 	s.logger = targetLogger.Named(SnowflakeStaticSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -320,29 +293,13 @@ func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topL
 	setupLogger := s.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(s.config.SnowflakeDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("snowflake static db config"), "name", s.config.SnowflakeDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing snowflake db config: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name), s.config.SnowflakeDBConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("static role"))
-	staticRoleData, err := structToMap(s.config.SnowflakeStaticRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing static role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("snowflake static role"), "name", s.config.SnowflakeStaticRoleConfig.Name)
-	staticRolePath := filepath.Join(secretPath, "static-roles", s.config.SnowflakeStaticRoleConfig.Name)
-	_, err = client.Logical().Write(staticRolePath, staticRoleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing snowflake static role %q: %v", s.config.SnowflakeStaticRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "static-roles", s.config.SnowflakeStaticRoleConfig.Name), s.config.SnowflakeStaticRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &SnowflakeStaticSecret{
@@ -362,12 +319,7 @@ func (s *SnowflakeStaticSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SnowflakeStaticSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(s.logger, client, s.pathPrefix)
 }
 
 func (s *SnowflakeStaticSecret) GetTargetInfo() TargetInfo {

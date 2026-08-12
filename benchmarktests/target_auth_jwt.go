@@ -18,7 +18,6 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	sqjwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -122,11 +121,9 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	authPath := mountName
 	j.logger = targetLogger.Named(JWTAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	j.logger.Trace(mountLogMessage("auth", "jwt", authPath))
@@ -151,27 +148,13 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("jwt auth"))
-	jwtAuthConfig, err := structToMap(j.config.JWTAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing jwt auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("jwt auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", jwtAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing jwt config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", j.config.JWTAuthConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	jwtRoleConfig, err := structToMap(j.config.JWTRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", j.config.JWTRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, jwtRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing jwt role: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, j.config.JWTRoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("generating test jwt")

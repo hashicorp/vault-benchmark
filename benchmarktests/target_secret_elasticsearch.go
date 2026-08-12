@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -117,11 +115,9 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 	secretPath := mountName
 	e.logger = targetLogger.Named(ElasticSearchSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	e.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -135,29 +131,13 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 	setupLogger := e.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	elasticSearchConfigData, err := structToMap(e.config.ElasticSearchConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing elasticsearch config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", e.config.ElasticSearchConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", e.config.ElasticSearchConfig.Name)
-	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", e.config.ElasticSearchConfig.Name), e.config.ElasticSearchConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	elasticSearchRoleConfigData, err := structToMap(e.config.ElasticSearchRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("elasticsearc role"), "name", e.config.ElasticSearchRoleConfig.RoleName)
-	rolePath := filepath.Join(secretPath, "roles", e.config.ElasticSearchRoleConfig.RoleName)
-	_, err = client.Logical().Write(rolePath, elasticSearchRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing elasticsearch role %q: %v", e.config.ElasticSearchRoleConfig.RoleName, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", e.config.ElasticSearchRoleConfig.RoleName), e.config.ElasticSearchRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &ElasticSearchTest{
@@ -177,12 +157,7 @@ func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
-	e.logger.Trace(cleanupLogMessage(e.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(e.logger, client, e.pathPrefix)
 }
 
 func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {

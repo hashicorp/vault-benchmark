@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -91,11 +90,9 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 	authPath := mountName
 	a.logger = targetLogger.Named(ApproleAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("auth", "approle", authPath))
@@ -108,16 +105,9 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(a.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", a.config.RoleConfig.Name)
 	rolePath := filepath.Join("auth", authPath, "role", a.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error creating approle role %q: %v", a.config.RoleConfig.Name, err)
+	if err := writeStruct(client, rolePath, a.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("getting role-id")

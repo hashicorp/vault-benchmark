@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -96,11 +94,9 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "ldap", secretPath))
@@ -114,27 +110,13 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 	setupLogger := r.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret"))
-	connectionConfigData, err := structToMap(r.config.LDAPStaticConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing ldap secret config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("ldap secret config"))
-	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
+	if err := writeStruct(client, secretPath+"/config", r.config.LDAPStaticConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret role"))
-	roleConfigData, err := structToMap(r.config.LDAPStaticRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPStaticRoleConfig.Username)
-	_, err = client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap secret static role: %v", err)
+	if err := writeStruct(client, secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, r.config.LDAPStaticRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &LDAPStaticSecretTest{
@@ -154,12 +136,7 @@ func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (r *LDAPStaticSecretTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(r.logger, client, r.pathPrefix)
 }
 
 func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {

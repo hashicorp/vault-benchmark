@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -110,11 +108,9 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 	secretPath := mountName
 	m.logger = targetLogger.Named(MongoDBSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -128,27 +124,13 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 	setupLogger := m.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbConfigData, err := structToMap(m.config.MongoDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding mongodb config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("mongodb config"), "name", m.config.MongoDBConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBConfig.Name, dbConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing db config: %v", err)
+	if err := writeStruct(client, secretPath+"/config/"+m.config.MongoDBConfig.Name, m.config.MongoDBConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(m.config.MongoDBRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("mongodb role"), "name", m.config.MongoDBRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing mongodb role %q: %v", m.config.MongoDBRoleConfig.Name, err)
+	if err := writeStruct(client, secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, m.config.MongoDBRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &MongoDBTest{
@@ -168,12 +150,7 @@ func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *MongoDBTest) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(m.logger, client, m.pathPrefix)
 }
 
 func (m *MongoDBTest) GetTargetInfo() TargetInfo {

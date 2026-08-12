@@ -10,10 +10,8 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -103,11 +101,9 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 	config := k.config
 	k.logger = targetLogger.Named(KubernetesSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	k.logger.Trace(mountLogMessage("secrets", "kubernetes", secretPath))
@@ -121,27 +117,13 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 	setupLogger := k.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes"))
-	kubernetesConfigData, err := structToMap(config.KubernetesConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing kubernetes config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("kubernetes config"))
-	_, err = client.Logical().Write(secretPath+"/config", kubernetesConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing kubernetes config: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.KubernetesConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	kubernetesRoleConfigData, err := structToMap(config.KubernetesRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("kubernetes role"), "name", config.KubernetesRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.KubernetesRoleConfig.Name, kubernetesRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing kubernetes role: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+config.KubernetesRoleConfig.Name, config.KubernetesRoleConfig); err != nil {
+		return nil, err
 	}
 
 	// Default namespace to a randomly selected allowed namespace or "default"
@@ -190,12 +172,7 @@ func (k *KubernetesTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (k *KubernetesTest) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(k.logger, client, k.pathPrefix)
 }
 
 func (k *KubernetesTest) GetTargetInfo() TargetInfo {

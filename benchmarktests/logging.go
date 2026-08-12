@@ -45,3 +45,13 @@ func cleanupAuthMount(logger hclog.Logger, client *api.Client, pathPrefix string
 	}
 	return nil
 }
+
+// Translates "/v1/<mount>" to "/sys/mounts/<mount>" for the Vault sys delete endpoint.
+func cleanupSecretMount(logger hclog.Logger, client *api.Client, pathPrefix string) error {
+	logger.Trace(cleanupLogMessage(pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}

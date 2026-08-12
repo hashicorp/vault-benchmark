@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -116,11 +115,9 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 	authPath := mountName
 	a.logger = targetLogger.Named(AzureAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("auth", "azure", authPath))
@@ -134,27 +131,13 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth"))
-	azureAuthConfig, err := structToMap(a.config.AzureAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding azure auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("azure auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", azureAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing azure auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", a.config.AzureAuthConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
-	azureAuthRole, err := structToMap(a.config.AzureAuthRole)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding azure auth role from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("azure auth user config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AzureAuthRole.Name, azureAuthRole)
-	if err != nil {
-		return nil, fmt.Errorf("error writing azure auth user: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AzureAuthRole.Name, a.config.AzureAuthRole); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))

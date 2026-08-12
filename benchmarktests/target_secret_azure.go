@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -104,11 +102,9 @@ func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	secretPath := mountName
 	a.logger = targetLogger.Named(AzureSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	config := a.config
@@ -123,27 +119,13 @@ func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure"))
-	azureConfigData, err := structToMap(config.AzureConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing azure config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("azure config"))
-	_, err = client.Logical().Write(secretPath+"/config", azureConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing azure config: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.AzureConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	azureRoleConfigData, err := structToMap(config.AzureRole)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("azure role"), "name", config.AzureRole.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.AzureRole.Name, azureRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing azure role: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+config.AzureRole.Name, config.AzureRole); err != nil {
+		return nil, err
 	}
 
 	return &AzureTest{
@@ -163,12 +145,7 @@ func (a *AzureTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *AzureTest) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(a.logger, client, a.pathPrefix)
 }
 
 func (a *AzureTest) GetTargetInfo() TargetInfo {

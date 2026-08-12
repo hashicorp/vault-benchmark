@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -79,11 +77,9 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 	secretPath := mountName
 	g.logger = targetLogger.Named(GCPImpersonationSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	config := g.config
@@ -109,27 +105,13 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("gcp impersonation"))
-	gcpImpersonationConfigData, err := structToMap(config.GCPConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing gcp config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("gcp impersonation config"))
-	_, err = client.Logical().Write(secretPath+"/config", gcpImpersonationConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp config: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.GCPConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("gcp impersonation"))
-	gcpImpersonationData, err := structToMap(config.GCPImpersonate)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing gcp impersonation config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("gcp impersonation"), "name", config.GCPImpersonate.Name)
-	_, err = client.Logical().Write(secretPath+"/impersonated-account/"+config.GCPImpersonate.Name, gcpImpersonationData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp impersonation: %v", err)
+	if err := writeStruct(client, secretPath+"/impersonated-account/"+config.GCPImpersonate.Name, config.GCPImpersonate); err != nil {
+		return nil, err
 	}
 
 	return &GCPImpersonationTest{
@@ -149,12 +131,7 @@ func (g *GCPImpersonationTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (g *GCPImpersonationTest) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up gcp impersonation mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(g.logger, client, g.pathPrefix)
 }
 
 func (g *GCPImpersonationTest) GetTargetInfo() TargetInfo {

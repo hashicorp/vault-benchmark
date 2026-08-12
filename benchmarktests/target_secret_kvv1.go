@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -73,11 +72,9 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	mountPath := mountName
 	k.logger = targetLogger.Named("kvv1")
 
-	if topLevelConfig.RandomMounts {
-		mountPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	mountPath, err = resolveMountPath(mountPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	var setupIndex string
@@ -146,12 +143,7 @@ func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
 }
 
 func (k *KVV1Test) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(k.logger, client, k.pathPrefix)
 }
 
 func (k *KVV1Test) GetTargetInfo() TargetInfo {

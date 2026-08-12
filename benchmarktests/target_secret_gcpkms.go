@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -54,7 +53,8 @@ type GCPKMSTest struct {
 	header     http.Header
 	body       []byte
 	action     string
-	typeKey   string
+	typeKey    string
+	mountPath  string
 	config     *GCPKMSTestConfig
 	logger     hclog.Logger
 }
@@ -165,11 +165,9 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	g.logger = targetLogger.Named(g.typeKey)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	g.logger.Trace(mountLogMessage("secrets", "gcpkms", secretPath))
@@ -219,164 +217,87 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	switch g.action {
 	case "encrypt":
 		g.config.GCPKMSEncryptConfig.Plaintext = base64Payload
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms encrypt"))
 		encryptData, err := structToMap(g.config.GCPKMSEncryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms encrypt config from struct: %v", err)
 		}
-
-		encryptDataString, err := json.Marshal(encryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms encrypt data: %v", err)
-		}
-
-		encryptPath := filepath.Join(secretPath, "encrypt", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + encryptPath,
-			header:     generateHeader(client),
-			body:       []byte(encryptDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "encrypt", keyName, encryptData)
 
 	case "decrypt":
-		testEncryptData := map[string]any{
-			"plaintext": base64Payload,
-		}
-
-		setupLogger.Trace("encrypting payload for decrypt test")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), testEncryptData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), map[string]any{"plaintext": base64Payload})
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
-
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt payload: no response or invalid ciphertext: %v", resp)
 		}
-
 		g.config.GCPKMSDecryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms decrypt"))
 		decryptData, err := structToMap(g.config.GCPKMSDecryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms decrypt config from struct: %v", err)
 		}
-
-		decryptDataString, err := json.Marshal(decryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms decrypt data: %v", err)
-		}
-
-		decryptPath := filepath.Join(secretPath, "decrypt", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + decryptPath,
-			header:     generateHeader(client),
-			body:       []byte(decryptDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "decrypt", keyName, decryptData)
 
 	case "sign":
-		digest := base64.StdEncoding.EncodeToString(rawPayload)
-		g.config.GCPKMSSignConfig.Digest = digest
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms sign"))
+		g.config.GCPKMSSignConfig.Digest = base64.StdEncoding.EncodeToString(rawPayload)
 		signData, err := structToMap(g.config.GCPKMSSignConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms sign config from struct: %v", err)
 		}
-
-		signDataString, err := json.Marshal(signData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms sign data: %v", err)
-		}
-
-		signPath := filepath.Join(secretPath, "sign", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + signPath,
-			header:     generateHeader(client),
-			body:       []byte(signDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "sign", keyName, signData)
 
 	case "verify":
 		digest := base64.StdEncoding.EncodeToString(rawPayload)
-		g.config.GCPKMSVerifyConfig.Digest = digest
-
-		signData := map[string]any{
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", keyName), map[string]any{
 			"digest":      digest,
 			"key_version": g.config.GCPKMSVerifyConfig.KeyVersion,
-		}
-
-		setupLogger.Trace("signing digest for verify test")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", keyName), signData)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("error signing digest: %v", err)
 		}
-
 		if resp == nil || resp.Data["signature"] == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign digest: no response or invalid signature: %v", resp)
 		}
-
+		g.config.GCPKMSVerifyConfig.Digest = digest
 		g.config.GCPKMSVerifyConfig.Signature = resp.Data["signature"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms verify"))
 		verifyData, err := structToMap(g.config.GCPKMSVerifyConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms verify config from struct: %v", err)
 		}
-
-		verifyDataString, err := json.Marshal(verifyData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms verify data: %v", err)
-		}
-
-		verifyPath := filepath.Join(secretPath, "verify", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + verifyPath,
-			header:     generateHeader(client),
-			body:       []byte(verifyDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "verify", keyName, verifyData)
 
 	case "reencrypt":
-		testEncryptData := map[string]any{
-			"plaintext": base64Payload,
-		}
-
-		setupLogger.Trace("encrypting payload for reencrypt test")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), testEncryptData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), map[string]any{"plaintext": base64Payload})
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
-
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt payload: no response or invalid ciphertext: %v", resp)
 		}
-
 		g.config.GCPKMSReencryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms reencrypt"))
 		reencryptData, err := structToMap(g.config.GCPKMSReencryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms reencrypt config from struct: %v", err)
 		}
-
-		reencryptDataString, err := json.Marshal(reencryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms reencrypt data: %v", err)
-		}
-
-		reencryptPath := filepath.Join(secretPath, "reencrypt", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + reencryptPath,
-			header:     generateHeader(client),
-			body:       []byte(reencryptDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "reencrypt", keyName, reencryptData)
 
 	default:
 		return nil, fmt.Errorf("unknown or unsupported gcpkms operation: %v", g.action)
 	}
+}
+
+func (g *GCPKMSTest) buildResult(client *api.Client, secretPath, action, keyName string, configData map[string]any) (BenchmarkBuilder, error) {
+	body, err := json.Marshal(configData)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling gcpkms %s data: %v", action, err)
+	}
+	return &GCPKMSTest{
+		pathPrefix: "/v1/" + filepath.Join(secretPath, action, keyName),
+		mountPath:  "/v1/" + secretPath,
+		header:     generateHeader(client),
+		body:       body,
+		logger:     g.logger,
+	}, nil
 }
 
 // createKey handles key creation or registration based on the configured mode.
@@ -394,13 +315,7 @@ func (g *GCPKMSTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (g *GCPKMSTest) Cleanup(client *api.Client) error {
-	parts := strings.Split(g.pathPrefix, "/")
-	g.logger.Trace(cleanupLogMessage(parts[2]))
-	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(g.logger, client, g.mountPath)
 }
 
 func (g *GCPKMSTest) GetTargetInfo() TargetInfo {

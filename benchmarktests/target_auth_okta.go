@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -91,11 +90,9 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	authPath := mountName
 	o.logger = targetLogger.Named(OktaAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	o.logger.Trace(mountLogMessage("auth", "okta", authPath))
@@ -109,15 +106,8 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := o.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("okta auth"))
-	oktaAuthConfig, err := structToMap(o.config.OktaAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding okta auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("okta auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", oktaAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing okta auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", o.config.OktaAuthConfig); err != nil {
+		return nil, err
 	}
 
 	if len(o.config.OktaUserConfig.Groups) > 0 || len(o.config.OktaUserConfig.Policies) > 0 {

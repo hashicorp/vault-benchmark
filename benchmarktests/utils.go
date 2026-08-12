@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
 	"github.com/mitchellh/mapstructure"
@@ -32,6 +33,30 @@ import (
 var (
 	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
+
+// resolveMountPath returns base unchanged, or a fresh UUID when random is true.
+func resolveMountPath(base string, random bool) (string, error) {
+	if !random {
+		return base, nil
+	}
+	id, err := uuid.GenerateUUID()
+	if err != nil {
+		return "", fmt.Errorf("error generating random mount name: %w", err)
+	}
+	return id, nil
+}
+
+// writeStruct converts in to a map via structToMap and writes it to path.
+func writeStruct(client *api.Client, path string, in any) error {
+	data, err := structToMap(in)
+	if err != nil {
+		return fmt.Errorf("error serializing config for %q: %w", path, err)
+	}
+	if _, err := client.Logical().Write(path, data); err != nil {
+		return fmt.Errorf("error writing %q: %w", path, err)
+	}
+	return nil
+}
 
 // Must not be copied after first use — embed by value only in structs accessed exclusively via pointer.
 type cachedBody struct {

@@ -100,11 +100,9 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 
 	t.logger = targetLogger.Named(t.typeKey)
 
-	if topLevelConfig.RandomMounts {
-		mountPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	mountPath, err = resolveMountPath(mountPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	setupLogger := t.logger.Named("totp")

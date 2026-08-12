@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -117,11 +116,9 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	authPath := mountName
 	r.logger = targetLogger.Named(RADIUSAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	r.logger.Trace(mountLogMessage("auth", "radius", authPath))
@@ -135,15 +132,8 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	setupLogger := r.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("radius auth"))
-	radiusAuthConfig, err := structToMap(r.config.RADIUSAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding radius auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("radius auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", radiusAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing radius auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", r.config.RADIUSAuthConfig); err != nil {
+		return nil, err
 	}
 
 	if len(r.config.RADIUSTestUserConfig.Policies) > 0 {

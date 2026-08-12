@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -91,11 +90,9 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	authPath := mountName
 	g.logger = targetLogger.Named(GitHubAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	g.logger.Trace(mountLogMessage("auth", "github", authPath))
@@ -109,15 +106,8 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	setupLogger := g.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("github auth"))
-	githubAuthConfig, err := structToMap(g.config.GitHubAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing github auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("github auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", githubAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing github auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", g.config.GitHubAuthConfig); err != nil {
+		return nil, err
 	}
 
 	return &GitHubAuth{

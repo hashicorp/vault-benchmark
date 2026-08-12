@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -88,11 +87,9 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	authPath := mountName
 	c.logger = targetLogger.Named(CertAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	if c.config.Certificate == "" {
@@ -141,16 +138,8 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := c.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(c.config)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", c.config.Name)
-	rolePath := filepath.Join("auth", authPath, "certs", c.config.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error creating cert role %q: %v", c.config.Name, err)
+	if err := writeStruct(client, filepath.Join("auth", authPath, "certs", c.config.Name), c.config); err != nil {
+		return nil, err
 	}
 
 	return &CertAuth{

@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -122,11 +120,9 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 	secretPath := mountName
 	c.logger = targetLogger.Named(CassandraSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -140,29 +136,13 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 	setupLogger := c.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(c.config.CassandraDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", c.config.CassandraDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing cassandra db config: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name), c.config.CassandraDBConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(c.config.CassandraRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", c.config.CassandraRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing cassandra role %q: %v", c.config.CassandraRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name), c.config.CassandraRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &CassandraSecret{
@@ -183,12 +163,7 @@ func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *CassandraSecret) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(c.logger, client, c.pathPrefix)
 }
 
 func (c *CassandraSecret) GetTargetInfo() TargetInfo {

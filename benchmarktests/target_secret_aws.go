@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -104,11 +102,9 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	secretPath := mountName
 	a.logger = targetLogger.Named(AWSSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating random mount name: %w", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("secrets", "aws", secretPath))
@@ -122,27 +118,13 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	setupLogger := a.logger.Named(secretPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("aws connection"))
-	connectionConfigData, err := structToMap(a.config.AWSConnectionConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing aws connection config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("aws connection config"))
-	_, err = client.Logical().Write(secretPath+"/config/root", connectionConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws connection config: %v", err)
+	if err := writeStruct(client, secretPath+"/config/root", a.config.AWSConnectionConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(a.config.AWSRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("aws role"), "name", a.config.AWSRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+a.config.AWSRoleConfig.Name, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws role: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+a.config.AWSRoleConfig.Name, a.config.AWSRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &AWSTest{
@@ -162,12 +144,7 @@ func (a *AWSTest) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *AWSTest) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupSecretMount(a.logger, client, a.pathPrefix)
 }
 
 func (a *AWSTest) GetTargetInfo() TargetInfo {
