@@ -23,18 +23,18 @@ const (
 )
 
 func init() {
-	TestList[NomadSecretTestType] = func() BenchmarkBuilder { return &NomadTest{} }
+	TestList[NomadSecretTestType] = func() BenchmarkBuilder { return &NomadSecret{} }
 }
 
-type NomadTest struct {
+type NomadSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *NomadSecretTestConfig
+	config     *NomadSecretConfig
 	logger     hclog.Logger
 }
 
-type NomadSecretTestConfig struct {
+type NomadSecretConfig struct {
 	NomadConfig     *NomadConfig     `hcl:"nomad,block"`
 	NomadRoleConfig *NomadRoleConfig `hcl:"role,block"`
 }
@@ -55,11 +55,11 @@ type NomadRoleConfig struct {
 	Type     string   `hcl:"type,optional"`
 }
 
-func (c *NomadTest) ParseConfig(body hcl.Body) error {
+func (c *NomadSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *NomadSecretTestConfig `hcl:"config,block"`
+		Config *NomadSecretConfig `hcl:"config,block"`
 	}{
-		Config: &NomadSecretTestConfig{
+		Config: &NomadSecretConfig{
 			NomadConfig: &NomadConfig{
 				Token: os.Getenv(NomadTokenEnvVar),
 			},
@@ -81,7 +81,7 @@ func (c *NomadTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *NomadSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := c.config
@@ -112,7 +112,7 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 		return nil, err
 	}
 
-	return &NomadTest{
+	return &NomadSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.NomadRoleConfig.Name,
@@ -120,7 +120,7 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	}, nil
 }
 
-func (c *NomadTest) Target(client *api.Client) vegeta.Target {
+func (c *NomadSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: NomadSecretTestMethod,
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
@@ -128,15 +128,15 @@ func (c *NomadTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (c *NomadTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(c.logger, client, c.pathPrefix)
+func (c *NomadSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(c.logger, client, c.pathPrefix)
 }
 
-func (c *NomadTest) GetTargetInfo() TargetInfo {
+func (c *NomadSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     NomadSecretTestMethod,
 		pathPrefix: c.pathPrefix,
 	}
 }
 
-func (c *NomadTest) Flags(fs *flag.FlagSet) {}
+func (c *NomadSecret) Flags(fs *flag.FlagSet) {}

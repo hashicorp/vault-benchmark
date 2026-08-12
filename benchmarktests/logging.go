@@ -36,21 +36,18 @@ func writingLogMessage(kind string) string {
 	return fmt.Sprintf("writing %v", kind)
 }
 
-// Translates "/v1/auth/..." to "/sys/auth/..." for the Vault sys delete endpoint.
-func cleanupAuthMount(logger hclog.Logger, client *api.Client, pathPrefix string) error {
+// cleanupMount deletes the Vault mount backing pathPrefix.
+// Auth mounts ("/v1/auth/<name>") map to "/sys/auth/<name>";
+// all other mounts ("/v1/<name>") map to "/sys/mounts/<name>".
+func cleanupMount(logger hclog.Logger, client *api.Client, pathPrefix string) error {
 	logger.Trace(cleanupLogMessage(pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
+	var sysPath string
+	if strings.HasPrefix(pathPrefix, "/v1/auth/") {
+		sysPath = strings.Replace(pathPrefix, "/v1/", "/sys/", 1)
+	} else {
+		sysPath = strings.Replace(pathPrefix, "/v1/", "/sys/mounts/", 1)
 	}
-	return nil
-}
-
-// Translates "/v1/<mount>" to "/sys/mounts/<mount>" for the Vault sys delete endpoint.
-func cleanupSecretMount(logger hclog.Logger, client *api.Client, pathPrefix string) error {
-	logger.Trace(cleanupLogMessage(pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
+	if _, err := client.Logical().Delete(sysPath); err != nil {
 		return fmt.Errorf("error cleaning up mount: %v", err)
 	}
 	return nil

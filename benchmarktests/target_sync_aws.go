@@ -32,45 +32,45 @@ const (
 
 func init() {
 	TestList[SyncEvents] = func() BenchmarkBuilder {
-		return &SyncAWSTest{
+		return &AWSSync{
 			target: SyncEvents,
 		}
 	}
 	TestList[SyncAssociationsWrite] = func() BenchmarkBuilder {
-		return &SyncAWSTest{
+		return &AWSSync{
 			target: SyncAssociationsWrite,
 		}
 	}
 	TestList[SyncAssociationsRead] = func() BenchmarkBuilder {
-		return &SyncAWSTest{
+		return &AWSSync{
 			target: SyncAssociationsRead,
 		}
 	}
 }
 
-type SyncAWSTest struct {
+type AWSSync struct {
 	target     string
 	mount      string
 	method     string
 	pathPrefix string
 
-	config *SyncAWSTestConfig
+	config *AWSSyncConfig
 
 	logger hclog.Logger
 }
 
-type SyncAWSTestConfig struct {
+type AWSSyncConfig struct {
 	NumAssociations   int               `hcl:"num_associations,optional"`
 	DestinationType   string            `hcl:"destination_type"`
 	DestinationName   string            `hcl:"destination_name,optional"`
 	DestinationConfig map[string]string `hcl:"destination_config,optional"`
 }
 
-func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
+func (t *AWSSync) ParseConfig(body hcl.Body) error {
 	cfg := &struct {
-		Config *SyncAWSTestConfig `hcl:"config,block"`
+		Config *AWSSyncConfig `hcl:"config,block"`
 	}{
-		Config: &SyncAWSTestConfig{
+		Config: &AWSSyncConfig{
 			NumAssociations:   3,
 			DestinationName:   fmt.Sprintf("benchmark-test-%s", uuid.New().String()),
 			DestinationConfig: map[string]string{},
@@ -87,7 +87,7 @@ func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *AWSSync) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	t.logger = targetLogger.Named(t.target)
 
 	if topLevelConfig.RandomMounts {
@@ -150,7 +150,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		method = http.MethodGet
 	}
 
-	return &SyncAWSTest{
+	return &AWSSync{
 		target:     t.target,
 		config:     t.config,
 		mount:      mountName,
@@ -160,7 +160,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}, nil
 }
 
-func (t *SyncAWSTest) Target(client *api.Client) vegeta.Target {
+func (t *AWSSync) Target(client *api.Client) vegeta.Target {
 	n := int(rand.Int31n(int32(t.config.NumAssociations)))
 	tgt := vegeta.Target{
 		Method: t.method,
@@ -183,7 +183,7 @@ func (t *SyncAWSTest) Target(client *api.Client) vegeta.Target {
 	return tgt
 }
 
-func (t *SyncAWSTest) Cleanup(client *api.Client) error {
+func (t *AWSSync) Cleanup(client *api.Client) error {
 	// Delete associations
 	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
@@ -227,11 +227,11 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (t *SyncAWSTest) GetTargetInfo() TargetInfo {
+func (t *AWSSync) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     t.method,
 		pathPrefix: t.pathPrefix,
 	}
 }
 
-func (t *SyncAWSTest) Flags(_ *flag.FlagSet) {}
+func (t *AWSSync) Flags(_ *flag.FlagSet) {}

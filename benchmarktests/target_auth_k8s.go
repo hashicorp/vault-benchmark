@@ -24,23 +24,23 @@ const (
 )
 
 func init() {
-	TestList[KubeAuthTestType] = func() BenchmarkBuilder { return &KubeAuth{} }
+	TestList[KubeAuthTestType] = func() BenchmarkBuilder { return &KubernetesAuth{} }
 }
 
-type KubeAuth struct {
+type KubernetesAuth struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *KubeAuthTestConfig
+	config     *KubernetesAuthConfig
 	logger     hclog.Logger
 }
 
-type KubeAuthTestConfig struct {
-	KubeAuthConfig     *KubeAuthConfig     `hcl:"auth,block"`
-	KubeTestRoleConfig *KubeTestRoleConfig `hcl:"role,block"`
+type KubernetesAuthConfig struct {
+	KubernetesAuthMountConfig     *KubernetesAuthMountConfig     `hcl:"auth,block"`
+	KubernetesAuthRoleConfig *KubernetesAuthRoleConfig `hcl:"role,block"`
 }
 
-type KubeAuthConfig struct {
+type KubernetesAuthMountConfig struct {
 	KubernetesHost    string   `hcl:"kubernetes_host"`
 	KubernetesCACert  string   `hcl:"kubernetes_ca_cert,optional"`
 	TokenReviewerJWT  string   `hcl:"token_reviewer_jwt,optional"`
@@ -52,7 +52,7 @@ type KubeAuthConfig struct {
 	Issuer               string `hcl:"issuer,optional"`
 }
 
-type KubeTestRoleConfig struct {
+type KubernetesAuthRoleConfig struct {
 	Name                          string   `hcl:"name"`
 	BoundServiceAccountNames      []string `hcl:"bound_service_account_names"`
 	BoundServiceAccountNamespaces []string `hcl:"bound_service_account_namespaces"`
@@ -69,13 +69,13 @@ type KubeTestRoleConfig struct {
 	TokenType                     string   `hcl:"token_type,optional"`
 }
 
-func (k *KubeAuth) ParseConfig(body hcl.Body) error {
+func (k *KubernetesAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *KubeAuthTestConfig `hcl:"config,block"`
+		Config *KubernetesAuthConfig `hcl:"config,block"`
 	}{
-		Config: &KubeAuthTestConfig{
-			KubeAuthConfig:     &KubeAuthConfig{},
-			KubeTestRoleConfig: &KubeTestRoleConfig{},
+		Config: &KubernetesAuthConfig{
+			KubernetesAuthMountConfig:     &KubernetesAuthMountConfig{},
+			KubernetesAuthRoleConfig: &KubernetesAuthRoleConfig{},
 		},
 	}
 
@@ -87,7 +87,7 @@ func (k *KubeAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KubernetesAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	k.logger = targetLogger.Named(KubeAuthTestType)
@@ -107,12 +107,12 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := k.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes auth"))
-	if err := writeStruct(client, "auth/"+authPath+"/config", k.config.KubeAuthConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/config", k.config.KubernetesAuthMountConfig); err != nil {
 		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	if err := writeStruct(client, "auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, k.config.KubeTestRoleConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+k.config.KubernetesAuthRoleConfig.Name, k.config.KubernetesAuthRoleConfig); err != nil {
 		return nil, err
 	}
 
@@ -122,16 +122,16 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		return nil, err
 	}
 
-	return &KubeAuth{
+	return &KubernetesAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		// TODO: service account tokens rotate (~1h); long benchmarks accumulate 401s. Apply cachedBody refresh, re-reading DefaultServiceAccountTokenPath.
-		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubeTestRoleConfig.Name, jwt),
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubernetesAuthRoleConfig.Name, jwt),
 		logger:     k.logger,
 	}, nil
 }
 
-func (k *KubeAuth) Target(client *api.Client) vegeta.Target {
+func (k *KubernetesAuth) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: KubeAuthTestMethod,
 		URL:    client.Address() + k.pathPrefix + "/login",
@@ -140,18 +140,18 @@ func (k *KubeAuth) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (k *KubeAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(k.logger, client, k.pathPrefix)
+func (k *KubernetesAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(k.logger, client, k.pathPrefix)
 }
 
-func (k *KubeAuth) GetTargetInfo() TargetInfo {
+func (k *KubernetesAuth) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     KubeAuthTestMethod,
 		pathPrefix: k.pathPrefix,
 	}
 }
 
-func (k *KubeAuth) Flags(fs *flag.FlagSet) {}
+func (k *KubernetesAuth) Flags(fs *flag.FlagSet) {}
 
 func readTokenFromFile(filepath string) (string, error) {
 	jwt, err := os.ReadFile(filepath)

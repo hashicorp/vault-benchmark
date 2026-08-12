@@ -158,7 +158,7 @@ func (c *CertAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *CertAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(c.logger, client, c.pathPrefix)
+	return cleanupMount(c.logger, client, c.pathPrefix)
 }
 
 func (c *CertAuth) GetTargetInfo() TargetInfo {

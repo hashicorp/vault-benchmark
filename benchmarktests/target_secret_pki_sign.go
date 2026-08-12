@@ -30,10 +30,10 @@ const (
 )
 
 func init() {
-	TestList[PKISignTestType] = func() BenchmarkBuilder { return &PKISignTest{} }
+	TestList[PKISignTestType] = func() BenchmarkBuilder { return &PKISignSecret{} }
 }
 
-type PKISignTest struct {
+type PKISignSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
@@ -228,7 +228,7 @@ type pkiSignRoleConfig struct {
 	AllowedUserIDs               string   `hcl:"allowed_user_ids,optional"`
 }
 
-func (p *PKISignTest) ParseConfig(body hcl.Body) error {
+func (p *PKISignSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
 		Config *pkiSecretIssueTestConfig `hcl:"config,block"`
 	}{
@@ -263,7 +263,7 @@ func (p *PKISignTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (p *PKISignTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (p *PKISignSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	p.logger = targetLogger.Named(PKISignTestType)
@@ -334,7 +334,7 @@ func (p *PKISignTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error marshaling signing config data: %v", err)
 	}
 
-	return &PKISignTest{
+	return &PKISignSecret{
 		pathPrefix: "/v1/" + path,
 		cn:         p.config.SignConfig.CommonName,
 		header:     generateHeader(client),
@@ -345,7 +345,7 @@ func (p *PKISignTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}, nil
 }
 
-func (p *PKISignTest) Target(client *api.Client) vegeta.Target {
+func (p *PKISignSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: PKISignTestMethod,
 		URL:    client.Address() + p.pathPrefix,
@@ -354,7 +354,7 @@ func (p *PKISignTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (p *PKISignTest) Cleanup(client *api.Client) error {
+func (p *PKISignSecret) Cleanup(client *api.Client) error {
 	p.logger.Trace(cleanupLogMessage(p.rootpath))
 	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
 	if err != nil {
@@ -369,16 +369,16 @@ func (p *PKISignTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (p *PKISignTest) GetTargetInfo() TargetInfo {
+func (p *PKISignSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     PKISignTestMethod,
 		pathPrefix: p.pathPrefix,
 	}
 }
 
-func (p *PKISignTest) Flags(fs *flag.FlagSet) {}
+func (p *PKISignSecret) Flags(fs *flag.FlagSet) {}
 
-func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
+func (p *PKISignSecret) createRootCA(cli *api.Client, pfx string) error {
 	rootPath := pfx + "-root"
 
 	p.logger.Trace(mountLogMessage("secrets", "pki", rootPath))
@@ -427,7 +427,7 @@ func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
 	return nil
 }
 
-func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
+func (p *PKISignSecret) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
 	rootPath := fmt.Sprintf("%v-root", pfx)
 	intPath := fmt.Sprintf("%v-int", pfx)
 
@@ -501,7 +501,7 @@ func (p *PKISignTest) createIntermediateCA(cli *api.Client, pfx string) (string,
 	return filepath.Join(intPath, "sign", p.config.RoleConfig.Name), nil
 }
 
-func (p *PKISignTest) generateTestCSR() (string, error) {
+func (p *PKISignSecret) generateTestCSR() (string, error) {
 	cBundle := &certutil.CreationBundle{
 		Params: &certutil.CreationParameters{
 			Subject: pkix.Name{

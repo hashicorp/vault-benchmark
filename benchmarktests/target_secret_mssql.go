@@ -32,11 +32,11 @@ type MSSQLSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *MSSQLSecretTestConfig
+	config     *MSSQLSecretConfig
 	logger     hclog.Logger
 }
 
-type MSSQLSecretTestConfig struct {
+type MSSQLSecretConfig struct {
 	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db_connection,block"`
 	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role,block"`
 }
@@ -71,9 +71,9 @@ type MSSQLRoleConfig struct {
 
 func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *MSSQLSecretTestConfig `hcl:"config,block"`
+		Config *MSSQLSecretConfig `hcl:"config,block"`
 	}{
-		Config: &MSSQLSecretTestConfig{
+		Config: &MSSQLSecretConfig{
 			MSSQLDBConfig: &MSSQLDBConfig{
 				Name:         "benchmark-mssql",
 				AllowedRoles: []string{"benchmark-role"},
@@ -152,7 +152,7 @@ func (m *MSSQLSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *MSSQLSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(m.logger, client, m.pathPrefix)
+	return cleanupMount(m.logger, client, m.pathPrefix)
 }
 
 func (m *MSSQLSecret) GetTargetInfo() TargetInfo {

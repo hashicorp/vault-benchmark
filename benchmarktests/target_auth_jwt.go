@@ -37,16 +37,16 @@ type JWTAuth struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *JWTAuthTestConfig
+	config     *JWTAuthConfig
 	logger     hclog.Logger
 }
 
-type JWTAuthTestConfig struct {
-	JWTAuthConfig *JWTAuthConfig `hcl:"auth,block"`
-	JWTRoleConfig *JWTRoleConfig `hcl:"role,block"`
+type JWTAuthConfig struct {
+	JWTAuthMountConfig *JWTAuthMountConfig `hcl:"auth,block"`
+	JWTAuthRoleConfig *JWTAuthRoleConfig `hcl:"role,block"`
 }
 
-type JWTAuthConfig struct {
+type JWTAuthMountConfig struct {
 	OIDCDiscoveryUrl     string   `hcl:"oidc_discovery_url,optional"`
 	OIDCDiscoveryCaPEM   string   `hcl:"oidc_discovery_ca_pem,optional"`
 	OIDCClientId         string   `hcl:"oidc_client_id,optional"`
@@ -63,7 +63,7 @@ type JWTAuthConfig struct {
 	NamespaceInState     *bool    `hcl:"namespace_in_state,optional"`
 }
 
-type JWTRoleConfig struct {
+type JWTAuthRoleConfig struct {
 	Name                 string                 `hcl:"name,optional"`
 	RoleType             string                 `hcl:"role_type,optional"`
 	BoundAudiences       []string               `hcl:"bound_audiences,optional"`
@@ -95,16 +95,16 @@ type JWTRoleConfig struct {
 
 func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *JWTAuthTestConfig `hcl:"config,block"`
+		Config *JWTAuthConfig `hcl:"config,block"`
 	}{
-		Config: &JWTAuthTestConfig{
-			JWTRoleConfig: &JWTRoleConfig{
+		Config: &JWTAuthConfig{
+			JWTAuthRoleConfig: &JWTAuthRoleConfig{
 				Name:           "benchmark-role",
 				RoleType:       "jwt",
 				BoundAudiences: []string{"https://vault.plugin.auth.jwt.test"},
 				UserClaim:      "https://vault/user",
 			},
-			JWTAuthConfig: &JWTAuthConfig{},
+			JWTAuthMountConfig: &JWTAuthMountConfig{},
 		},
 	}
 
@@ -142,18 +142,18 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error generating ECDSA keys: %w", err)
 	}
 
-	if j.config.JWTAuthConfig.JWTValidationPubKeys == nil && j.config.JWTAuthConfig.JWKSUrl == "" && j.config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
+	if j.config.JWTAuthMountConfig.JWTValidationPubKeys == nil && j.config.JWTAuthMountConfig.JWKSUrl == "" && j.config.JWTAuthMountConfig.OIDCDiscoveryUrl == "" {
 		setupLogger.Trace("jwt_validation_pubkeys, jwks_url, and oidc_discovery_url are empty, using internally generated keys")
-		j.config.JWTAuthConfig.JWTValidationPubKeys = []string{pubKey}
+		j.config.JWTAuthMountConfig.JWTValidationPubKeys = []string{pubKey}
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("jwt auth"))
-	if err := writeStruct(client, "auth/"+authPath+"/config", j.config.JWTAuthConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/config", j.config.JWTAuthMountConfig); err != nil {
 		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	if err := writeStruct(client, "auth/"+authPath+"/role/"+j.config.JWTRoleConfig.Name, j.config.JWTRoleConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+j.config.JWTAuthRoleConfig.Name, j.config.JWTAuthRoleConfig); err != nil {
 		return nil, err
 	}
 
@@ -166,7 +166,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	return &JWTAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, j.config.JWTRoleConfig.Name, jwtData),
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, j.config.JWTAuthRoleConfig.Name, jwtData),
 		logger:     j.logger,
 	}, nil
 }
@@ -181,7 +181,7 @@ func (j *JWTAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (j *JWTAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(j.logger, client, j.pathPrefix)
+	return cleanupMount(j.logger, client, j.pathPrefix)
 }
 
 func (j *JWTAuth) GetTargetInfo() TargetInfo {
@@ -195,19 +195,19 @@ func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
 func (j *JWTAuth) getTestJWT(privKey string) (string, error) {
 	cl := sqjwt.Claims{
-		Subject:   j.config.JWTRoleConfig.BoundSubject,
-		Issuer:    j.config.JWTAuthConfig.BoundIssuer,
+		Subject:   j.config.JWTAuthRoleConfig.BoundSubject,
+		Issuer:    j.config.JWTAuthMountConfig.BoundIssuer,
 		NotBefore: sqjwt.NewNumericDate(time.Now().Add(-5 * time.Second)),
 		Expiry:    sqjwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-		Audience:  append(sqjwt.Audience{}, j.config.JWTRoleConfig.BoundAudiences...),
+		Audience:  append(sqjwt.Audience{}, j.config.JWTAuthRoleConfig.BoundAudiences...),
 	}
 
 	privateCl := struct {
 		User   string `json:"https://vault/user"`
 		Groups string `json:"https://vault/groups"`
 	}{
-		j.config.JWTRoleConfig.UserClaim,
-		j.config.JWTRoleConfig.GroupsClaim,
+		j.config.JWTAuthRoleConfig.UserClaim,
+		j.config.JWTAuthRoleConfig.GroupsClaim,
 	}
 
 	var key *ecdsa.PrivateKey

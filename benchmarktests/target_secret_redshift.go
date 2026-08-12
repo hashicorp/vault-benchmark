@@ -32,11 +32,11 @@ type RedshiftSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RedshiftSecretTestConfig
+	config     *RedshiftSecretConfig
 	logger     hclog.Logger
 }
 
-type RedshiftSecretTestConfig struct {
+type RedshiftSecretConfig struct {
 	RedshiftDBConfig   *RedshiftDBConfig   `hcl:"db_connection,block"`
 	RedshiftRoleConfig *RedshiftRoleConfig `hcl:"role,block"`
 }
@@ -74,9 +74,9 @@ type RedshiftRoleConfig struct {
 
 func (r *RedshiftSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RedshiftSecretTestConfig `hcl:"config,block"`
+		Config *RedshiftSecretConfig `hcl:"config,block"`
 	}{
-		Config: &RedshiftSecretTestConfig{
+		Config: &RedshiftSecretConfig{
 			RedshiftDBConfig: &RedshiftDBConfig{
 				Name:         "benchmark-redshift",
 				AllowedRoles: []string{"benchmark-role"},
@@ -160,7 +160,7 @@ func (r *RedshiftSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (r *RedshiftSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(r.logger, client, r.pathPrefix)
+	return cleanupMount(r.logger, client, r.pathPrefix)
 }
 
 func (r *RedshiftSecret) GetTargetInfo() TargetInfo {

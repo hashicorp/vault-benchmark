@@ -32,11 +32,11 @@ type OracleSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *OracleSecretTestConfig
+	config     *OracleSecretConfig
 	logger     hclog.Logger
 }
 
-type OracleSecretTestConfig struct {
+type OracleSecretConfig struct {
 	OracleDBConfig   *OracleDBConfig   `hcl:"db_connection,block"`
 	OracleRoleConfig *OracleRoleConfig `hcl:"role,block"`
 }
@@ -75,9 +75,9 @@ type OracleRoleConfig struct {
 
 func (o *OracleSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *OracleSecretTestConfig `hcl:"config,block"`
+		Config *OracleSecretConfig `hcl:"config,block"`
 	}{
-		Config: &OracleSecretTestConfig{
+		Config: &OracleSecretConfig{
 			OracleDBConfig: &OracleDBConfig{
 				Name:            "benchmark-oracle",
 				AllowedRoles:    []string{"benchmark-role"},
@@ -163,7 +163,7 @@ func (o *OracleSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (o *OracleSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(o.logger, client, o.pathPrefix)
+	return cleanupMount(o.logger, client, o.pathPrefix)
 }
 
 func (o *OracleSecret) GetTargetInfo() TargetInfo {

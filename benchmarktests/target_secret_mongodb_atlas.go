@@ -24,18 +24,18 @@ const (
 )
 
 func init() {
-	TestList[MongoDBAtlasSecretTestType] = func() BenchmarkBuilder { return &MongoDBAtlasTest{} }
+	TestList[MongoDBAtlasSecretTestType] = func() BenchmarkBuilder { return &MongoDBAtlasSecret{} }
 }
 
-type MongoDBAtlasTest struct {
+type MongoDBAtlasSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *MongoDBAtlasSecretTestConfig
+	config     *MongoDBAtlasSecretConfig
 	logger     hclog.Logger
 }
 
-type MongoDBAtlasSecretTestConfig struct {
+type MongoDBAtlasSecretConfig struct {
 	MongoDBAtlasConfig     *MongoDBAtlasConfig     `hcl:"db_connection,block"`
 	MongoDBAtlasRoleConfig *MongoDBAtlasRoleConfig `hcl:"role,block"`
 }
@@ -60,11 +60,11 @@ type MongoDBAtlasRoleConfig struct {
 	CreationStatements string `hcl:"creation_statements,optional"`
 }
 
-func (m *MongoDBAtlasTest) ParseConfig(body hcl.Body) error {
+func (m *MongoDBAtlasSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *MongoDBAtlasSecretTestConfig `hcl:"config,block"`
+		Config *MongoDBAtlasSecretConfig `hcl:"config,block"`
 	}{
-		Config: &MongoDBAtlasSecretTestConfig{
+		Config: &MongoDBAtlasSecretConfig{
 			MongoDBAtlasConfig: &MongoDBAtlasConfig{
 				Name:         "benchmark-mongodb-atlas",
 				PluginName:   "mongodbatlas-database-plugin",
@@ -99,7 +99,7 @@ func (m *MongoDBAtlasTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (m *MongoDBAtlasSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MongoDBAtlasSecretTestType)
@@ -129,7 +129,7 @@ func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelC
 		return nil, err
 	}
 
-	return &MongoDBAtlasTest{
+	return &MongoDBAtlasSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   m.config.MongoDBAtlasRoleConfig.Name,
@@ -137,7 +137,7 @@ func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelC
 	}, nil
 }
 
-func (m *MongoDBAtlasTest) Target(client *api.Client) vegeta.Target {
+func (m *MongoDBAtlasSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: MongoDBAtlasSecretTestMethod,
 		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
@@ -145,15 +145,15 @@ func (m *MongoDBAtlasTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (m *MongoDBAtlasTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(m.logger, client, m.pathPrefix)
+func (m *MongoDBAtlasSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(m.logger, client, m.pathPrefix)
 }
 
-func (m *MongoDBAtlasTest) GetTargetInfo() TargetInfo {
+func (m *MongoDBAtlasSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     MongoDBAtlasSecretTestMethod,
 		pathPrefix: m.pathPrefix,
 	}
 }
 
-func (m *MongoDBAtlasTest) Flags(fs *flag.FlagSet) {}
+func (m *MongoDBAtlasSecret) Flags(fs *flag.FlagSet) {}

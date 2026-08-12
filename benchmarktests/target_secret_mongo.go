@@ -24,18 +24,18 @@ const (
 )
 
 func init() {
-	TestList[MongoDBSecretTestType] = func() BenchmarkBuilder { return &MongoDBTest{} }
+	TestList[MongoDBSecretTestType] = func() BenchmarkBuilder { return &MongoDBSecret{} }
 }
 
-type MongoDBTest struct {
+type MongoDBSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *MongoDBSecretTestConfig
+	config     *MongoDBSecretConfig
 	logger     hclog.Logger
 }
 
-type MongoDBSecretTestConfig struct {
+type MongoDBSecretConfig struct {
 	MongoDBConfig     *MongoDBConfig     `hcl:"db_connection,block"`
 	MongoDBRoleConfig *MongoDBRoleConfig `hcl:"role,block"`
 }
@@ -64,11 +64,11 @@ type MongoDBRoleConfig struct {
 	RevocationStatements string `hcl:"revocation_statements,optional"`
 }
 
-func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
+func (m *MongoDBSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *MongoDBSecretTestConfig `hcl:"config,block"`
+		Config *MongoDBSecretConfig `hcl:"config,block"`
 	}{
-		Config: &MongoDBSecretTestConfig{
+		Config: &MongoDBSecretConfig{
 			MongoDBConfig: &MongoDBConfig{
 				Name:         "benchmark-mongo",
 				PluginName:   "mongodb-database-plugin",
@@ -103,7 +103,7 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (m *MongoDBSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MongoDBSecretTestType)
@@ -133,7 +133,7 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, err
 	}
 
-	return &MongoDBTest{
+	return &MongoDBSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   m.config.MongoDBRoleConfig.Name,
@@ -141,7 +141,7 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}, nil
 }
 
-func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
+func (m *MongoDBSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: MongoDBSecretTestMethod,
 		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
@@ -149,15 +149,15 @@ func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (m *MongoDBTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(m.logger, client, m.pathPrefix)
+func (m *MongoDBSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(m.logger, client, m.pathPrefix)
 }
 
-func (m *MongoDBTest) GetTargetInfo() TargetInfo {
+func (m *MongoDBSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     MongoDBSecretTestMethod,
 		pathPrefix: m.pathPrefix,
 	}
 }
 
-func (m *MongoDBTest) Flags(fs *flag.FlagSet) {}
+func (m *MongoDBSecret) Flags(fs *flag.FlagSet) {}

@@ -27,20 +27,20 @@ const (
 
 func init() {
 	TestList[TransformTokenizationTestType] = func() BenchmarkBuilder {
-		return &TransformTokenizationTest{}
+		return &TransformTokenizationSecret{}
 	}
 }
 
-type TransformTokenizationTest struct {
+type TransformTokenizationSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
 	roleName   string
-	config     *TransformTokenizationTestConfig
+	config     *TransformTokenizationSecretConfig
 	logger     hclog.Logger
 }
 
-type TransformTokenizationTestConfig struct {
+type TransformTokenizationSecretConfig struct {
 	StoreConfig        *TransformStoreConfig        `hcl:"store,block"`
 	StoreSchemaConfig  *TransformStoreSchemaConfig  `hcl:"store_schema,block"`
 	RoleConfig         *TransformRoleConfig         `hcl:"role,block"`
@@ -94,11 +94,11 @@ type TransformInputConfig struct {
 	BatchInput     []any  `hcl:"batch_input,optional"`
 }
 
-func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
+func (t *TransformTokenizationSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TransformTokenizationTestConfig `hcl:"config,block"`
+		Config *TransformTokenizationSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TransformTokenizationTestConfig{
+		Config: &TransformTokenizationSecretConfig{
 			RoleConfig: &TransformRoleConfig{
 				Name:            "benchmark-role",
 				Transformations: []string{"benchmarktransformation"},
@@ -127,7 +127,7 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TransformTokenizationSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	t.logger = targetLogger.Named(TransformTokenizationTestType)
@@ -204,7 +204,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 		return nil, fmt.Errorf("error marshaling test encode data: %v", err)
 	}
 
-	return &TransformTokenizationTest{
+	return &TransformTokenizationSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		body:       []byte(testDataString),
@@ -213,7 +213,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 	}, nil
 }
 
-func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
+func (t *TransformTokenizationSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: TransformTokenizationTestMethod,
 		URL:    client.Address() + t.pathPrefix + "/encode/" + t.roleName,
@@ -222,15 +222,15 @@ func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(t.logger, client, t.pathPrefix)
+func (t *TransformTokenizationSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(t.logger, client, t.pathPrefix)
 }
 
-func (t *TransformTokenizationTest) GetTargetInfo() TargetInfo {
+func (t *TransformTokenizationSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     TransformTokenizationTestMethod,
 		pathPrefix: t.pathPrefix,
 	}
 }
 
-func (t *TransformTokenizationTest) Flags(fs *flag.FlagSet) {}
+func (t *TransformTokenizationSecret) Flags(fs *flag.FlagSet) {}

@@ -31,16 +31,16 @@ type GitHubAuth struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *GitHubAuthTestConfig
+	config     *GitHubAuthConfig
 	logger     hclog.Logger
 }
 
-type GitHubAuthTestConfig struct {
-	GitHubAuthConfig     *GitHubAuthConfig     `hcl:"auth,block"`
-	GitHubTestUserConfig *GitHubTestUserConfig `hcl:"test_user,block"`
+type GitHubAuthConfig struct {
+	GitHubAuthMountConfig *GitHubAuthMountConfig `hcl:"auth,block"`
+	GitHubAuthUserConfig *GitHubAuthUserConfig `hcl:"test_user,block"`
 }
 
-type GitHubAuthConfig struct {
+type GitHubAuthMountConfig struct {
 	Organization         string `hcl:"organization"`
 	OrganizationID       string `hcl:"organization_id,optional"`
 	BaseURL              string `hcl:"base_url,optional"`
@@ -56,17 +56,17 @@ type GitHubAuthConfig struct {
 	TokenType            string `hcl:"token_type,optional"`
 }
 
-type GitHubTestUserConfig struct {
+type GitHubAuthUserConfig struct {
 	Token string `hcl:"token,optional"`
 }
 
 func (g *GitHubAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *GitHubAuthTestConfig `hcl:"config,block"`
+		Config *GitHubAuthConfig `hcl:"config,block"`
 	}{
-		Config: &GitHubAuthTestConfig{
-			GitHubAuthConfig: &GitHubAuthConfig{},
-			GitHubTestUserConfig: &GitHubTestUserConfig{
+		Config: &GitHubAuthConfig{
+			GitHubAuthMountConfig: &GitHubAuthMountConfig{},
+			GitHubAuthUserConfig: &GitHubAuthUserConfig{
 				Token: os.Getenv(GitHubAuthTestUserToken),
 			},
 		},
@@ -78,7 +78,7 @@ func (g *GitHubAuth) ParseConfig(body hcl.Body) error {
 	}
 	g.config = testConfig.Config
 
-	if g.config.GitHubTestUserConfig.Token == "" {
+	if g.config.GitHubAuthUserConfig.Token == "" {
 		return fmt.Errorf("no github test user token provided but required")
 	}
 
@@ -106,14 +106,14 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	setupLogger := g.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("github auth"))
-	if err := writeStruct(client, "auth/"+authPath+"/config", g.config.GitHubAuthConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/config", g.config.GitHubAuthMountConfig); err != nil {
 		return nil, err
 	}
 
 	return &GitHubAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       fmt.Appendf(nil, `{"token": "%s"}`, g.config.GitHubTestUserConfig.Token),
+		body:       fmt.Appendf(nil, `{"token": "%s"}`, g.config.GitHubAuthUserConfig.Token),
 		logger:     g.logger,
 	}, nil
 }
@@ -128,7 +128,7 @@ func (g *GitHubAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (g *GitHubAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(g.logger, client, g.pathPrefix)
+	return cleanupMount(g.logger, client, g.pathPrefix)
 }
 
 func (g *GitHubAuth) GetTargetInfo() TargetInfo {

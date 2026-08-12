@@ -32,11 +32,11 @@ type HanaDBSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *HanaDBSecretTestConfig
+	config     *HanaDBSecretConfig
 	logger     hclog.Logger
 }
 
-type HanaDBSecretTestConfig struct {
+type HanaDBSecretConfig struct {
 	HanaDBDBConfig   *HanaDBDBConfig   `hcl:"db_connection,block"`
 	HanaDBRoleConfig *HanaDBRoleConfig `hcl:"role,block"`
 }
@@ -74,9 +74,9 @@ type HanaDBRoleConfig struct {
 
 func (m *HanaDBSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *HanaDBSecretTestConfig `hcl:"config,block"`
+		Config *HanaDBSecretConfig `hcl:"config,block"`
 	}{
-		Config: &HanaDBSecretTestConfig{
+		Config: &HanaDBSecretConfig{
 			HanaDBDBConfig: &HanaDBDBConfig{
 				Name:         "benchmark-hanadb",
 				AllowedRoles: []string{"benchmark-role"},
@@ -156,7 +156,7 @@ func (m *HanaDBSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *HanaDBSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(m.logger, client, m.pathPrefix)
+	return cleanupMount(m.logger, client, m.pathPrefix)
 }
 
 func (m *HanaDBSecret) GetTargetInfo() TargetInfo {

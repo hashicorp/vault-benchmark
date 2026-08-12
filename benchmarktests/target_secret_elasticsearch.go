@@ -25,18 +25,18 @@ const (
 )
 
 func init() {
-	TestList[ElasticSearchSecretTestType] = func() BenchmarkBuilder { return &ElasticSearchTest{} }
+	TestList[ElasticSearchSecretTestType] = func() BenchmarkBuilder { return &ElasticSearchSecret{} }
 }
 
-type ElasticSearchTest struct {
+type ElasticSearchSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ElasticSearchSecretTestConfig
+	config     *ElasticSearchSecretConfig
 	logger     hclog.Logger
 }
 
-type ElasticSearchSecretTestConfig struct {
+type ElasticSearchSecretConfig struct {
 	ElasticSearchConfig     *ElasticSearchConfig     `hcl:"db_connection,block"`
 	ElasticSearchRoleConfig *ElasticSearchRoleConfig `hcl:"role,block"`
 }
@@ -70,11 +70,11 @@ type ElasticSearchRoleConfig struct {
 	CreationStatements []string `hcl:"creation_statements,optional"`
 }
 
-func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
+func (e *ElasticSearchSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *ElasticSearchSecretTestConfig `hcl:"config,block"`
+		Config *ElasticSearchSecretConfig `hcl:"config,block"`
 	}{
-		Config: &ElasticSearchSecretTestConfig{
+		Config: &ElasticSearchSecretConfig{
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
 				Name:         "benchmark-elasticsearch",
@@ -110,7 +110,7 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (e *ElasticSearchSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	e.logger = targetLogger.Named(ElasticSearchSecretTestType)
@@ -140,7 +140,7 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 		return nil, err
 	}
 
-	return &ElasticSearchTest{
+	return &ElasticSearchSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   e.config.ElasticSearchRoleConfig.RoleName,
@@ -148,7 +148,7 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 	}, nil
 }
 
-func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
+func (e *ElasticSearchSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: ElasticSearchSecretTestMethod,
 		URL:    client.Address() + e.pathPrefix + "/creds/" + e.roleName,
@@ -156,15 +156,15 @@ func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(e.logger, client, e.pathPrefix)
+func (e *ElasticSearchSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(e.logger, client, e.pathPrefix)
 }
 
-func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
+func (e *ElasticSearchSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     ElasticSearchSecretTestMethod,
 		pathPrefix: e.pathPrefix,
 	}
 }
 
-func (e *ElasticSearchTest) Flags(fs *flag.FlagSet) {}
+func (e *ElasticSearchSecret) Flags(fs *flag.FlagSet) {}

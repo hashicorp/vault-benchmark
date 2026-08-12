@@ -23,18 +23,18 @@ const (
 )
 
 func init() {
-	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{} }
+	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecret{} }
 }
 
-type LDAPStaticSecretTest struct {
+type LDAPStaticSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *LDAPStaticSecretTestConfig
+	config     *LDAPStaticSecretConfig
 	logger     hclog.Logger
 }
 
-type LDAPStaticSecretTestConfig struct {
+type LDAPStaticSecretConfig struct {
 	LDAPStaticConfig     *LDAPStaticConfig     `hcl:"secret,block"`
 	LDAPStaticRoleConfig *LDAPStaticRoleConfig `hcl:"role,block"`
 }
@@ -63,11 +63,11 @@ type LDAPStaticRoleConfig struct {
 	RotationPeriod string `hcl:"rotation_period"`
 }
 
-func (r *LDAPStaticSecretTest) ParseConfig(body hcl.Body) error {
+func (r *LDAPStaticSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *LDAPStaticSecretTestConfig `hcl:"config,block"`
+		Config *LDAPStaticSecretConfig `hcl:"config,block"`
 	}{
-		Config: &LDAPStaticSecretTestConfig{
+		Config: &LDAPStaticSecretConfig{
 			LDAPStaticConfig: &LDAPStaticConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
 			},
@@ -89,7 +89,7 @@ func (r *LDAPStaticSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *LDAPStaticSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
@@ -119,7 +119,7 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 		return nil, err
 	}
 
-	return &LDAPStaticSecretTest{
+	return &LDAPStaticSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   r.config.LDAPStaticRoleConfig.Username,
@@ -127,7 +127,7 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 	}, nil
 }
 
-func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
+func (r *LDAPStaticSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: LDAPStaticSecretTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/rotate-role/" + r.roleName,
@@ -135,15 +135,15 @@ func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (r *LDAPStaticSecretTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(r.logger, client, r.pathPrefix)
+func (r *LDAPStaticSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
 }
 
-func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
+func (r *LDAPStaticSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     LDAPStaticSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
 }
 
-func (m *LDAPStaticSecretTest) Flags(fs *flag.FlagSet) {}
+func (m *LDAPStaticSecret) Flags(fs *flag.FlagSet) {}

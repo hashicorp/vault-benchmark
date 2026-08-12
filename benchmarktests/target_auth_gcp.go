@@ -43,16 +43,16 @@ type GCPAuth struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *GCPAuthTestConfig
+	config     *GCPAuthConfig
 	logger     hclog.Logger
 }
 
-type GCPAuthTestConfig struct {
-	GCPAuthConfig     *GCPAuthConfig     `hcl:"auth,block"`
-	GCPTestRoleConfig *GCPTestRoleConfig `hcl:"role,block"`
+type GCPAuthConfig struct {
+	GCPAuthMountConfig *GCPAuthMountConfig `hcl:"auth,block"`
+	GCPAuthRoleConfig *GCPAuthRoleConfig `hcl:"role,block"`
 }
 
-type GCPAuthConfig struct {
+type GCPAuthMountConfig struct {
 	Credentials    string `hcl:"credentials"`
 	IAMAlias       string `hcl:"iam_alias,optional"`
 	IAMMetadata    string `hcl:"iam_metadata,optional"`
@@ -61,7 +61,7 @@ type GCPAuthConfig struct {
 	CustomEndpoint string `hcl:"custom_endpoint,optional"`
 }
 
-type GCPTestRoleConfig struct {
+type GCPAuthRoleConfig struct {
 	Name                 string   `hcl:"name"`
 	Type                 string   `hcl:"type"`
 	AddGroupAliases      bool     `hcl:"add_group_aliases,optional"`
@@ -86,10 +86,10 @@ type GCPTestRoleConfig struct {
 
 func (g *GCPAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *GCPAuthTestConfig `hcl:"config,block"`
-	}{Config: &GCPAuthTestConfig{
-		GCPAuthConfig:     &GCPAuthConfig{},
-		GCPTestRoleConfig: &GCPTestRoleConfig{},
+		Config *GCPAuthConfig `hcl:"config,block"`
+	}{Config: &GCPAuthConfig{
+		GCPAuthMountConfig:     &GCPAuthMountConfig{},
+		GCPAuthRoleConfig: &GCPAuthRoleConfig{},
 	},
 	}
 
@@ -121,30 +121,30 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 	setupLogger := g.logger.Named(authPath)
 
-	creds := g.config.GCPAuthConfig.Credentials
+	creds := g.config.GCPAuthMountConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
 		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading file: %w", err)
 		}
 
-		g.config.GCPAuthConfig.Credentials = string(contents)
+		g.config.GCPAuthMountConfig.Credentials = string(contents)
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("gcp auth"))
-	gcpAuthConfigMap, err := structToMap(g.config.GCPAuthConfig)
+	gcpAuthConfigMap, err := structToMap(g.config.GCPAuthMountConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcp auth config from struct: %v", err)
 	}
 
 	// GCP's JWT TTL must cover the full benchmark duration; a shorter TTL would make
 	// tokens expire mid-run and cause auth failures on every tick after expiry.
-	parsedTTL, err := time.ParseDuration(g.config.GCPTestRoleConfig.MaxJWTExp)
+	parsedTTL, err := time.ParseDuration(g.config.GCPAuthRoleConfig.MaxJWTExp)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing JWT TTL from configuration: %v", err)
 	}
 	if parsedTTL < topLevelConfig.Duration {
-		g.config.GCPTestRoleConfig.MaxJWTExp = topLevelConfig.Duration.String()
+		g.config.GCPAuthRoleConfig.MaxJWTExp = topLevelConfig.Duration.String()
 		warnMsg := fmt.Sprintf("max_jwt_exp (%v) cannot be shorter than test duration (%v). Setting max_jwt_exp to %v", parsedTTL, topLevelConfig.Duration, topLevelConfig.Duration)
 		setupLogger.Warn(warnMsg)
 	}
@@ -156,7 +156,7 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	if err := writeStruct(client, "auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, g.config.GCPTestRoleConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+g.config.GCPAuthRoleConfig.Name, g.config.GCPAuthRoleConfig); err != nil {
 		return nil, err
 	}
 
@@ -169,7 +169,7 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	return &GCPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPAuthRoleConfig.Name, jwt),
 		logger:     g.logger,
 	}, nil
 }
@@ -184,7 +184,7 @@ func (g *GCPAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (g *GCPAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(g.logger, client, g.pathPrefix)
+	return cleanupMount(g.logger, client, g.pathPrefix)
 }
 
 func (g *GCPAuth) GetTargetInfo() TargetInfo {
@@ -196,10 +196,10 @@ func (g *GCPAuth) GetTargetInfo() TargetInfo {
 
 func (g *GCPAuth) Flags(fs *flag.FlagSet) {}
 
-func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
+func getSignedJwt(config *GCPAuthConfig) (string, error) {
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, cleanhttp.DefaultClient())
 
-	credentials, tokenSource, err := gcputil.FindCredentials(config.GCPAuthConfig.Credentials, ctx, iamcredentials.CloudPlatformScope)
+	credentials, tokenSource, err := gcputil.FindCredentials(config.GCPAuthMountConfig.Credentials, ctx, iamcredentials.CloudPlatformScope)
 	if err != nil {
 		return "", fmt.Errorf("could not obtain credentials: %v", err)
 	}
@@ -207,7 +207,7 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 	httpClient := oauth2.NewClient(ctx, tokenSource)
 
 	var serviceAccount string
-	if accounts := config.GCPTestRoleConfig.BoundServiceAccounts; len(accounts) > 0 {
+	if accounts := config.GCPAuthRoleConfig.BoundServiceAccounts; len(accounts) > 0 {
 		serviceAccount = accounts[rand.Intn(len(accounts))]
 	}
 
@@ -215,13 +215,13 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 		serviceAccount = credentials.ClientEmail
 	}
 
-	if config.GCPTestRoleConfig.Type != "iam" {
+	if config.GCPAuthRoleConfig.Type != "iam" {
 		if !metadata.OnGCE() {
 			return "", fmt.Errorf("could not obtain service account from credentials (are you using Application Default Credentials?). You must provide a service account to authenticate as")
 		}
 		metadataClient := metadata.NewClient(cleanhttp.DefaultClient())
 		v := url.Values{}
-		v.Set("audience", fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name))
+		v.Set("audience", fmt.Sprintf("http://vault/%s", config.GCPAuthRoleConfig.Name))
 		v.Set("format", "full")
 		path := "instance/service-accounts/default/identity?" + v.Encode()
 		instanceJwt, err := metadataClient.Get(path)
@@ -232,15 +232,15 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 	}
 
 	ttl := time.Duration(15) * time.Minute
-	if config.GCPTestRoleConfig.MaxJWTExp != "" {
-		ttl, err = parseutil.ParseDurationSecond(config.GCPTestRoleConfig.MaxJWTExp)
+	if config.GCPAuthRoleConfig.MaxJWTExp != "" {
+		ttl, err = parseutil.ParseDurationSecond(config.GCPAuthRoleConfig.MaxJWTExp)
 		if err != nil {
-			return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", config.GCPTestRoleConfig.MaxJWTExp)
+			return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", config.GCPAuthRoleConfig.MaxJWTExp)
 		}
 	}
 
 	jwtPayload := map[string]any{
-		"aud": fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name),
+		"aud": fmt.Sprintf("http://vault/%s", config.GCPAuthRoleConfig.Name),
 		"sub": serviceAccount,
 		"exp": time.Now().Add(ttl).Unix(),
 	}

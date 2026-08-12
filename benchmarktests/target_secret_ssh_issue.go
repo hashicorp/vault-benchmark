@@ -23,19 +23,19 @@ const (
 )
 
 func init() {
-	TestList[SSHIssueTestType] = func() BenchmarkBuilder { return &SSHIssueTest{} }
+	TestList[SSHIssueTestType] = func() BenchmarkBuilder { return &SSHIssueSecret{} }
 }
 
-type SSHIssueTest struct {
+type SSHIssueSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *SSHIssueTestConfig
+	config     *SSHIssueSecretConfig
 	logger     hclog.Logger
 	mountPath  string
 }
 
-type SSHIssueTestConfig struct {
+type SSHIssueSecretConfig struct {
 	CAConfig         *SSHCAConfig         `hcl:"ca,block"`
 	RoleConfig       *SSHRoleConfig       `hcl:"role,block"`
 	IssuedCertConfig *SSHIssuedCertConfig `hcl:"issued_cert,block"`
@@ -99,11 +99,11 @@ type SSHRoleConfig struct {
 	NotBeforeDuration      string            `hcl:"not_before_duration,optional"`
 }
 
-func (s *SSHIssueTest) ParseConfig(body hcl.Body) error {
+func (s *SSHIssueSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *SSHIssueTestConfig `hcl:"config,block"`
+		Config *SSHIssueSecretConfig `hcl:"config,block"`
 	}{
-		Config: &SSHIssueTestConfig{
+		Config: &SSHIssueSecretConfig{
 			CAConfig: &SSHCAConfig{
 				KeyType: "rsa",
 				KeyBits: 0,
@@ -129,7 +129,7 @@ func (s *SSHIssueTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (s *SSHIssueSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	s.logger = targetLogger.Named(SSHIssueTestType)
@@ -171,7 +171,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, fmt.Errorf("error marshalling ca issue config data: %v", err)
 	}
 
-	return &SSHIssueTest{
+	return &SSHIssueSecret{
 		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "issue", s.config.RoleConfig.Name),
 		body:       []byte(issueConfigString),
@@ -180,7 +180,7 @@ func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 	}, nil
 }
 
-func (s *SSHIssueTest) Target(client *api.Client) vegeta.Target {
+func (s *SSHIssueSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: SSHIssueTestMethod,
 		URL:    client.Address() + s.pathPrefix,
@@ -189,15 +189,15 @@ func (s *SSHIssueTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (s *SSHIssueTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(s.logger, client, s.mountPath)
+func (s *SSHIssueSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(s.logger, client, s.mountPath)
 }
 
-func (s *SSHIssueTest) GetTargetInfo() TargetInfo {
+func (s *SSHIssueSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     SSHIssueTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
 }
 
-func (s *SSHIssueTest) Flags(fs *flag.FlagSet) {}
+func (s *SSHIssueSecret) Flags(fs *flag.FlagSet) {}

@@ -29,42 +29,42 @@ const (
 
 func init() {
 	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "sign", typeKey: TransitSignSecretTestType}
+		return &TransitSecret{action: "sign", typeKey: TransitSignSecretTestType}
 	}
 	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "verify", typeKey: TransitVerifySecretTestType}
+		return &TransitSecret{action: "verify", typeKey: TransitVerifySecretTestType}
 	}
 	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "encrypt", typeKey: TransitEncryptSecretTestType}
+		return &TransitSecret{action: "encrypt", typeKey: TransitEncryptSecretTestType}
 	}
 	TestList[TransitDecryptSecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "decrypt", typeKey: TransitDecryptSecretTestType}
+		return &TransitSecret{action: "decrypt", typeKey: TransitDecryptSecretTestType}
 	}
 }
 
-type TransitTest struct {
+type TransitSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
 	action     string
 	typeKey    string
 	mountPath  string
-	config     *TransitTestConfig
+	config     *TransitSecretConfig
 	logger     hclog.Logger
 }
 
-type TransitTestConfig struct {
+type TransitSecretConfig struct {
 	PayloadLen           int                   `hcl:"payload_len,optional"`
 	ContextLen           int                   `hcl:"context_len,optional"`
-	TransitConfigKeys    *TransitConfigKeys    `hcl:"keys,block"`
-	TransitConfigSign    *TransitConfigSign    `hcl:"sign,block"`
-	TransitConfigVerify  *TransitConfigVerify  `hcl:"verify,block"`
-	TransitConfigEncrypt *TransitConfigEncrypt `hcl:"encrypt,block"`
-	TransitConfigDecrypt *TransitConfigDecrypt `hcl:"decrypt,block"`
+	TransitKeysConfig    *TransitKeysConfig    `hcl:"keys,block"`
+	TransitSignConfig    *TransitSignConfig    `hcl:"sign,block"`
+	TransitVerifyConfig  *TransitVerifyConfig  `hcl:"verify,block"`
+	TransitEncryptConfig *TransitEncryptConfig `hcl:"encrypt,block"`
+	TransitDecryptConfig *TransitDecryptConfig `hcl:"decrypt,block"`
 }
 
 // /transit/keys/:name
-type TransitConfigKeys struct {
+type TransitKeysConfig struct {
 	Name                 string `hcl:"name,optional"`
 	ConvergentEncryption bool   `hcl:"convergent_encryption,optional"`
 	Derived              bool   `hcl:"derived,optional"`
@@ -81,7 +81,7 @@ type TransitConfigKeys struct {
 }
 
 // /transit/sign/:name
-type TransitConfigSign struct {
+type TransitSignConfig struct {
 	Name                string `hcl:"name,optional"`
 	KeyVersion          int    `hcl:"key_version,optional"`
 	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
@@ -96,7 +96,7 @@ type TransitConfigSign struct {
 }
 
 // /transit/verify/:name(/:hash_algorithm)
-type TransitConfigVerify struct {
+type TransitVerifyConfig struct {
 	Name                string `hcl:"name,optional"`
 	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
 	Input               string `hcl:"input,optional"`
@@ -112,7 +112,7 @@ type TransitConfigVerify struct {
 }
 
 // /transit/encrypt/:name
-type TransitConfigEncrypt struct {
+type TransitEncryptConfig struct {
 	Name                       string `hcl:"name,optional"`
 	Plaintext                  string `hcl:"plaintext,optional"`
 	AssociatedData             string `hcl:"associated_data,optional"`
@@ -127,7 +127,7 @@ type TransitConfigEncrypt struct {
 }
 
 // /transit/decrypt/:name
-type TransitConfigDecrypt struct {
+type TransitDecryptConfig struct {
 	Name                       string `hcl:"name,optional"`
 	Ciphertext                 string `hcl:"ciphertext,optional"`
 	AssociatedData             string `hcl:"associated_data,optional"`
@@ -138,33 +138,33 @@ type TransitConfigDecrypt struct {
 	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
 }
 
-func (t *TransitTest) ParseConfig(body hcl.Body) error {
+func (t *TransitSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TransitTestConfig `hcl:"config,block"`
+		Config *TransitSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TransitTestConfig{
-			TransitConfigKeys: &TransitConfigKeys{
+		Config: &TransitSecretConfig{
+			TransitKeysConfig: &TransitKeysConfig{
 				Name:                 "test",
 				ConvergentEncryption: false,
 				Derived:              false,
 				Type:                 "rsa-2048",
 			},
-			TransitConfigSign: &TransitConfigSign{
+			TransitSignConfig: &TransitSignConfig{
 				Name:                "test",
 				HashAlgorithm:       "sha2-256",
 				SignatureAlgorithm:  "pss",
 				MarshalingAlgorithm: "asn1",
 			},
-			TransitConfigVerify: &TransitConfigVerify{
+			TransitVerifyConfig: &TransitVerifyConfig{
 				Name:                "test",
 				HashAlgorithm:       "sha2-256",
 				SignatureAlgorithm:  "pss",
 				MarshalingAlgorithm: "asn1",
 			},
-			TransitConfigEncrypt: &TransitConfigEncrypt{
+			TransitEncryptConfig: &TransitEncryptConfig{
 				Name: "test",
 			},
-			TransitConfigDecrypt: &TransitConfigDecrypt{
+			TransitDecryptConfig: &TransitDecryptConfig{
 				Name: "test",
 			},
 			PayloadLen: 128,
@@ -181,7 +181,7 @@ func (t *TransitTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TransitSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	t.logger = targetLogger.Named(t.typeKey)
@@ -204,13 +204,13 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	setupLogger := t.logger.Named(secretPath)
 	setupLogger.Trace(parsingConfigLogMessage("transit key"))
-	keysConfigData, err := structToMap(t.config.TransitConfigKeys)
+	keysConfigData, err := structToMap(t.config.TransitKeysConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing transit key config from struct: %v", err)
 	}
 
-	setupLogger.Trace(writingLogMessage("key config"), "name", t.config.TransitConfigKeys.Name)
-	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", t.config.TransitConfigKeys.Name), keysConfigData)
+	setupLogger.Trace(writingLogMessage("key config"), "name", t.config.TransitKeysConfig.Name)
+	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", t.config.TransitKeysConfig.Name), keysConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing transit key config: %v", err)
 	}
@@ -230,73 +230,73 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	switch t.action {
 	case "sign":
-		signConfigData, err := structToMap(t.config.TransitConfigSign)
+		signConfigData, err := structToMap(t.config.TransitSignConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing sign config from struct: %v", err)
 		}
-		return t.buildResult(client, secretPath, "sign", t.config.TransitConfigSign.Name, signConfigData)
+		return t.buildResult(client, secretPath, "sign", t.config.TransitSignConfig.Name, signConfigData)
 
 	case "verify":
-		signData, err := structToMap(t.config.TransitConfigVerify)
+		signData, err := structToMap(t.config.TransitVerifyConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit verify config from struct: %v", err)
 		}
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitConfigVerify.Name), signData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitVerifyConfig.Name), signData)
 		if err != nil {
 			return nil, fmt.Errorf("error signing payload: %v", err)
 		}
 		if resp == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign payload: no response or invalid signature: %v", resp)
 		}
-		t.config.TransitConfigVerify.Signature = resp.Data["signature"].(string)
-		verifyData, err := structToMap(t.config.TransitConfigVerify)
+		t.config.TransitVerifyConfig.Signature = resp.Data["signature"].(string)
+		verifyData, err := structToMap(t.config.TransitVerifyConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit verify config from struct: %v", err)
 		}
-		return t.buildResult(client, secretPath, "verify", t.config.TransitConfigVerify.Name, verifyData)
+		return t.buildResult(client, secretPath, "verify", t.config.TransitVerifyConfig.Name, verifyData)
 
 	case "encrypt":
-		if t.config.TransitConfigKeys.Derived {
-			t.config.TransitConfigEncrypt.Context = base64Context
+		if t.config.TransitKeysConfig.Derived {
+			t.config.TransitEncryptConfig.Context = base64Context
 		}
-		t.config.TransitConfigEncrypt.Plaintext = base64Payload
-		encryptData, err := structToMap(t.config.TransitConfigEncrypt)
+		t.config.TransitEncryptConfig.Plaintext = base64Payload
+		encryptData, err := structToMap(t.config.TransitEncryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit encrypt config from struct: %v", err)
 		}
-		return t.buildResult(client, secretPath, "encrypt", t.config.TransitConfigEncrypt.Name, encryptData)
+		return t.buildResult(client, secretPath, "encrypt", t.config.TransitEncryptConfig.Name, encryptData)
 
 	case "decrypt":
 		seedData := map[string]any{"plaintext": base64Payload}
-		if t.config.TransitConfigKeys.Derived {
-			t.config.TransitConfigDecrypt.Context = base64Context
+		if t.config.TransitKeysConfig.Derived {
+			t.config.TransitDecryptConfig.Context = base64Context
 			seedData["context"] = base64Context
 		}
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", t.config.TransitConfigDecrypt.Name), seedData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", t.config.TransitDecryptConfig.Name), seedData)
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt payload: no response or invalid ciphertext: %v", resp)
 		}
-		t.config.TransitConfigDecrypt.Ciphertext = resp.Data["ciphertext"].(string)
-		decryptData, err := structToMap(t.config.TransitConfigDecrypt)
+		t.config.TransitDecryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
+		decryptData, err := structToMap(t.config.TransitDecryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit decrypt config: %v", err)
 		}
-		return t.buildResult(client, secretPath, "decrypt", t.config.TransitConfigDecrypt.Name, decryptData)
+		return t.buildResult(client, secretPath, "decrypt", t.config.TransitDecryptConfig.Name, decryptData)
 
 	default:
 		return nil, fmt.Errorf("unknown or unsupported transit operation: %v", t.action)
 	}
 }
 
-func (t *TransitTest) buildResult(client *api.Client, secretPath, action, keyName string, configData map[string]any) (BenchmarkBuilder, error) {
+func (t *TransitSecret) buildResult(client *api.Client, secretPath, action, keyName string, configData map[string]any) (BenchmarkBuilder, error) {
 	body, err := json.Marshal(configData)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling transit %s data: %v", action, err)
 	}
-	return &TransitTest{
+	return &TransitSecret{
 		pathPrefix: "/v1/" + filepath.Join(secretPath, action, keyName),
 		mountPath:  "/v1/" + secretPath,
 		header:     generateHeader(client),
@@ -305,7 +305,7 @@ func (t *TransitTest) buildResult(client *api.Client, secretPath, action, keyNam
 	}, nil
 }
 
-func (t *TransitTest) Target(client *api.Client) vegeta.Target {
+func (t *TransitSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: TransitSecretTestMethod,
 		URL:    client.Address() + t.pathPrefix,
@@ -314,15 +314,15 @@ func (t *TransitTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (t *TransitTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(t.logger, client, t.mountPath)
+func (t *TransitSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(t.logger, client, t.mountPath)
 }
 
-func (t *TransitTest) GetTargetInfo() TargetInfo {
+func (t *TransitSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     TransitSecretTestMethod,
 		pathPrefix: t.pathPrefix,
 	}
 }
 
-func (t *TransitTest) Flags(fs *flag.FlagSet) {}
+func (t *TransitSecret) Flags(fs *flag.FlagSet) {}

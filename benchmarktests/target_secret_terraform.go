@@ -23,18 +23,18 @@ const (
 )
 
 func init() {
-	TestList[TerraformSecretTestType] = func() BenchmarkBuilder { return &TerraformTest{} }
+	TestList[TerraformSecretTestType] = func() BenchmarkBuilder { return &TerraformSecret{} }
 }
 
-type TerraformTest struct {
+type TerraformSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *TerraformSecretTestConfig
+	config     *TerraformSecretConfig
 	logger     hclog.Logger
 }
 
-type TerraformSecretTestConfig struct {
+type TerraformSecretConfig struct {
 	TerraformConfig     *TerraformConfig     `hcl:"terraform,block"`
 	TerraformRoleConfig *TerraformRoleConfig `hcl:"role,block"`
 }
@@ -55,11 +55,11 @@ type TerraformRoleConfig struct {
 	MaxTTL         string `hcl:"max_ttl,optional"`
 }
 
-func (t *TerraformTest) ParseConfig(body hcl.Body) error {
+func (t *TerraformSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TerraformSecretTestConfig `hcl:"config,block"`
+		Config *TerraformSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TerraformSecretTestConfig{
+		Config: &TerraformSecretConfig{
 			TerraformConfig: &TerraformConfig{
 				Address: "https://app.terraform.io",
 				Token:   os.Getenv(TerraformTokenEnvVar),
@@ -83,7 +83,7 @@ func (t *TerraformTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TerraformSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := t.config
@@ -114,7 +114,7 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 		return nil, err
 	}
 
-	return &TerraformTest{
+	return &TerraformSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.TerraformRoleConfig.Name,
@@ -122,7 +122,7 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 	}, nil
 }
 
-func (t *TerraformTest) Target(client *api.Client) vegeta.Target {
+func (t *TerraformSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: TerraformSecretTestMethod,
 		URL:    client.Address() + t.pathPrefix + "/creds/" + t.roleName,
@@ -130,15 +130,15 @@ func (t *TerraformTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (t *TerraformTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(t.logger, client, t.pathPrefix)
+func (t *TerraformSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(t.logger, client, t.pathPrefix)
 }
 
-func (t *TerraformTest) GetTargetInfo() TargetInfo {
+func (t *TerraformSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     TerraformSecretTestMethod,
 		pathPrefix: t.pathPrefix,
 	}
 }
 
-func (t *TerraformTest) Flags(fs *flag.FlagSet) {}
+func (t *TerraformSecret) Flags(fs *flag.FlagSet) {}

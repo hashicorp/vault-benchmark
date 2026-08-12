@@ -24,18 +24,18 @@ const (
 )
 
 func init() {
-	TestList[RabbitMQSecretTestType] = func() BenchmarkBuilder { return &RabbitMQTest{} }
+	TestList[RabbitMQSecretTestType] = func() BenchmarkBuilder { return &RabbitMQSecret{} }
 }
 
-type RabbitMQTest struct {
+type RabbitMQSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RabbitMQSecretTestConfig
+	config     *RabbitMQSecretConfig
 	logger     hclog.Logger
 }
 
-type RabbitMQSecretTestConfig struct {
+type RabbitMQSecretConfig struct {
 	RabbitMQConnectionConfig *RabbitMQConnectionConfig `hcl:"connection,block"`
 	RabbitMQRoleConfig       *RabbitMQRoleConfig       `hcl:"role,block"`
 }
@@ -56,11 +56,11 @@ type RabbitMQRoleConfig struct {
 	VhostTopics string `hcl:"vhost_topics,optional"`
 }
 
-func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
+func (r *RabbitMQSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RabbitMQSecretTestConfig `hcl:"config,block"`
+		Config *RabbitMQSecretConfig `hcl:"config,block"`
 	}{
-		Config: &RabbitMQSecretTestConfig{
+		Config: &RabbitMQSecretConfig{
 			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{
 				Username: os.Getenv(RabbitMQUsernameEnvVar),
 				Password: os.Getenv(RabbitMQPasswordEnvVar),
@@ -89,7 +89,7 @@ func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *RabbitMQSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(RabbitMQSecretTestType)
@@ -119,7 +119,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, err
 	}
 
-	return &RabbitMQTest{
+	return &RabbitMQSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   r.config.RabbitMQRoleConfig.Name,
@@ -127,7 +127,7 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 	}, nil
 }
 
-func (r *RabbitMQTest) Target(client *api.Client) vegeta.Target {
+func (r *RabbitMQSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: RabbitMQSecretTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
@@ -135,15 +135,15 @@ func (r *RabbitMQTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (r *RabbitMQTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(r.logger, client, r.pathPrefix)
+func (r *RabbitMQSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
 }
 
-func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
+func (r *RabbitMQSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     RabbitMQSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
 }
 
-func (m *RabbitMQTest) Flags(fs *flag.FlagSet) {}
+func (m *RabbitMQSecret) Flags(fs *flag.FlagSet) {}

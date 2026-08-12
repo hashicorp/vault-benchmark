@@ -23,18 +23,18 @@ const (
 )
 
 func init() {
-	TestList[LDAPDynamicSecretTestType] = func() BenchmarkBuilder { return &LDAPDynamicSecretTest{} }
+	TestList[LDAPDynamicSecretTestType] = func() BenchmarkBuilder { return &LDAPDynamicSecret{} }
 }
 
-type LDAPDynamicSecretTest struct {
+type LDAPDynamicSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *LDAPDynamicSecretTestConfig
+	config     *LDAPDynamicSecretConfig
 	logger     hclog.Logger
 }
 
-type LDAPDynamicSecretTestConfig struct {
+type LDAPDynamicSecretConfig struct {
 	LDAPDynamicConfig     *LDAPDynamicConfig     `hcl:"secret,block"`
 	LDAPDynamicRoleConfig *LDAPDynamicRoleConfig `hcl:"role,block"`
 }
@@ -67,11 +67,11 @@ type LDAPDynamicRoleConfig struct {
 	MaxTTL           int    `hcl:"max_ttl,optional"`
 }
 
-func (r *LDAPDynamicSecretTest) ParseConfig(body hcl.Body) error {
+func (r *LDAPDynamicSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *LDAPDynamicSecretTestConfig `hcl:"config,block"`
+		Config *LDAPDynamicSecretConfig `hcl:"config,block"`
 	}{
-		Config: &LDAPDynamicSecretTestConfig{
+		Config: &LDAPDynamicSecretConfig{
 			LDAPDynamicConfig: &LDAPDynamicConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
 			},
@@ -95,7 +95,7 @@ func (r *LDAPDynamicSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *LDAPDynamicSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPDynamicSecretTestType)
@@ -125,7 +125,7 @@ func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topL
 		return nil, err
 	}
 
-	return &LDAPDynamicSecretTest{
+	return &LDAPDynamicSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   r.config.LDAPDynamicRoleConfig.RoleName,
@@ -133,7 +133,7 @@ func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topL
 	}, nil
 }
 
-func (r *LDAPDynamicSecretTest) Target(client *api.Client) vegeta.Target {
+func (r *LDAPDynamicSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: LDAPDynamicSecretTestMethod,
 		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
@@ -141,15 +141,15 @@ func (r *LDAPDynamicSecretTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (r *LDAPDynamicSecretTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(r.logger, client, r.pathPrefix)
+func (r *LDAPDynamicSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
 }
 
-func (r *LDAPDynamicSecretTest) GetTargetInfo() TargetInfo {
+func (r *LDAPDynamicSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     LDAPDynamicSecretTestMethod,
 		pathPrefix: r.pathPrefix,
 	}
 }
 
-func (m *LDAPDynamicSecretTest) Flags(fs *flag.FlagSet) {}
+func (m *LDAPDynamicSecret) Flags(fs *flag.FlagSet) {}

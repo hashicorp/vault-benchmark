@@ -34,17 +34,17 @@ type AzureAuth struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *AzureAuthTestConfig
+	config     *AzureAuthConfig
 	logger     hclog.Logger
 }
 
-type AzureAuthTestConfig struct {
-	AzureAuthConfig *AzureAuthConfig `hcl:"config,block"`
-	AzureAuthRole   *AzureAuthRole   `hcl:"role,block"`
-	AzureAuthUser   *AzureAuthUser   `hcl:"user,block"`
+type AzureAuthConfig struct {
+	AzureAuthMountConfig *AzureAuthMountConfig `hcl:"config,block"`
+	AzureAuthRoleConfig   *AzureAuthRoleConfig   `hcl:"role,block"`
+	AzureAuthUserConfig   *AzureAuthUserConfig   `hcl:"user,block"`
 }
 
-type AzureAuthConfig struct {
+type AzureAuthMountConfig struct {
 	TenantID     string `hcl:"tenant_id"`
 	Resource     string `hcl:"resource"`
 	Environment  string `hcl:"environment,optional"`
@@ -52,7 +52,7 @@ type AzureAuthConfig struct {
 	ClientSecret string `hcl:"client_secret,optional"`
 }
 
-type AzureAuthRole struct {
+type AzureAuthRoleConfig struct {
 	Name                     string   `hcl:"name,optional"`
 	BoundServicePrincipalIDs []string `hcl:"bound_service_principal_ids,optional"`
 	BoundGroupIDs            []string `hcl:"bound_group_ids,optional"`
@@ -72,7 +72,7 @@ type AzureAuthRole struct {
 	TokenType                string   `hcl:"token_type,optional"`
 }
 
-type AzureAuthUser struct {
+type AzureAuthUserConfig struct {
 	Role              string `hcl:"role,optional"`
 	JWT               string `hcl:"jwt,optional"`
 	SubscriptionID    string `hcl:"subscription_id"`
@@ -84,15 +84,15 @@ type AzureAuthUser struct {
 
 func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AzureAuthTestConfig `hcl:"config,block"`
+		Config *AzureAuthConfig `hcl:"config,block"`
 	}{
-		Config: &AzureAuthTestConfig{
-			AzureAuthConfig: &AzureAuthConfig{
+		Config: &AzureAuthConfig{
+			AzureAuthMountConfig: &AzureAuthMountConfig{
 				ClientID:     os.Getenv(AzureAuthClientID),
 				ClientSecret: os.Getenv(AzureAuthClientSecret),
 			},
-			AzureAuthRole: &AzureAuthRole{Name: "benchmark-role"},
-			AzureAuthUser: &AzureAuthUser{Role: "benchmark-role",
+			AzureAuthRoleConfig: &AzureAuthRoleConfig{Name: "benchmark-role"},
+			AzureAuthUserConfig: &AzureAuthUserConfig{Role: "benchmark-role",
 				JWT: os.Getenv(AzureAuthJWT)},
 		},
 	}
@@ -103,7 +103,7 @@ func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	if a.config.AzureAuthUser.JWT == "" {
+	if a.config.AzureAuthUserConfig.JWT == "" {
 		return fmt.Errorf("azure JWT required")
 	}
 
@@ -131,17 +131,17 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth"))
-	if err := writeStruct(client, "auth/"+authPath+"/config", a.config.AzureAuthConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/config", a.config.AzureAuthMountConfig); err != nil {
 		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
-	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AzureAuthRole.Name, a.config.AzureAuthRole); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AzureAuthRoleConfig.Name, a.config.AzureAuthRoleConfig); err != nil {
 		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
-	azureAuthUser, err := structToMap(a.config.AzureAuthUser)
+	azureAuthUser, err := structToMap(a.config.AzureAuthUserConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding azure auth user from struct: %v", err)
 	}
@@ -170,7 +170,7 @@ func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *AzureAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(a.logger, client, a.pathPrefix)
+	return cleanupMount(a.logger, client, a.pathPrefix)
 }
 
 func (a *AzureAuth) GetTargetInfo() TargetInfo {

@@ -25,18 +25,18 @@ const (
 )
 
 func init() {
-	TestList[CouchbaseSecretTestType] = func() BenchmarkBuilder { return &CouchbaseSecretTest{} }
+	TestList[CouchbaseSecretTestType] = func() BenchmarkBuilder { return &CouchbaseSecret{} }
 }
 
-type CouchbaseSecretTest struct {
+type CouchbaseSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *CouchbaseSecretTestConfig
+	config     *CouchbaseSecretConfig
 	logger     hclog.Logger
 }
 
-type CouchbaseSecretTestConfig struct {
+type CouchbaseSecretConfig struct {
 	DBConfig   *CouchbaseConfig     `hcl:"db_connection,block"`
 	RoleConfig *CouchbaseRoleConfig `hcl:"role,block"`
 }
@@ -68,11 +68,11 @@ type CouchbaseRoleConfig struct {
 	CreationStatements []string `hcl:"creation_statements,optional"`
 }
 
-func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
+func (c *CouchbaseSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *CouchbaseSecretTestConfig `hcl:"config,block"`
+		Config *CouchbaseSecretConfig `hcl:"config,block"`
 	}{
-		Config: &CouchbaseSecretTestConfig{
+		Config: &CouchbaseSecretConfig{
 			DBConfig: &CouchbaseConfig{
 				Name:       "benchmark-database",
 				PluginName: "couchbase-database-plugin",
@@ -107,7 +107,7 @@ func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *CouchbaseSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	c.logger = targetLogger.Named(CouchbaseSecretTestType)
@@ -137,7 +137,7 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 		return nil, err
 	}
 
-	return &CouchbaseSecretTest{
+	return &CouchbaseSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   c.config.RoleConfig.Name,
@@ -145,7 +145,7 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 	}, nil
 }
 
-func (c *CouchbaseSecretTest) Target(client *api.Client) vegeta.Target {
+func (c *CouchbaseSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: CouchbaseSecretTestMethod,
 		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
@@ -153,15 +153,15 @@ func (c *CouchbaseSecretTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (c *CouchbaseSecretTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(c.logger, client, c.pathPrefix)
+func (c *CouchbaseSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(c.logger, client, c.pathPrefix)
 }
 
-func (c *CouchbaseSecretTest) GetTargetInfo() TargetInfo {
+func (c *CouchbaseSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     CouchbaseSecretTestMethod,
 		pathPrefix: c.pathPrefix,
 	}
 }
 
-func (c *CouchbaseSecretTest) Flags(fs *flag.FlagSet) {}
+func (c *CouchbaseSecret) Flags(fs *flag.FlagSet) {}

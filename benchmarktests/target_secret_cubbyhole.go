@@ -27,34 +27,34 @@ const (
 
 func init() {
 	TestList[CubbyholeSecretReadTestType] = func() BenchmarkBuilder {
-		return &CubbyholeTest{action: "read"}
+		return &CubbyholeSecret{action: "read"}
 	}
 	TestList[CubbyholeSecretWriteTestType] = func() BenchmarkBuilder {
-		return &CubbyholeTest{action: "write"}
+		return &CubbyholeSecret{action: "write"}
 	}
 }
 
-type CubbyholeTest struct {
+type CubbyholeSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
 	method     string
 	targetURL  string
 	action     string
-	config     *CubbyholeSecretTestConfig
+	config     *CubbyholeSecretConfig
 	logger     hclog.Logger
 	secretPath string
 }
 
-type CubbyholeSecretTestConfig struct {
+type CubbyholeSecretConfig struct {
 	Path string `hcl:"path"`
 }
 
-func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
+func (c *CubbyholeSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *CubbyholeSecretTestConfig `hcl:"config,block"`
+		Config *CubbyholeSecretConfig `hcl:"config,block"`
 	}{
-		Config: &CubbyholeSecretTestConfig{
+		Config: &CubbyholeSecretConfig{
 			Path: DefaultSecretPath,
 		},
 	}
@@ -70,7 +70,7 @@ func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *CubbyholeSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	switch c.action {
 	case "write":
 		c.logger = targetLogger.Named(CubbyholeSecretWriteTestType)
@@ -101,7 +101,7 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 		body = []byte(`{"foo": "bar"}`)
 	}
 
-	return &CubbyholeTest{
+	return &CubbyholeSecret{
 		pathPrefix: CubbyholePathPrefix,
 		header: http.Header{
 			"X-Vault-Token":     []string{client.Token()},
@@ -115,7 +115,7 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	}, nil
 }
 
-func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
+func (c *CubbyholeSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: c.method,
 		URL:    c.targetURL,
@@ -124,7 +124,7 @@ func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (c *CubbyholeTest) Cleanup(client *api.Client) error {
+func (c *CubbyholeSecret) Cleanup(client *api.Client) error {
 	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
 	_, err := client.Logical().Delete("cubbyhole/" + c.secretPath)
 	if err != nil {
@@ -133,11 +133,11 @@ func (c *CubbyholeTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (c *CubbyholeTest) GetTargetInfo() TargetInfo {
+func (c *CubbyholeSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     c.method,
 		pathPrefix: c.pathPrefix,
 	}
 }
 
-func (c *CubbyholeTest) Flags(fs *flag.FlagSet) {}
+func (c *CubbyholeSecret) Flags(fs *flag.FlagSet) {}

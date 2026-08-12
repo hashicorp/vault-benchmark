@@ -30,16 +30,16 @@ type OktaAuth struct {
 	header     http.Header
 	body       []byte
 	username   string
-	config     *OktaAuthTestConfig
+	config     *OktaAuthConfig
 	logger     hclog.Logger
 }
 
-type OktaAuthTestConfig struct {
-	OktaAuthConfig *OktaAuthConfig `hcl:"auth,block"`
-	OktaUserConfig *OktaUserConfig `hcl:"test_user,block"`
+type OktaAuthConfig struct {
+	OktaAuthMountConfig *OktaAuthMountConfig `hcl:"auth,block"`
+	OktaAuthUserConfig *OktaAuthUserConfig `hcl:"test_user,block"`
 }
 
-type OktaAuthConfig struct {
+type OktaAuthMountConfig struct {
 	OrgName              string   `hcl:"org_name"`
 	APIToken             string   `hcl:"api_token,optional"`
 	BaseURL              string   `hcl:"base_url,optional"`
@@ -56,7 +56,7 @@ type OktaAuthConfig struct {
 	TokenType            string   `hcl:"token_type,optional"`
 }
 
-type OktaUserConfig struct {
+type OktaAuthUserConfig struct {
 	Username string   `hcl:"username"`
 	Password string   `hcl:"password"`
 	Groups   []string `hcl:"groups,optional"`
@@ -65,7 +65,7 @@ type OktaUserConfig struct {
 
 func (o *OktaAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *OktaAuthTestConfig `hcl:"config,block"`
+		Config *OktaAuthConfig `hcl:"config,block"`
 	}{}
 
 	diags := gohcl.DecodeBody(body, nil, testConfig)
@@ -73,13 +73,13 @@ func (o *OktaAuth) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 	o.config = testConfig.Config
-	if o.config.OktaAuthConfig.OrgName == "" {
+	if o.config.OktaAuthMountConfig.OrgName == "" {
 		return fmt.Errorf("no okta org_name provided but required")
 	}
-	if o.config.OktaUserConfig.Username == "" {
+	if o.config.OktaAuthUserConfig.Username == "" {
 		return fmt.Errorf("no okta username provided but required")
 	}
-	if o.config.OktaUserConfig.Password == "" {
+	if o.config.OktaAuthUserConfig.Password == "" {
 		return fmt.Errorf("no okta password provided but required")
 	}
 	return nil
@@ -106,22 +106,22 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := o.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("okta auth"))
-	if err := writeStruct(client, "auth/"+authPath+"/config", o.config.OktaAuthConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/config", o.config.OktaAuthMountConfig); err != nil {
 		return nil, err
 	}
 
-	if len(o.config.OktaUserConfig.Groups) > 0 || len(o.config.OktaUserConfig.Policies) > 0 {
+	if len(o.config.OktaAuthUserConfig.Groups) > 0 || len(o.config.OktaAuthUserConfig.Policies) > 0 {
 		setupLogger.Trace(writingLogMessage("okta user config"))
 		userConfig := map[string]any{}
 
-		if len(o.config.OktaUserConfig.Groups) > 0 {
-			userConfig["groups"] = o.config.OktaUserConfig.Groups
+		if len(o.config.OktaAuthUserConfig.Groups) > 0 {
+			userConfig["groups"] = o.config.OktaAuthUserConfig.Groups
 		}
 
-		if len(o.config.OktaUserConfig.Policies) > 0 {
-			userConfig["policies"] = o.config.OktaUserConfig.Policies
+		if len(o.config.OktaAuthUserConfig.Policies) > 0 {
+			userConfig["policies"] = o.config.OktaAuthUserConfig.Policies
 		}
-		_, err = client.Logical().Write("auth/"+authPath+"/users/"+o.config.OktaUserConfig.Username, userConfig)
+		_, err = client.Logical().Write("auth/"+authPath+"/users/"+o.config.OktaAuthUserConfig.Username, userConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error writing okta user config: %v", err)
 		}
@@ -130,8 +130,8 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	return &OktaAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       fmt.Appendf(nil, `{"password": "%s"}`, o.config.OktaUserConfig.Password),
-		username:   o.config.OktaUserConfig.Username,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, o.config.OktaAuthUserConfig.Password),
+		username:   o.config.OktaAuthUserConfig.Username,
 		logger:     o.logger,
 	}, nil
 }
@@ -146,7 +146,7 @@ func (o *OktaAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (o *OktaAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(o.logger, client, o.pathPrefix)
+	return cleanupMount(o.logger, client, o.pathPrefix)
 }
 
 func (o *OktaAuth) GetTargetInfo() TargetInfo {

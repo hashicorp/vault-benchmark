@@ -36,29 +36,29 @@ const (
 
 func init() {
 	TestList[TOTPSecretCreateTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "create", typeKey: TOTPSecretCreateTestType}
+		return &TOTPSecret{action: "create", typeKey: TOTPSecretCreateTestType}
 	}
 	TestList[TOTPSecretReadTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "read", typeKey: TOTPSecretReadTestType}
+		return &TOTPSecret{action: "read", typeKey: TOTPSecretReadTestType}
 	}
 	TestList[TOTPSecretGenerateTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "generate", typeKey: TOTPSecretGenerateTestType}
+		return &TOTPSecret{action: "generate", typeKey: TOTPSecretGenerateTestType}
 	}
 }
 
-type TOTPSecretTest struct {
+type TOTPSecret struct {
 	pathPrefix        string
 	header            http.Header
 	baseURL           string
 	createKeyDataJSON []byte
 	action            string
 	typeKey          string
-	config            *TOTPSecretTestConfig
+	config            *TOTPSecretConfig
 	logger            hclog.Logger
 	mountPath         string
 }
 
-type TOTPSecretTestConfig struct {
+type TOTPSecretConfig struct {
 	KeyName     string `hcl:"key_name"`
 	Issuer      string `hcl:"issuer"`
 	AccountName string `hcl:"account_name"`
@@ -68,11 +68,11 @@ type TOTPSecretTestConfig struct {
 	Generate    bool   `hcl:"generate,optional"`
 }
 
-func (t *TOTPSecretTest) ParseConfig(body hcl.Body) error {
+func (t *TOTPSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TOTPSecretTestConfig `hcl:"config,block"`
+		Config *TOTPSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TOTPSecretTestConfig{
+		Config: &TOTPSecretConfig{
 			KeyName:     DefaultKeyName,
 			Issuer:      DefaultIssuer,
 			AccountName: DefaultAccountName,
@@ -94,7 +94,7 @@ func (t *TOTPSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TOTPSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 
@@ -154,7 +154,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	}
 	createKeyDataJSON, _ := json.Marshal(createKeyData)
 
-	return &TOTPSecretTest{
+	return &TOTPSecret{
 		pathPrefix:        "/v1/" + mountPath,
 		header:            http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		action:            t.action,
@@ -167,7 +167,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	}, nil
 }
 
-func (t *TOTPSecretTest) Target(client *api.Client) vegeta.Target {
+func (t *TOTPSecret) Target(client *api.Client) vegeta.Target {
 	tgt := vegeta.Target{
 		Method: TOTPSecretTestMethod,
 		URL:    t.baseURL + "/keys/" + t.config.KeyName,
@@ -184,7 +184,7 @@ func (t *TOTPSecretTest) Target(client *api.Client) vegeta.Target {
 	return tgt
 }
 
-func (t *TOTPSecretTest) Cleanup(client *api.Client) error {
+func (t *TOTPSecret) Cleanup(client *api.Client) error {
 	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
 
 	err := client.Sys().Unmount(t.mountPath)
@@ -196,7 +196,7 @@ func (t *TOTPSecretTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (t *TOTPSecretTest) GetTargetInfo() TargetInfo {
+func (t *TOTPSecret) GetTargetInfo() TargetInfo {
 	method := TOTPSecretTestMethod
 	if t.action == "create" {
 		method = TOTPSecretCreateTestMethod
@@ -207,4 +207,4 @@ func (t *TOTPSecretTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (t *TOTPSecretTest) Flags(fs *flag.FlagSet) {}
+func (t *TOTPSecret) Flags(fs *flag.FlagSet) {}

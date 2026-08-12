@@ -40,16 +40,16 @@ type AWSAuth struct {
 	pathPrefix string
 	header     http.Header
 	login      cachedBody
-	config     *AWSAuthTestConfig
+	config     *AWSAuthConfig
 	logger     hclog.Logger
 }
 
-type AWSAuthTestConfig struct {
-	AWSAuthConfig     *AWSAuthConfig     `hcl:"auth,block"`
-	AWSTestUserConfig *AWSTestUserConfig `hcl:"test_user,block"`
+type AWSAuthConfig struct {
+	AWSAuthMountConfig *AWSAuthMountConfig `hcl:"auth,block"`
+	AWSAuthUserConfig *AWSAuthUserConfig `hcl:"test_user,block"`
 }
 
-type AWSAuthConfig struct {
+type AWSAuthMountConfig struct {
 	MaxRetries             int      `hcl:"max_retries,optional"`
 	AccessKey              string   `hcl:"access_key,optional"`
 	SecretKey              string   `hcl:"secret_key,optional"`
@@ -61,7 +61,7 @@ type AWSAuthConfig struct {
 	AllowedSTSHeaderValues []string `hcl:"allowed_sts_header_values,optional"`
 }
 
-type AWSTestUserConfig struct {
+type AWSAuthUserConfig struct {
 	Role                       string `hcl:"role"`
 	AuthType                   string `hcl:"auth_type,optional"`
 	BoundAMIID                 string `hcl:"bound_ami_id,optional"`
@@ -93,14 +93,14 @@ type AWSTestUserConfig struct {
 
 func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AWSAuthTestConfig `hcl:"config,block"`
+		Config *AWSAuthConfig `hcl:"config,block"`
 	}{
-		Config: &AWSAuthTestConfig{
-			AWSAuthConfig: &AWSAuthConfig{
+		Config: &AWSAuthConfig{
+			AWSAuthMountConfig: &AWSAuthMountConfig{
 				AccessKey: os.Getenv(AWSAuthAccessKey),
 				SecretKey: os.Getenv(AWSAuthSecretKey),
 			},
-			AWSTestUserConfig: &AWSTestUserConfig{},
+			AWSAuthUserConfig: &AWSAuthUserConfig{},
 		},
 	}
 
@@ -110,11 +110,11 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	if a.config.AWSAuthConfig.AccessKey == "" {
+	if a.config.AWSAuthMountConfig.AccessKey == "" {
 		return fmt.Errorf("no aws access_key provided but required")
 	}
 
-	if a.config.AWSAuthConfig.SecretKey == "" {
+	if a.config.AWSAuthMountConfig.SecretKey == "" {
 		return fmt.Errorf("no aws secret_key provided but required")
 	}
 
@@ -142,12 +142,12 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("aws auth"))
-	if err := writeStruct(client, "auth/"+authPath+"/config/client", a.config.AWSAuthConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/config/client", a.config.AWSAuthMountConfig); err != nil {
 		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("aws auth user"))
-	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, a.config.AWSTestUserConfig); err != nil {
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AWSAuthUserConfig.Role, a.config.AWSAuthUserConfig); err != nil {
 		return nil, err
 	}
 
@@ -190,7 +190,7 @@ func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *AWSAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(a.logger, client, a.pathPrefix)
+	return cleanupMount(a.logger, client, a.pathPrefix)
 }
 
 func (a *AWSAuth) GetTargetInfo() TargetInfo {
@@ -203,12 +203,12 @@ func (a *AWSAuth) GetTargetInfo() TargetInfo {
 func (a *AWSAuth) Flags(fs *flag.FlagSet) {}
 
 func (a *AWSAuth) buildLoginBody() ([]byte, error) {
-	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
+	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthMountConfig.AccessKey, a.config.AWSAuthMountConfig.SecretKey, "", a.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	region := a.config.AWSAuthConfig.STSRegion
+	region := a.config.AWSAuthMountConfig.STSRegion
 	switch region {
 	case "":
 		region = awsutil.DefaultRegion
@@ -216,13 +216,13 @@ func (a *AWSAuth) buildLoginBody() ([]byte, error) {
 		region = ""
 	}
 
-	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthConfig.IAMServerIDHeaderValue, region, a.logger)
+	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthMountConfig.IAMServerIDHeaderValue, region, a.logger)
 	if err != nil {
 		return nil, err
 	}
 	if loginData == nil {
 		return nil, fmt.Errorf("got nil response from GenerateLoginData")
 	}
-	loginData["role"] = a.config.AWSTestUserConfig.Role
+	loginData["role"] = a.config.AWSAuthUserConfig.Role
 	return json.Marshal(loginData)
 }

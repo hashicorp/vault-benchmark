@@ -32,11 +32,11 @@ type PostgreSQLSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *PostgreSQLSecretTestConfig
+	config     *PostgreSQLSecretConfig
 	logger     hclog.Logger
 }
 
-type PostgreSQLSecretTestConfig struct {
+type PostgreSQLSecretConfig struct {
 	PostgreSQLDBConfig   *PostgreSQLDBConfig   `hcl:"db_connection,block"`
 	PostgreSQLRoleConfig *PostgreSQLRoleConfig `hcl:"role,block"`
 }
@@ -74,9 +74,9 @@ type PostgreSQLRoleConfig struct {
 
 func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *PostgreSQLSecretTestConfig `hcl:"config,block"`
+		Config *PostgreSQLSecretConfig `hcl:"config,block"`
 	}{
-		Config: &PostgreSQLSecretTestConfig{
+		Config: &PostgreSQLSecretConfig{
 			PostgreSQLDBConfig: &PostgreSQLDBConfig{
 				Name:         "benchmark-postgres",
 				AllowedRoles: []string{"benchmark-role"},
@@ -156,7 +156,7 @@ func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(s.logger, client, s.pathPrefix)
+	return cleanupMount(s.logger, client, s.pathPrefix)
 }
 
 func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {

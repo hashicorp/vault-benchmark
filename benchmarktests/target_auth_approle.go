@@ -29,11 +29,11 @@ type ApproleAuth struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *ApproleAuthTestConfig
+	config     *ApproleAuthConfig
 	logger     hclog.Logger
 }
 
-type ApproleAuthTestConfig struct {
+type ApproleAuthConfig struct {
 	RoleConfig     *RoleConfig     `hcl:"role,block"`
 	SecretIDConfig *SecretIDConfig `hcl:"secret_id,block"`
 }
@@ -67,9 +67,9 @@ type SecretIDConfig struct {
 
 func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *ApproleAuthTestConfig `hcl:"config,block"`
+		Config *ApproleAuthConfig `hcl:"config,block"`
 	}{
-		Config: &ApproleAuthTestConfig{
+		Config: &ApproleAuthConfig{
 			RoleConfig: &RoleConfig{
 				Name: "benchmark-role",
 			},
@@ -149,7 +149,7 @@ func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *ApproleAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(a.logger, client, a.pathPrefix)
+	return cleanupMount(a.logger, client, a.pathPrefix)
 }
 
 func (a *ApproleAuth) GetTargetInfo() TargetInfo {

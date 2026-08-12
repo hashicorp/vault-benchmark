@@ -27,23 +27,23 @@ const (
 )
 
 func init() {
-	TestList[AzureSecretTestType] = func() BenchmarkBuilder { return &AzureTest{} }
+	TestList[AzureSecretTestType] = func() BenchmarkBuilder { return &AzureSecret{} }
 }
 
-type AzureTest struct {
+type AzureSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *AzureSecretTestConfig
+	config     *AzureSecretConfig
 	logger     hclog.Logger
 }
 
-type AzureSecretTestConfig struct {
-	AzureConfig *AzureSecretConfig `hcl:"azure,block"`
-	AzureRole   *AzureSecretRole   `hcl:"role,block"`
+type AzureSecretConfig struct {
+	AzureConfig *AzureSecretMountConfig `hcl:"azure,block"`
+	AzureRole   *AzureSecretRoleConfig   `hcl:"role,block"`
 }
 
-type AzureSecretConfig struct {
+type AzureSecretMountConfig struct {
 	SubscriptionId  string `hcl:"subscription_id,optional"`
 	TenantId        string `hcl:"tenant_id,optional"`
 	ClientId        string `hcl:"client_id,optional"`
@@ -53,7 +53,7 @@ type AzureSecretConfig struct {
 	RootPasswordTTL string `hcl:"root_password_ttl,optional"`
 }
 
-type AzureSecretRole struct {
+type AzureSecretRoleConfig struct {
 	Name                string `hcl:"name,optional"`
 	AzureRoles          string `hcl:"azure_roles,optional"`
 	AzureGroups         string `hcl:"azure_groups,optional"`
@@ -64,19 +64,19 @@ type AzureSecretRole struct {
 	PermanentlyDelete   bool   `hcl:"permanently_delete,optional"`
 }
 
-func (a *AzureTest) ParseConfig(body hcl.Body) error {
+func (a *AzureSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AzureSecretTestConfig `hcl:"config,block"`
+		Config *AzureSecretConfig `hcl:"config,block"`
 	}{
-		Config: &AzureSecretTestConfig{
-			AzureConfig: &AzureSecretConfig{
+		Config: &AzureSecretConfig{
+			AzureConfig: &AzureSecretMountConfig{
 				SubscriptionId: os.Getenv(AzureSecretSubscriptionID),
 				TenantId:       os.Getenv(AzureSecretTenantID),
 				ClientId:       os.Getenv(AzureSecretClientID),
 				ClientSecret:   os.Getenv(AzureSecretClientSecret),
 				Environment:    os.Getenv(AzureSecretEnvironment),
 			},
-			AzureRole: &AzureSecretRole{Name: "benchmark-role"},
+			AzureRole: &AzureSecretRoleConfig{Name: "benchmark-role"},
 		},
 	}
 
@@ -97,7 +97,7 @@ func (a *AzureTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (a *AzureSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	a.logger = targetLogger.Named(AzureSecretTestType)
@@ -128,7 +128,7 @@ func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *
 		return nil, err
 	}
 
-	return &AzureTest{
+	return &AzureSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.AzureRole.Name,
@@ -136,7 +136,7 @@ func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	}, nil
 }
 
-func (a *AzureTest) Target(client *api.Client) vegeta.Target {
+func (a *AzureSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: AzureSecretTestMethod,
 		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
@@ -144,15 +144,15 @@ func (a *AzureTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (a *AzureTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(a.logger, client, a.pathPrefix)
+func (a *AzureSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(a.logger, client, a.pathPrefix)
 }
 
-func (a *AzureTest) GetTargetInfo() TargetInfo {
+func (a *AzureSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     AzureSecretTestMethod,
 		pathPrefix: a.pathPrefix,
 	}
 }
 
-func (a *AzureTest) Flags(fs *flag.FlagSet) {}
+func (a *AzureSecret) Flags(fs *flag.FlagSet) {}

@@ -29,19 +29,19 @@ const (
 )
 
 func init() {
-	TestList[SSHKeySignTestType] = func() BenchmarkBuilder { return &SSHKeySignTest{} }
+	TestList[SSHKeySignTestType] = func() BenchmarkBuilder { return &SSHKeySignSecret{} }
 }
 
-type SSHKeySignTest struct {
+type SSHKeySignSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *SSHKeySignTestConfig
+	config     *SSHKeySignSecretConfig
 	logger     hclog.Logger
 	mountPath  string
 }
 
-type SSHKeySignTestConfig struct {
+type SSHKeySignSecretConfig struct {
 	CAConfig         *SSHKeySignCAConfig   `hcl:"ca,block"`
 	RoleConfig       *SSHKeySignRoleConfig `hcl:"role,block"`
 	KeySigningConfig *SSHKeySigningConfig  `hcl:"key_signing,block"`
@@ -103,11 +103,11 @@ type SSHKeySignRoleConfig struct {
 	NotBeforeDuration      string            `hcl:"not_before_duration,optional"`
 }
 
-func (s *SSHKeySignTest) ParseConfig(body hcl.Body) error {
+func (s *SSHKeySignSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *SSHKeySignTestConfig `hcl:"config,block"`
+		Config *SSHKeySignSecretConfig `hcl:"config,block"`
 	}{
-		Config: &SSHKeySignTestConfig{
+		Config: &SSHKeySignSecretConfig{
 			CAConfig: &SSHKeySignCAConfig{
 				KeyType: "rsa",
 				KeyBits: 0,
@@ -131,7 +131,7 @@ func (s *SSHKeySignTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (s *SSHKeySignSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	s.logger = targetLogger.Named(SSHKeySignTestType)
@@ -207,7 +207,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 		return nil, fmt.Errorf("error marshalling key signing config data: %v", err)
 	}
 
-	return &SSHKeySignTest{
+	return &SSHKeySignSecret{
 		mountPath:  "/v1/" + mountPath,
 		pathPrefix: "/v1/" + filepath.Join(mountPath, "sign", s.config.RoleConfig.Name),
 		body:       []byte(signingConfigString),
@@ -216,7 +216,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 	}, nil
 }
 
-func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
+func (s *SSHKeySignSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: SSHKeySignTestMethod,
 		URL:    client.Address() + s.pathPrefix,
@@ -225,15 +225,15 @@ func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(s.logger, client, s.mountPath)
+func (s *SSHKeySignSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(s.logger, client, s.mountPath)
 }
 
-func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {
+func (s *SSHKeySignSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     SSHKeySignTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
 }
 
-func (s *SSHKeySignTest) Flags(fs *flag.FlagSet) {}
+func (s *SSHKeySignSecret) Flags(fs *flag.FlagSet) {}

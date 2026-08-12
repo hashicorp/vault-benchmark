@@ -35,11 +35,11 @@ type RedisElastiCacheSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RedisElastiCacheSecretTestConfig
+	config     *RedisElastiCacheSecretConfig
 	logger     hclog.Logger
 }
 
-type RedisElastiCacheSecretTestConfig struct {
+type RedisElastiCacheSecretConfig struct {
 	DBConfig   *RedisElastiCacheDBConfig   `hcl:"db_connection,block"`
 	RoleConfig *RedisElastiCacheRoleConfig `hcl:"static_role,block"`
 }
@@ -70,9 +70,9 @@ type RedisElastiCacheRoleConfig struct {
 
 func (r *RedisElastiCacheSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RedisElastiCacheSecretTestConfig `hcl:"config,block"`
+		Config *RedisElastiCacheSecretConfig `hcl:"config,block"`
 	}{
-		Config: &RedisElastiCacheSecretTestConfig{
+		Config: &RedisElastiCacheSecretConfig{
 			DBConfig: &RedisElastiCacheDBConfig{
 				Name:            "benchmark-redis-elasticache",
 				PluginName:      "redis-elasticache-database-plugin",
@@ -161,7 +161,7 @@ func (r *RedisElastiCacheSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (r *RedisElastiCacheSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(r.logger, client, r.pathPrefix)
+	return cleanupMount(r.logger, client, r.pathPrefix)
 }
 
 func (r *RedisElastiCacheSecret) GetTargetInfo() TargetInfo {

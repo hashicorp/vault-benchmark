@@ -38,7 +38,7 @@ type SnowflakeDynamicSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *SnowflakeDynamicSecretTestConfig
+	config     *SnowflakeDynamicSecretConfig
 	logger     hclog.Logger
 }
 
@@ -46,16 +46,16 @@ type SnowflakeStaticSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *SnowflakeStaticSecretTestConfig
+	config     *SnowflakeStaticSecretConfig
 	logger     hclog.Logger
 }
 
-type SnowflakeDynamicSecretTestConfig struct {
+type SnowflakeDynamicSecretConfig struct {
 	SnowflakeDBConfig   *SnowflakeDBConfig   `hcl:"db_connection,block"`
 	SnowflakeRoleConfig *SnowflakeRoleConfig `hcl:"role,block"`
 }
 
-type SnowflakeStaticSecretTestConfig struct {
+type SnowflakeStaticSecretConfig struct {
 	SnowflakeDBConfig         *SnowflakeDBConfig         `hcl:"db_connection,block"`
 	SnowflakeStaticRoleConfig *SnowflakeStaticRoleConfig `hcl:"static_role,block"`
 }
@@ -100,9 +100,9 @@ type SnowflakeStaticRoleConfig struct {
 
 func (s *SnowflakeDynamicSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *SnowflakeDynamicSecretTestConfig `hcl:"config,block"`
+		Config *SnowflakeDynamicSecretConfig `hcl:"config,block"`
 	}{
-		Config: &SnowflakeDynamicSecretTestConfig{
+		Config: &SnowflakeDynamicSecretConfig{
 			SnowflakeDBConfig: &SnowflakeDBConfig{
 				Name:               "benchmark-snowflake-dynamic",
 				AllowedRoles:       []string{"benchmark-dynamic-role"},
@@ -192,7 +192,7 @@ func (s *SnowflakeDynamicSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SnowflakeDynamicSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(s.logger, client, s.pathPrefix)
+	return cleanupMount(s.logger, client, s.pathPrefix)
 }
 
 func (s *SnowflakeDynamicSecret) GetTargetInfo() TargetInfo {
@@ -206,9 +206,9 @@ func (s *SnowflakeDynamicSecret) Flags(fs *flag.FlagSet) {}
 
 func (s *SnowflakeStaticSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *SnowflakeStaticSecretTestConfig `hcl:"config,block"`
+		Config *SnowflakeStaticSecretConfig `hcl:"config,block"`
 	}{
-		Config: &SnowflakeStaticSecretTestConfig{
+		Config: &SnowflakeStaticSecretConfig{
 			SnowflakeDBConfig: &SnowflakeDBConfig{
 				Name:               "benchmark-snowflake-static",
 				AllowedRoles:       []string{"benchmark-static-role"},
@@ -319,7 +319,7 @@ func (s *SnowflakeStaticSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SnowflakeStaticSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(s.logger, client, s.pathPrefix)
+	return cleanupMount(s.logger, client, s.pathPrefix)
 }
 
 func (s *SnowflakeStaticSecret) GetTargetInfo() TargetInfo {

@@ -26,24 +26,24 @@ const (
 )
 
 func init() {
-	TestList[GCPSecretTestType] = func() BenchmarkBuilder { return &GCPTest{} }
+	TestList[GCPSecretTestType] = func() BenchmarkBuilder { return &GCPSecret{} }
 }
 
-type GCPTest struct {
+type GCPSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
 	targetURL  string
-	config     *GCPSecretTestConfig
+	config     *GCPSecretConfig
 	logger     hclog.Logger
 }
 
-type GCPSecretTestConfig struct {
-	GCPConfig  *GCPSecretConfig  `hcl:"gcp,block"`
+type GCPSecretConfig struct {
+	GCPConfig  *GCPSecretMountConfig  `hcl:"gcp,block"`
 	GCPRoleset *GCPSecretRoleset `hcl:"roleset,block"`
 }
 
-type GCPSecretConfig struct {
+type GCPSecretMountConfig struct {
 	Credentials string `hcl:"credentials,optional"`
 	TTL         string `hcl:"ttl,optional"`
 	MaxTTL      string `hcl:"max_ttl,optional"`
@@ -57,12 +57,12 @@ type GCPSecretRoleset struct {
 	TokenScopes []string `hcl:"token_scopes,optional"`
 }
 
-func (g *GCPTest) ParseConfig(body hcl.Body) error {
+func (g *GCPSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *GCPSecretTestConfig `hcl:"config,block"`
+		Config *GCPSecretConfig `hcl:"config,block"`
 	}{
-		Config: &GCPSecretTestConfig{
-			GCPConfig:  &GCPSecretConfig{Credentials: os.Getenv(GCPSecretCredentials)},
+		Config: &GCPSecretConfig{
+			GCPConfig:  &GCPSecretMountConfig{Credentials: os.Getenv(GCPSecretCredentials)},
 			GCPRoleset: &GCPSecretRoleset{Name: "benchmark-roleset", SecretType: GCPAccessTokenType, Bindings: os.Getenv(GCPSecretBindings)},
 		},
 	}
@@ -88,7 +88,7 @@ func (g *GCPTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (g *GCPSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	g.logger = targetLogger.Named(RedisDynamicSecretTestType)
@@ -145,7 +145,7 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	if config.GCPRoleset.SecretType == GCPServiceAccountType {
 		suffix = "/key"
 	}
-	return &GCPTest{
+	return &GCPSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.GCPRoleset.Name,
@@ -154,7 +154,7 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}, nil
 }
 
-func (g *GCPTest) Target(client *api.Client) vegeta.Target {
+func (g *GCPSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: GCPSecretTestMethod,
 		URL:    g.targetURL,
@@ -162,15 +162,15 @@ func (g *GCPTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (g *GCPTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(g.logger, client, g.pathPrefix)
+func (g *GCPSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(g.logger, client, g.pathPrefix)
 }
 
-func (g *GCPTest) GetTargetInfo() TargetInfo {
+func (g *GCPSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     GCPSecretTestMethod,
 		pathPrefix: g.pathPrefix,
 	}
 }
 
-func (g *GCPTest) Flags(fs *flag.FlagSet) {}
+func (g *GCPSecret) Flags(fs *flag.FlagSet) {}

@@ -32,11 +32,11 @@ type RedisDynamicSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RedisDynamicSecretTestConfig
+	config     *RedisDynamicSecretConfig
 	logger     hclog.Logger
 }
 
-type RedisDynamicSecretTestConfig struct {
+type RedisDynamicSecretConfig struct {
 	DBConfig   *RedisDBConfig          `hcl:"db_connection,block"`
 	RoleConfig *RedisDynamicRoleConfig `hcl:"role,block"`
 }
@@ -51,9 +51,9 @@ type RedisDynamicRoleConfig struct {
 
 func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RedisDynamicSecretTestConfig `hcl:"config,block"`
+		Config *RedisDynamicSecretConfig `hcl:"config,block"`
 	}{
-		Config: &RedisDynamicSecretTestConfig{
+		Config: &RedisDynamicSecretConfig{
 			DBConfig: &RedisDBConfig{
 				Name:         "benchmark-redis-db",
 				PluginName:   "redis-database-plugin",
@@ -133,7 +133,7 @@ func (r *RedisDynamicSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (r *RedisDynamicSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(r.logger, client, r.pathPrefix)
+	return cleanupMount(r.logger, client, r.pathPrefix)
 }
 
 func (r *RedisDynamicSecret) GetTargetInfo() TargetInfo {

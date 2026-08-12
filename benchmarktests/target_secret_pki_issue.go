@@ -25,21 +25,21 @@ const (
 )
 
 func init() {
-	TestList[PKIIssueTestType] = func() BenchmarkBuilder { return &PKIIssueTest{} }
+	TestList[PKIIssueTestType] = func() BenchmarkBuilder { return &PKIIssueSecret{} }
 }
 
-type PKIIssueTest struct {
+type PKIIssueSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
-	config     *PKISecretIssueTestConfig
+	config     *PKIIssueSecretConfig
 	logger     hclog.Logger
 	rootpath   string
 	intpath    string
 	cn         string
 }
 
-type PKISecretIssueTestConfig struct {
+type PKIIssueSecretConfig struct {
 	SetupDelay            string                `hcl:"setup_delay,optional"`
 	RootCAConfig          *PKIIssueRootConfig   `hcl:"root_ca,block"`
 	IntermediateCSRConfig *PKIIssueIntCSRConfig `hcl:"intermediate_csr,block"`
@@ -222,11 +222,11 @@ type PKIIssueRoleConfig struct {
 	AllowedUserIDs               string   `hcl:"allowed_user_ids,optional"`
 }
 
-func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
+func (p *PKIIssueSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *PKISecretIssueTestConfig `hcl:"config,block"`
+		Config *PKIIssueSecretConfig `hcl:"config,block"`
 	}{
-		Config: &PKISecretIssueTestConfig{
+		Config: &PKIIssueSecretConfig{
 			SetupDelay: "1s",
 			RootCAConfig: &PKIIssueRootConfig{
 				Type:       "internal",
@@ -259,7 +259,7 @@ func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (p *PKIIssueSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	p.logger = targetLogger.Named(PKIIssueTestType)
@@ -291,7 +291,7 @@ func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, fmt.Errorf("error marshaling issue config data: %v", err)
 	}
 
-	return &PKIIssueTest{
+	return &PKIIssueSecret{
 		pathPrefix: "/v1/" + path,
 		cn:         p.config.IssueConfig.CommonName,
 		header:     generateHeader(client),
@@ -302,7 +302,7 @@ func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 	}, nil
 }
 
-func (p *PKIIssueTest) Target(client *api.Client) vegeta.Target {
+func (p *PKIIssueSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: PKIIssueTestMethod,
 		URL:    client.Address() + p.pathPrefix,
@@ -311,7 +311,7 @@ func (p *PKIIssueTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (p *PKIIssueTest) Cleanup(client *api.Client) error {
+func (p *PKIIssueSecret) Cleanup(client *api.Client) error {
 	p.logger.Trace(cleanupLogMessage(p.rootpath))
 	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
 	if err != nil {
@@ -326,16 +326,16 @@ func (p *PKIIssueTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (p *PKIIssueTest) GetTargetInfo() TargetInfo {
+func (p *PKIIssueSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     PKIIssueTestMethod,
 		pathPrefix: p.pathPrefix,
 	}
 }
 
-func (p *PKIIssueTest) Flags(fs *flag.FlagSet) {}
+func (p *PKIIssueSecret) Flags(fs *flag.FlagSet) {}
 
-func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
+func (p *PKIIssueSecret) createRootCA(cli *api.Client, pfx string) error {
 	rootPath := pfx + "-root"
 
 	p.logger.Trace(mountLogMessage("secrets", "pki", rootPath))
@@ -384,7 +384,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	return nil
 }
 
-func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
+func (p *PKIIssueSecret) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
 	rootPath := fmt.Sprintf("%v-root", pfx)
 	intPath := fmt.Sprintf("%v-int", pfx)
 

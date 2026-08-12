@@ -32,11 +32,11 @@ type MySQLSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *MySQLSecretTestConfig
+	config     *MySQLSecretConfig
 	logger     hclog.Logger
 }
 
-type MySQLSecretTestConfig struct {
+type MySQLSecretConfig struct {
 	MySQLDBConfig   *MySQLDBConfig   `hcl:"db_connection,block"`
 	MySQLRoleConfig *MySQLRoleConfig `hcl:"role,block"`
 }
@@ -74,9 +74,9 @@ type MySQLRoleConfig struct {
 
 func (m *MySQLSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *MySQLSecretTestConfig `hcl:"config,block"`
+		Config *MySQLSecretConfig `hcl:"config,block"`
 	}{
-		Config: &MySQLSecretTestConfig{
+		Config: &MySQLSecretConfig{
 			MySQLDBConfig: &MySQLDBConfig{
 				Name:         "benchmark-mysql",
 				AllowedRoles: []string{"benchmark-role"},
@@ -156,7 +156,7 @@ func (m *MySQLSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (m *MySQLSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(m.logger, client, m.pathPrefix)
+	return cleanupMount(m.logger, client, m.pathPrefix)
 }
 
 func (m *MySQLSecret) GetTargetInfo() TargetInfo {

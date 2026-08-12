@@ -111,7 +111,7 @@ func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (u *UserpassAuth) Cleanup(client *api.Client) error {
-	return cleanupAuthMount(u.logger, client, u.pathPrefix)
+	return cleanupMount(u.logger, client, u.pathPrefix)
 }
 
 func (u *UserpassAuth) GetTargetInfo() TargetInfo {

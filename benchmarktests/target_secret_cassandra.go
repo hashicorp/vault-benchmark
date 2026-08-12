@@ -32,11 +32,11 @@ type CassandraSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *CassandraSecretTestConfig
+	config     *CassandraSecretConfig
 	logger     hclog.Logger
 }
 
-type CassandraSecretTestConfig struct {
+type CassandraSecretConfig struct {
 	CassandraDBConfig   *CassandraDBConfig   `hcl:"db_connection,block"`
 	CassandraRoleConfig *CassandraRoleConfig `hcl:"role,block"`
 }
@@ -80,9 +80,9 @@ type CassandraRoleConfig struct {
 
 func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *CassandraSecretTestConfig `hcl:"config,block"`
+		Config *CassandraSecretConfig `hcl:"config,block"`
 	}{
-		Config: &CassandraSecretTestConfig{
+		Config: &CassandraSecretConfig{
 			CassandraDBConfig: &CassandraDBConfig{
 				Name:         "benchmark-cassandra",
 				PluginName:   "cassandra-database-plugin",
@@ -163,7 +163,7 @@ func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
 }
 
 func (c *CassandraSecret) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(c.logger, client, c.pathPrefix)
+	return cleanupMount(c.logger, client, c.pathPrefix)
 }
 
 func (c *CassandraSecret) GetTargetInfo() TargetInfo {

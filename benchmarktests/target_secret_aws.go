@@ -24,18 +24,18 @@ const (
 )
 
 func init() {
-	TestList[AWSSecretTestType] = func() BenchmarkBuilder { return &AWSTest{} }
+	TestList[AWSSecretTestType] = func() BenchmarkBuilder { return &AWSSecret{} }
 }
 
-type AWSTest struct {
+type AWSSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *AWSSecretTestConfig
+	config     *AWSSecretConfig
 	logger     hclog.Logger
 }
 
-type AWSSecretTestConfig struct {
+type AWSSecretConfig struct {
 	AWSConnectionConfig *AWSConnectionConfig `hcl:"connection,block"`
 	AWSRoleConfig       *AWSRoleConfig       `hcl:"role,block"`
 }
@@ -64,11 +64,11 @@ type AWSRoleConfig struct {
 	PermissionsBoundaryARN string `hcl:"permissions_boundary_arn,optional"`
 }
 
-func (a *AWSTest) ParseConfig(body hcl.Body) error {
+func (a *AWSSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AWSSecretTestConfig `hcl:"config,block"`
+		Config *AWSSecretConfig `hcl:"config,block"`
 	}{
-		Config: &AWSSecretTestConfig{
+		Config: &AWSSecretConfig{
 			AWSConnectionConfig: &AWSConnectionConfig{
 				AccessKey: os.Getenv(AWSSecretAccessKey),
 				SecretKey: os.Getenv(AWSSecretSecretKey),
@@ -97,7 +97,7 @@ func (a *AWSTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (a *AWSSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	a.logger = targetLogger.Named(AWSSecretTestType)
@@ -127,7 +127,7 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, err
 	}
 
-	return &AWSTest{
+	return &AWSSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   a.config.AWSRoleConfig.Name,
@@ -135,7 +135,7 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}, nil
 }
 
-func (a *AWSTest) Target(client *api.Client) vegeta.Target {
+func (a *AWSSecret) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: AWSSecretTestMethod,
 		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
@@ -143,15 +143,15 @@ func (a *AWSTest) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-func (a *AWSTest) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(a.logger, client, a.pathPrefix)
+func (a *AWSSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(a.logger, client, a.pathPrefix)
 }
 
-func (a *AWSTest) GetTargetInfo() TargetInfo {
+func (a *AWSSecret) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     AWSSecretTestMethod,
 		pathPrefix: a.pathPrefix,
 	}
 }
 
-func (a *AWSTest) Flags(fs *flag.FlagSet) {}
+func (a *AWSSecret) Flags(fs *flag.FlagSet) {}

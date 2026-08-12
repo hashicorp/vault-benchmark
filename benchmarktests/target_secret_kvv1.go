@@ -27,33 +27,33 @@ const (
 
 func init() {
 	TestList[KVV1ReadTestType] = func() BenchmarkBuilder {
-		return &KVV1Test{action: "read"}
+		return &KVV1Secret{action: "read"}
 	}
 	TestList[KVV1WriteTestType] = func() BenchmarkBuilder {
-		return &KVV1Test{action: "write"}
+		return &KVV1Secret{action: "write"}
 	}
 }
 
-type KVV1Test struct {
+type KVV1Secret struct {
 	pathPrefix string
 	header     http.Header
 	writeBody  []byte
-	config     *KVV1SecretTestConfig
+	config     *KVV1SecretConfig
 	action     string
 	numKVs     int
 	logger     hclog.Logger
 }
 
-type KVV1SecretTestConfig struct {
+type KVV1SecretConfig struct {
 	KVSize int `hcl:"kvsize,optional"`
 	NumKVs int `hcl:"numkvs,optional"`
 }
 
-func (k *KVV1Test) ParseConfig(body hcl.Body) error {
+func (k *KVV1Secret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *KVV1SecretTestConfig `hcl:"config,block"`
+		Config *KVV1SecretConfig `hcl:"config,block"`
 	}{
-		Config: &KVV1SecretTestConfig{
+		Config: &KVV1SecretConfig{
 			KVSize: 1,
 			NumKVs: 1000,
 		},
@@ -67,7 +67,7 @@ func (k *KVV1Test) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KVV1Secret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	k.logger = targetLogger.Named("kvv1")
@@ -118,7 +118,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	if lastIndex != "" {
 		headers["X-Vault-Index"] = []string{lastIndex}
 	}
-	return &KVV1Test{
+	return &KVV1Secret{
 		pathPrefix: "/v1/" + mountPath,
 		action:     k.action,
 		header:     headers,
@@ -128,7 +128,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
-func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
+func (k *KVV1Secret) Target(client *api.Client) vegeta.Target {
 	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
 	t := vegeta.Target{
 		Method: KVV1ReadTestMethod,
@@ -142,11 +142,11 @@ func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
 	return t
 }
 
-func (k *KVV1Test) Cleanup(client *api.Client) error {
-	return cleanupSecretMount(k.logger, client, k.pathPrefix)
+func (k *KVV1Secret) Cleanup(client *api.Client) error {
+	return cleanupMount(k.logger, client, k.pathPrefix)
 }
 
-func (k *KVV1Test) GetTargetInfo() TargetInfo {
+func (k *KVV1Secret) GetTargetInfo() TargetInfo {
 	var method string
 	switch k.action {
 	case "write":
@@ -160,4 +160,4 @@ func (k *KVV1Test) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (k *KVV1Test) Flags(fs *flag.FlagSet) {}
+func (k *KVV1Secret) Flags(fs *flag.FlagSet) {}
