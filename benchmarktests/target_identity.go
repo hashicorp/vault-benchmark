@@ -40,15 +40,16 @@ type Identity struct {
 	pathPrefix string
 	header     http.Header
 
-	method    string
-	runID     string // per-run UUID; seeds every object name so each run is isolated
-	mountName string
+	method      string
+	runID       string // per-run UUID; seeds every object name so each run is isolated
+	mountName   string
+	loginPrefix string // mountName + "-entity-" + runID + "-"; precomputed for Target hot path
 
 	loginBody  []byte
 	loginUsers int
-	groupIDs    []string // live ids for group_read; removing that workload simplifies this + Cleanup
-	accessors   []string
-	aliasCap    int // aliases per filled entity; needed by Cleanup to disable all mounts
+	groupIDs   []string // live ids for group_read; removing that workload simplifies this + Cleanup
+	accessors  []string
+	aliasCap   int // aliases per filled entity; needed by Cleanup to disable all mounts
 
 	config *IdentityConfig
 	logger hclog.Logger
@@ -165,11 +166,12 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	result := &Identity{
-		config:     i.config,
-		logger:     i.logger,
-		mountName:  mountName,
-		runID:      runID,
-		loginUsers: i.loginUsers,
+		config:      i.config,
+		logger:      i.logger,
+		mountName:   mountName,
+		runID:       runID,
+		loginPrefix: mountName + "-entity-" + runID + "-",
+		loginUsers:  i.loginUsers,
 	}
 
 	var aliasFill, aliasCap int
@@ -252,7 +254,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 	switch i.config.Workload {
 	case identityWorkloadLogin:
-		t.URL += "/login/" + i.mountName + "-entity-" + i.runID + "-" + strconv.Itoa(rand.Intn(i.loginUsers))
+		t.URL += "/login/" + i.loginPrefix + strconv.Itoa(rand.Intn(i.loginUsers))
 		t.Body = i.loginBody
 	case identityWorkloadGroupRead:
 		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
