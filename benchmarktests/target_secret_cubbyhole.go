@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/hashicorp/go-hclog"
@@ -135,7 +134,7 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	if topLevelConfig.RandomMounts {
 		randomSuffix, err := uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 		secretPath = fmt.Sprintf("%s-%s", c.config.Path, randomSuffix)
 	}

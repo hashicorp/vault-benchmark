@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -103,7 +102,7 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 

@@ -11,7 +11,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -152,7 +151,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 
@@ -169,7 +168,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	setupLogger.Trace("generating ecdsa keys")
 	privKey, pubKey, err := generateECDSAKeys()
 	if err != nil {
-		log.Fatalf(err.Error())
+		return nil, fmt.Errorf("error generating ECDSA keys: %w", err)
 	}
 
 	if j.config.JWTAuthConfig.JWTValidationPubKeys == nil && j.config.JWTAuthConfig.JWKSUrl == "" && j.config.JWTAuthConfig.OIDCDiscoveryUrl == "" {
@@ -202,7 +201,10 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace("generating test jwt")
-	jwtData := j.getTestJWT(privKey)
+	jwtData, err := j.getTestJWT(privKey)
+	if err != nil {
+		return nil, fmt.Errorf("error generating test JWT: %w", err)
+	}
 
 	return &JWTAuth{
 		header:     generateHeader(client),
@@ -214,7 +216,7 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 func (j *JWTAuth) Flags(fs *flag.FlagSet) {}
 
-func (j *JWTAuth) getTestJWT(privKey string) string {
+func (j *JWTAuth) getTestJWT(privKey string) (string, error) {
 	cl := sqjwt.Claims{
 		Subject:   j.config.JWTRoleConfig.BoundSubject,
 		Issuer:    j.config.JWTAuthConfig.BoundIssuer,
@@ -237,21 +239,21 @@ func (j *JWTAuth) getTestJWT(privKey string) string {
 		var err error
 		key, err = x509.ParseECPrivateKey(block.Bytes)
 		if err != nil {
-			log.Fatal(err)
+			return "", fmt.Errorf("error parsing EC private key: %w", err)
 		}
 	}
 
 	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, (&jose.SignerOptions{}).WithType("JWT"))
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("error creating JWT signer: %w", err)
 	}
 
 	raw, err := sqjwt.Signed(sig).Claims(cl).Claims(privateCl).CompactSerialize()
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("error serializing JWT: %w", err)
 	}
 
-	return raw
+	return raw, nil
 }
 
 func generateECDSAKeys() (string, string, error) {

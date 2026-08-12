@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -159,7 +158,7 @@ func (r *RedisElastiCacheSecret) Setup(client *api.Client, mountName string, top
 	if topLevelConfig.RandomMounts {
 		secretUuid, err := uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 		secretPath = fmt.Sprintf("%s-%s", mountName, secretUuid)
 	}

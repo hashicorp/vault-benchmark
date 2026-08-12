@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -128,7 +127,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 

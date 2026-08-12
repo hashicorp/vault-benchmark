@@ -33,8 +33,6 @@ var (
 	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
 
-// cachedBody holds a precomputed request body that expires and must be periodically refreshed.
-// mu serializes refreshes so concurrent Vegeta workers don't race on body/expiry writes.
 // Must not be copied after first use — embed by value only in structs accessed exclusively via pointer.
 type cachedBody struct {
 	mu     sync.Mutex
@@ -45,8 +43,6 @@ type cachedBody struct {
 func omitEmpty(in any) {
 	r := reflect.ValueOf(in)
 	for _, e := range r.MapKeys() {
-		// If the value is its zero value, we don't want to add it to
-		// the resulting map.
 		v := r.MapIndex(e)
 		if v.Elem().IsZero() {
 			r.SetMapIndex(e, reflect.Value{})
@@ -54,8 +50,6 @@ func omitEmpty(in any) {
 	}
 }
 
-// structToMap decodes the config structs defined in tests to maps so
-// they can be passed in as part of the Vault API request
 func structToMap(in any) (map[string]any, error) {
 	tMap := make(map[string]any)
 	tDecoderConfig := mapstructure.DecoderConfig{
@@ -82,7 +76,6 @@ func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer) (str
 		return "", "", fmt.Errorf("error generating private key for server certificate: %v", err)
 	}
 
-	// The serial number for the cert
 	sn, err := serialNumber()
 	if err != nil {
 		return "", "", fmt.Errorf("error generating serial number: %v", err)
@@ -232,7 +225,6 @@ func natLess(a, b string) bool {
 
 		switch {
 		case aDigit && bDigit:
-			// Consume the full digit run from each string.
 			startA, startB := i, j
 			for i < len(a) && a[i] >= '0' && a[i] <= '9' {
 				i++
@@ -255,7 +247,6 @@ func natLess(a, b string) bool {
 				return (i - startA) < (j - startB)
 			}
 		case aDigit != bDigit:
-			// A numeric segment sorts before a non-numeric one.
 			return aDigit
 		default:
 			if a[i] != b[j] {
@@ -266,7 +257,6 @@ func natLess(a, b string) bool {
 		}
 	}
 
-	// Whichever string has characters remaining is the longer one.
 	return len(a)-i < len(b)-j
 }
 

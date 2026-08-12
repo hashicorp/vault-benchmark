@@ -176,10 +176,7 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	return &KubeAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		// TODO: projected service account tokens rotate (default 1h in most clusters).
-		// Benchmarks longer than the token TTL will silently accumulate 401s. Apply the
-		// cachedBody refresh pattern from target_auth_aws.go; refresh would re-read from
-		// DefaultServiceAccountTokenPath (kubelet rotates the file in place).
+		// TODO: service account tokens rotate (~1h); long benchmarks accumulate 401s. Apply cachedBody refresh, re-reading DefaultServiceAccountTokenPath.
 		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubeTestRoleConfig.Name, jwt),
 		logger:     k.logger,
 	}, nil

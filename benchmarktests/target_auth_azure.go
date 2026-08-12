@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -146,7 +145,7 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 
@@ -192,18 +191,15 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 
 	azureBody, err := json.Marshal(azureAuthUser)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling Azure login data: %w", err)
+		return nil, fmt.Errorf("error marshaling azure login body: %w", err)
 	}
 
-	// TODO: the Azure JWT in azureBody (from AzureAuthUser.JWT) typically expires in 1h.
-	// Benchmarks longer than 1h will silently accumulate 401s. Apply the cachedBody refresh
-	// pattern from target_auth_aws.go; the refresh call would re-marshal azureAuthUser with
-	// a new JWT obtained from the operator's token source.
+	// TODO: Azure JWT expires ~1h; long benchmarks accumulate 401s. Apply cachedBody refresh (see target_auth_aws.go).
 	return &AzureAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		logger:     a.logger,
 		body:       azureBody,
+		logger:     a.logger,
 	}, nil
 }
 

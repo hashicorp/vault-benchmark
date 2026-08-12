@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -30,8 +29,8 @@ func init() {
 
 type ApproleAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *ApproleAuthTestConfig
 	logger     hclog.Logger
 }
@@ -121,7 +120,7 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 
@@ -165,10 +164,13 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error reading approle secret-id: %v", err)
 	}
 
+	roleID := roleIDSecret.Data["role_id"].(string)
+	secretID := secretId.Data["secret_id"].(string)
+
 	return &ApproleAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       fmt.Appendf(nil, `{"role_id": "%s", "secret_id": "%s"}`, roleIDSecret.Data["role_id"].(string), secretId.Data["secret_id"].(string)),
+		body:       fmt.Appendf(nil, `{"role_id": "%s", "secret_id": "%s"}`, roleID, secretID),
 		logger:     a.logger,
 	}, nil
 }

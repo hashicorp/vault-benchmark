@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"sort"
@@ -89,7 +88,7 @@ type TargetMulti struct {
 
 func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 	if i > 99 || i < 0 {
-		log.Fatalf("i must be between 0 and 99")
+		panic(fmt.Sprintf("choose: i must be between 0 and 99, got %d", i))
 	}
 
 	total := 0
@@ -100,8 +99,7 @@ func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 		}
 	}
 
-	log.Fatalf("unreachable")
-	return nil
+	panic(fmt.Sprintf("choose: weights do not sum to 100 (got %d), unreachable with i=%d", total, i))
 }
 
 func (tm TargetMulti) Cleanup(client *api.Client) error {

@@ -22,14 +22,12 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	CertAuthTestType   = "cert_auth"
 	CertAuthTestMethod = "POST"
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[CertAuthTestType] = func() BenchmarkBuilder { return &CertAuth{} }
 }
 
@@ -46,7 +44,6 @@ type CaCert struct {
 	Signer   crypto.Signer
 }
 
-// Main config struct
 type CertAuthRoleConfig struct {
 	Name                       string   `hcl:"name,optional"`
 	Certificate                string   `hcl:"certificate,optional"`
@@ -111,33 +108,29 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 
 	if c.config.Certificate == "" {
-		// Create self-signed CA
 		c.logger.Warn("no CA provided; creating self-signed CA")
 		benchCA, err := GenerateCA()
 		if err != nil {
 			log.Fatalf("error generating benchmark CA: %v", err)
 		}
 
-		// Generate Client cert for Cert Auth
 		c.logger.Trace("creating client cert")
 		clientCert, clientKey, err := GenerateCert(benchCA.Template, benchCA.Signer)
 		if err != nil {
 			log.Fatalf("error generating client cert: %v", err)
 		}
 
-		// Create X509 Key Pair
 		c.logger.Trace("generating x509 key pair")
 		keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
 		if err != nil {
 			log.Fatalf("error generating client key pair: %v", err)
 		}
 
-		// Create new client with newly generated cert
 		c.logger.Trace("creating new client with generated cert")
 		tClientConfig := client.CloneConfig()
 		tClientConfig.HttpClient.Transport.(*http.Transport).TLSClientConfig.Certificates = []tls.Certificate{keyPair}
@@ -150,13 +143,10 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 		c.config.Certificate = clientCert
 
-		// TODO: This only will work for one cert auth test since we're using this new client
-		// We should invesitage how we can give each test its own client.
-		// Set the client to the new client with the newly generated client cert
+		// TODO: only the last cert_auth target's TLS config is active when multiple run simultaneously; each needs its own client.
 		client = nClient
 	}
 
-	// Create Cert Auth mount
 	c.logger.Trace(mountLogMessage("auth", "cert", authPath))
 	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
 		Type: "cert",
@@ -167,14 +157,12 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 
 	setupLogger := c.logger.Named(authPath)
 
-	// Decode config into map to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(c.config)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Set up role
 	setupLogger.Trace(writingLogMessage("role"), "name", c.config.Name)
 	rolePath := filepath.Join("auth", authPath, "certs", c.config.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
@@ -183,7 +171,7 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	return &CertAuth{
-		pathPrefix: "/v1/auth/" + authPath,
+		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
 		header:     generateHeader(client),
 		logger:     c.logger,
 	}, nil

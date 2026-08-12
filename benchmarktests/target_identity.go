@@ -48,33 +48,28 @@ type Identity struct {
 	loginUsers  int      // min(login_users, alias_count, entity_count)
 	loginPrefix string   // precomputed "mountName-entity-runID-"; avoids per-tick string allocs in Target
 	groupIDs    []string // live ids for group_read; removing that workload simplifies this + Cleanup
-	accessors   []string // one userpass mount accessor per alias slot (len == aliasCap)
+	accessors   []string
 	aliasCap    int      // aliases per filled entity; needed by Cleanup to disable all mounts
 
 	logger hclog.Logger
 }
 
 type IdentityConfig struct {
-	Workload    string          `hcl:"workload,optional"`
-	EntityCount int             `hcl:"entity_count,optional"`
-	AliasCount  int             `hcl:"alias_count,optional"`
-	LoginUsers  int             `hcl:"login_users,optional"`
-	GroupCount  int             `hcl:"group_count,optional"`
-	Groups      *GroupConfig    `hcl:"groups,block"`
-	Aliases     *AliasesConfig  `hcl:"aliases,block"`
+	Workload    string `hcl:"workload,optional"`
+	EntityCount int    `hcl:"entity_count,optional"`
+
+	AliasCount int            `hcl:"alias_count,optional"`
+	Aliases    *AliasesConfig `hcl:"aliases,block"`
+
+	GroupCount int          `hcl:"group_count,optional"`
+	Groups     *GroupConfig `hcl:"groups,block"`
+
+	LoginUsers int `hcl:"login_users,optional"`
+
 	PolicyCount int             `hcl:"policy_count,optional"`
 	Policies    *PoliciesConfig `hcl:"policies,block"`
 
-	// TODO: nested groups -- member_group_ids for org-hierarchy shapes (policy resolution walks the tree).
-}
-
-// GroupConfig controls member assignment for the group_count groups:
-// omit or preset="balanced" spreads entities evenly; "empty" fills nothing;
-// "full" puts all entities in every group; count+size fills only count groups.
-type GroupConfig struct {
-	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
-	Count  int    `hcl:"count,optional"`  // partial: groups that get members
-	Size   int    `hcl:"size,optional"`   // partial: members per filled group
+	// TODO: support nested groups (member_group_ids).
 }
 
 // AliasesConfig controls alias distribution across entities for the alias_count budget:
@@ -84,6 +79,15 @@ type AliasesConfig struct {
 	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
 	Count  int    `hcl:"count,optional"`  // partial: entities that get aliases
 	Size   int    `hcl:"size,optional"`   // partial: aliases per filled entity
+}
+
+// GroupConfig controls member assignment for the group_count groups:
+// omit or preset="balanced" spreads entities evenly; "empty" fills nothing;
+// "full" puts all entities in every group; count+size fills only count groups.
+type GroupConfig struct {
+	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
+	Count  int    `hcl:"count,optional"`  // partial: groups that get members
+	Size   int    `hcl:"size,optional"`   // partial: members per filled group
 }
 
 // PoliciesConfig controls policy distribution across entities for the policy_count budget:
@@ -132,7 +136,7 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	// Capped at alias_count (a user needs an alias) and entity_count (validateLogins indexes by entity).
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
-	// TODO: each new workload touches three switches (here, Target, configureAttack); bundle if this grows.
+	// TODO: a fourth workload should use a table/interface instead of adding a fourth switch arm.
 	switch c.Workload {
 	case identityWorkloadPopulate:
 	case identityWorkloadLogin:
@@ -171,7 +175,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 func (i *Identity) Cleanup(client *api.Client) error {
 	if i.config.Workload == identityWorkloadPopulate {
-		// TODO: no confirmation prompt; objects stay on Vault until manually removed.
+		// TODO: populate intentionally skips cleanup; seeded objects persist for follow-on inspection.
 		i.logger.Info("populate workload; leaving seeded identity objects in place")
 		return nil
 	}
@@ -416,7 +420,7 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 			body["policies"] = selectPolicyNames(policyNames, idx, polSize)
 		}
 
-		// TODO: member_group_ids not written; no nested-group hierarchy support yet.
+		// TODO: member_group_ids not written; nested groups require a second pass after group IDs are known.
 		resp, err := client.Logical().Write("identity/group", body)
 		if err != nil {
 			return fmt.Errorf("error creating identity group %q: %w", groupName, err)

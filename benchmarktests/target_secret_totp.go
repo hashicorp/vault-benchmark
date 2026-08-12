@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/hashicorp/go-hclog"
@@ -187,7 +186,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 
@@ -207,7 +206,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	if topLevelConfig.RandomMounts {
 		randomSuffix, err := uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 		keyName = fmt.Sprintf("%s-%s", t.config.KeyName, randomSuffix)
 	}

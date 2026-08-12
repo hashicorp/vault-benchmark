@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -34,7 +33,8 @@ func init() {
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
 
-// awsSigV4TTL is the AWS SigV4 signature validity window; hardcoded by the AWS spec.
+// awsSigV4TTL is hardcoded by the AWS spec; awsBodyRefreshMargin ensures we
+// refresh before the signature window closes rather than after.
 const (
 	awsSigV4TTL          = 15 * time.Minute
 	awsBodyRefreshMargin = 1 * time.Minute
@@ -170,7 +170,7 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	if topLevelConfig.RandomMounts {
 		authPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 

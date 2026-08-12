@@ -161,7 +161,7 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("gcp auth"))
-	GCPAuthConfig, err := structToMap(g.config.GCPAuthConfig)
+	gcpAuthConfigMap, err := structToMap(g.config.GCPAuthConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcp auth config from struct: %v", err)
 	}
@@ -179,19 +179,19 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}
 
 	setupLogger.Trace(writingLogMessage("gcp auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", GCPAuthConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/config", gcpAuthConfigMap)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	GCPRoleConfig, err := structToMap(g.config.GCPTestRoleConfig)
+	gcpRoleData, err := structToMap(g.config.GCPTestRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
 	setupLogger.Trace(writingLogMessage("role"), "name", g.config.GCPTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, GCPRoleConfig)
+	_, err = client.Logical().Write("auth/"+authPath+"/role/"+g.config.GCPTestRoleConfig.Name, gcpRoleData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp role: %v", err)
 	}
@@ -201,16 +201,12 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error fetching JWT: %v", err)
 	}
 
+	// TODO: apply cachedBody refresh (see target_auth_aws.go); IAM-path can refresh, GCE-path requires per-tick metadata call.
 	return &GCPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		// TODO: apply cachedBody refresh pattern (see target_auth_aws.go) split by role type:
-		// IAM-path (type=="iam") can refresh via getSignedJwt on expiry; GCE-path must call
-		// the metadata server per-tick since the token is issued at call time and is not
-		// re-signable. Deferred because GCE-path changes Target() semantics (per-tick network
-		// I/O) and needs its own test coverage against a real GCE instance.
-		body:   fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
-		logger: g.logger,
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
+		logger:     g.logger,
 	}, nil
 }
 
@@ -227,9 +223,8 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 	httpClient := oauth2.NewClient(ctx, tokenSource)
 
 	var serviceAccount string
-	if len(config.GCPTestRoleConfig.BoundServiceAccounts) > 0 {
-		n := rand.Int() % len(config.GCPTestRoleConfig.BoundServiceAccounts)
-		serviceAccount = config.GCPTestRoleConfig.BoundServiceAccounts[n]
+	if accounts := config.GCPTestRoleConfig.BoundServiceAccounts; len(accounts) > 0 {
+		serviceAccount = accounts[rand.Intn(len(accounts))]
 	}
 
 	if serviceAccount == "" && credentials != nil {
@@ -250,41 +245,40 @@ func getSignedJwt(config *GCPAuthTestConfig) (string, error) {
 			return "", fmt.Errorf("unable to read the identity token: %w", err)
 		}
 		return instanceJwt, nil
-
-	} else {
-		ttl := time.Duration(15) * time.Minute
-		if config.GCPTestRoleConfig.MaxJWTExp != "" {
-			ttl, err = parseutil.ParseDurationSecond(config.GCPTestRoleConfig.MaxJWTExp)
-			if err != nil {
-				return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", config.GCPTestRoleConfig.MaxJWTExp)
-			}
-		}
-
-		jwtPayload := map[string]any{
-			"aud": fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name),
-			"sub": serviceAccount,
-			"exp": time.Now().Add(ttl).Unix(),
-		}
-		payloadBytes, err := json.Marshal(jwtPayload)
-		if err != nil {
-			return "", fmt.Errorf("could not convert JWT payload to JSON string: %v", err)
-		}
-
-		jwtReq := &iamcredentials.SignJwtRequest{
-			Payload: string(payloadBytes),
-		}
-
-		iamClient, err := iamcredentials.NewService(ctx, option.WithHTTPClient(httpClient))
-		if err != nil {
-			return "", fmt.Errorf("could not create IAM client: %v", err)
-		}
-
-		resourceName := fmt.Sprintf(gcputil.ServiceAccountCredentialsTemplate, serviceAccount)
-		resp, err := iamClient.Projects.ServiceAccounts.SignJwt(resourceName, jwtReq).Do()
-		if err != nil {
-			return "", fmt.Errorf("unable to sign JWT for %s using given Vault credentials: %v", resourceName, err)
-		}
-
-		return resp.SignedJwt, nil
 	}
+
+	ttl := time.Duration(15) * time.Minute
+	if config.GCPTestRoleConfig.MaxJWTExp != "" {
+		ttl, err = parseutil.ParseDurationSecond(config.GCPTestRoleConfig.MaxJWTExp)
+		if err != nil {
+			return "", fmt.Errorf("could not parse jwt_exp '%s' into integer value", config.GCPTestRoleConfig.MaxJWTExp)
+		}
+	}
+
+	jwtPayload := map[string]any{
+		"aud": fmt.Sprintf("http://vault/%s", config.GCPTestRoleConfig.Name),
+		"sub": serviceAccount,
+		"exp": time.Now().Add(ttl).Unix(),
+	}
+	payloadBytes, err := json.Marshal(jwtPayload)
+	if err != nil {
+		return "", fmt.Errorf("could not convert JWT payload to JSON string: %v", err)
+	}
+
+	jwtReq := &iamcredentials.SignJwtRequest{
+		Payload: string(payloadBytes),
+	}
+
+	iamClient, err := iamcredentials.NewService(ctx, option.WithHTTPClient(httpClient))
+	if err != nil {
+		return "", fmt.Errorf("could not create IAM client: %v", err)
+	}
+
+	resourceName := fmt.Sprintf(gcputil.ServiceAccountCredentialsTemplate, serviceAccount)
+	resp, err := iamClient.Projects.ServiceAccounts.SignJwt(resourceName, jwtReq).Do()
+	if err != nil {
+		return "", fmt.Errorf("unable to sign JWT for %s using given Vault credentials: %v", resourceName, err)
+	}
+
+	return resp.SignedJwt, nil
 }

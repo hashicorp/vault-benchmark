@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -134,7 +133,7 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
 	}
 
@@ -157,10 +156,8 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		},
 	}
 
-	// Vault v2 KV mount upgrade is asynchronous: the backend briefly rejects
-	// writes with "Upgrading from non-versioned to versioned data". There is
-	// no stable API signal to poll; a fixed sleep is the current workaround.
-	// TODO: replace with a poll-until-ready loop if Vault exposes a readiness endpoint.
+	// KV v2 mount upgrade is asynchronous; writes fail briefly with "Upgrading from non-versioned to versioned data."
+	// TODO: replace sleep with a poll once Vault exposes a readiness signal for KV v2.
 	time.Sleep(2 * time.Second)
 
 	if err := runPhase(setupLogger, "seed secrets", kvSeedConcurrency, k.config.NumKVs, func(idx int) error {
