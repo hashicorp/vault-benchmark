@@ -41,8 +41,8 @@ func init() {
 // Snowflake Dynamic Secret Test Struct
 type SnowflakeDynamicSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *SnowflakeDynamicSecretTestConfig
 	logger     hclog.Logger
 }
@@ -50,8 +50,8 @@ type SnowflakeDynamicSecret struct {
 // Snowflake Static Secret Test Struct
 type SnowflakeStaticSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *SnowflakeStaticSecretTestConfig
 	logger     hclog.Logger
 }

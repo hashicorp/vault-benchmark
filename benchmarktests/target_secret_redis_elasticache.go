@@ -35,8 +35,8 @@ func init() {
 
 type RedisElastiCacheSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *RedisElastiCacheSecretTestConfig
 	logger     hclog.Logger
 }

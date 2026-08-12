@@ -29,12 +29,12 @@ func init() {
 }
 
 type SSHIssueTest struct {
-	mountPath  string
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *SSHIssueTestConfig
 	logger     hclog.Logger
+	mountPath  string
 }
 
 type SSHIssueTestConfig struct {

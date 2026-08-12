@@ -34,8 +34,8 @@ func init() {
 type KubernetesTest struct {
 	pathPrefix string
 	header     http.Header
-	roleName   string
 	body       []byte
+	roleName   string
 	config     *KubernetesSecretTestConfig
 	logger     hclog.Logger
 }

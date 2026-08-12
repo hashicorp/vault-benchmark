@@ -35,12 +35,12 @@ func init() {
 }
 
 type SSHKeySignTest struct {
-	mountPath  string
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *SSHKeySignTestConfig
 	logger     hclog.Logger
+	mountPath  string
 }
 
 type SSHKeySignTestConfig struct {

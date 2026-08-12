@@ -32,8 +32,8 @@ func init() {
 
 type CassandraSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *CassandraSecretTestConfig
 	logger     hclog.Logger
 }

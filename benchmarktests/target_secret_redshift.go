@@ -35,8 +35,8 @@ func init() {
 // Redshift Secret Test Struct
 type RedshiftSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *RedshiftSecretTestConfig
 	logger     hclog.Logger
 }

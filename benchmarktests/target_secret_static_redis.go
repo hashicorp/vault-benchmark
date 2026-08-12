@@ -33,8 +33,8 @@ func init() {
 
 type RedisStaticSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *RedisStaticSecretTestConfig
 	logger     hclog.Logger
 }

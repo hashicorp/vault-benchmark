@@ -32,8 +32,8 @@ func init() {
 
 type OracleSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *OracleSecretTestConfig
 	logger     hclog.Logger
 }

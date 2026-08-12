@@ -36,13 +36,13 @@ func init() {
 
 type PKISignTest struct {
 	pathPrefix string
-	cn         string
-	intpath    string
-	rootpath   string
-	config     *pkiSecretIssueTestConfig
-	body       []byte
 	header     http.Header
+	body       []byte
+	config     *pkiSecretIssueTestConfig
 	logger     hclog.Logger
+	rootpath   string
+	intpath    string
+	cn         string
 }
 
 type pkiSecretIssueTestConfig struct {

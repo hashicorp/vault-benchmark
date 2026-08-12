@@ -32,8 +32,8 @@ func init() {
 
 type RedisDynamicSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *RedisDynamicSecretTestConfig
 	logger     hclog.Logger
 }

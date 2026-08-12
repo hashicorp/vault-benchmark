@@ -37,12 +37,12 @@ func init() {
 
 type CubbyholeTest struct {
 	pathPrefix string
-	secretPath string
 	header     http.Header
-	config     *CubbyholeSecretTestConfig
-	action     string
-	logger     hclog.Logger
 	baseURL    string
+	action     string
+	config     *CubbyholeSecretTestConfig
+	logger     hclog.Logger
+	secretPath string
 }
 
 type CubbyholeSecretTestConfig struct {

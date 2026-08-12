@@ -32,8 +32,8 @@ func init() {
 
 type MSSQLSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *MSSQLSecretTestConfig
 	logger     hclog.Logger
 }

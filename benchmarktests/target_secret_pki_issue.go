@@ -31,13 +31,13 @@ func init() {
 
 type PKIIssueTest struct {
 	pathPrefix string
-	cn         string
-	intpath    string
-	rootpath   string
-	config     *PKISecretIssueTestConfig
-	body       []byte
 	header     http.Header
+	body       []byte
+	config     *PKISecretIssueTestConfig
 	logger     hclog.Logger
+	rootpath   string
+	intpath    string
+	cn         string
 }
 
 type PKISecretIssueTestConfig struct {

@@ -25,7 +25,7 @@ const (
 )
 
 func init() {
-	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{action: "rotate"} }
+	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{} }
 }
 
 type LDAPStaticSecretTest struct {
@@ -33,7 +33,6 @@ type LDAPStaticSecretTest struct {
 	header     http.Header
 	roleName   string
 	config     *LDAPStaticSecretTestConfig
-	action     string
 	logger     hclog.Logger
 }
 

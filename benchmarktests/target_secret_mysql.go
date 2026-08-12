@@ -32,8 +32,8 @@ func init() {
 
 type MySQLSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *MySQLSecretTestConfig
 	logger     hclog.Logger
 }

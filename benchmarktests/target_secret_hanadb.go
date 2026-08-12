@@ -32,8 +32,8 @@ func init() {
 
 type HanaDBSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *HanaDBSecretTestConfig
 	logger     hclog.Logger
 }

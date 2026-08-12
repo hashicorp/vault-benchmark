@@ -40,10 +40,10 @@ func init() {
 }
 
 type GCPKMSTest struct {
-	action     string
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
+	action     string
 	config     *GCPKMSTestConfig
 	logger     hclog.Logger
 }

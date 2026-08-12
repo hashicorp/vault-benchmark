@@ -47,13 +47,13 @@ func init() {
 type TOTPSecretTest struct {
 	pathPrefix        string
 	header            http.Header
-	config            *TOTPSecretTestConfig
-	action            string
-	logger            hclog.Logger
 	baseURL           string
+	createKeyDataJSON []byte
+	action            string
+	keyIndex          int
+	config            *TOTPSecretTestConfig
+	logger            hclog.Logger
 	mountPath         string
-	keyIndex          int    // Current key index
-	createKeyDataJSON []byte // Pre-marshaled JSON for key creation
 }
 
 type TOTPSecretTestConfig struct {

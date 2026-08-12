@@ -39,8 +39,8 @@ func init() {
 
 type AWSAuth struct {
 	pathPrefix string
-	login      cachedBody
 	header     http.Header
+	login      cachedBody
 	config     *AWSAuthTestConfig
 	logger     hclog.Logger
 }

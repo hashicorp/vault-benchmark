@@ -35,8 +35,8 @@ func init() {
 // Postgres Secret Test Struct
 type PostgreSQLSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
+	roleName   string
 	config     *PostgreSQLSecretTestConfig
 	logger     hclog.Logger
 }

@@ -36,10 +36,10 @@ func init() {
 }
 
 type TransitTest struct {
-	action     string
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
+	action     string
 	config     *TransitTestConfig
 	logger     hclog.Logger
 }
