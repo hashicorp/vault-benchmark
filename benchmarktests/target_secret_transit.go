@@ -29,10 +29,18 @@ const (
 )
 
 func init() {
-	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "sign"} }
-	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "verify"} }
-	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "encrypt"} }
-	TestList[TransitDecryptSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "decrypt"} }
+	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder {
+		return &TransitTest{action: "sign", testType: TransitSignSecretTestType}
+	}
+	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder {
+		return &TransitTest{action: "verify", testType: TransitVerifySecretTestType}
+	}
+	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder {
+		return &TransitTest{action: "encrypt", testType: TransitEncryptSecretTestType}
+	}
+	TestList[TransitDecryptSecretTestType] = func() BenchmarkBuilder {
+		return &TransitTest{action: "decrypt", testType: TransitDecryptSecretTestType}
+	}
 }
 
 type TransitTest struct {
@@ -40,6 +48,7 @@ type TransitTest struct {
 	header     http.Header
 	body       []byte
 	action     string
+	testType   string
 	config     *TransitTestConfig
 	logger     hclog.Logger
 }
@@ -175,16 +184,7 @@ func (t *TransitTest) ParseConfig(body hcl.Body) error {
 func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	switch t.action {
-	case "sign":
-		t.logger = targetLogger.Named(TransitSignSecretTestType)
-	case "verify":
-		t.logger = targetLogger.Named(TransitVerifySecretTestType)
-	case "encrypt":
-		t.logger = targetLogger.Named(TransitEncryptSecretTestType)
-	case "decrypt":
-		t.logger = targetLogger.Named(TransitDecryptSecretTestType)
-	}
+	t.logger = targetLogger.Named(t.testType)
 
 	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()

@@ -49,8 +49,10 @@ func init() {
 }
 
 type SyncAWSTest struct {
-	target string
-	mount  string
+	target     string
+	mount      string
+	method     string
+	pathPrefix string
 
 	config *SyncAWSTestConfig
 
@@ -143,23 +145,42 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		}
 	}
 
+	method := http.MethodPost
+	if t.target == SyncAssociationsRead {
+		method = http.MethodGet
+	}
+
 	return &SyncAWSTest{
-		target: t.target,
-		config: t.config,
-		mount:  mountName,
-		logger: t.logger,
+		target:     t.target,
+		config:     t.config,
+		mount:      mountName,
+		method:     method,
+		pathPrefix: "sys/sync",
+		logger:     t.logger,
 	}, nil
 }
 
 func (t *SyncAWSTest) Target(client *api.Client) vegeta.Target {
+	n := int(rand.Int31n(int32(t.config.NumAssociations)))
+	tgt := vegeta.Target{
+		Method: t.method,
+		URL: fmt.Sprintf("%s/v1/%s/associations/destinations?mount=%s&secret_name=%s",
+			client.Address(), t.pathPrefix, t.mount, fmt.Sprintf(secretNameFormat, n)),
+		Header: http.Header{
+			vaultTokenHeader:     []string{client.Token()},
+			vaultNamespaceHeader: []string{client.Namespace()},
+		},
+	}
 	switch t.target {
 	case SyncEvents:
-		return t.events(client)
+		tgt.URL = fmt.Sprintf("%s/v1/%s/data/%s", client.Address(), t.mount, fmt.Sprintf(secretNameFormat, n))
+		tgt.Body = []byte(fmt.Sprintf(`{"data": {"foo": "%s"}}`, time.Now().Format(time.RFC3339)))
 	case SyncAssociationsWrite:
-		return t.write(client)
-	default:
-		return t.read(client)
+		tgt.URL = fmt.Sprintf("%s/v1/%s/destinations/%s/%s/associations/set",
+			client.Address(), t.pathPrefix, t.config.DestinationType, t.config.DestinationName)
+		tgt.Body = []byte(fmt.Sprintf(`{"mount": "%s", "secret_name": "%s"}`, t.mount, fmt.Sprintf(secretNameFormat, n)))
 	}
+	return tgt
 }
 
 func (t *SyncAWSTest) Cleanup(client *api.Client) error {
@@ -169,7 +190,7 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 		t.logger.Debug("deleting association for test secret", "mount", t.mount, "secret", secretName)
 
 		_, err := client.Logical().Write(
-			fmt.Sprintf("/%s/destinations/%s/%s/associations/remove", t.GetTargetInfo().pathPrefix, t.config.DestinationType, t.config.DestinationName),
+			fmt.Sprintf("/%s/destinations/%s/%s/associations/remove", t.pathPrefix, t.config.DestinationType, t.config.DestinationName),
 			map[string]any{"mount": t.mount, "secret_name": secretName},
 		)
 		if err != nil {
@@ -180,7 +201,7 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 	// Delete destination
 	t.logger.Debug("deleting destination", "type", t.config.DestinationType, "name", t.config.DestinationName)
 	_, err := client.Logical().Delete(
-		fmt.Sprintf("/%s/destinations/%s/%s", t.GetTargetInfo().pathPrefix, t.config.DestinationType, t.config.DestinationName),
+		fmt.Sprintf("/%s/destinations/%s/%s", t.pathPrefix, t.config.DestinationType, t.config.DestinationName),
 	)
 	if err != nil {
 		t.logger.Error("failed to clean destination", "type", t.config.DestinationType, "name", t.config.DestinationName, "error", err)
@@ -207,79 +228,10 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 }
 
 func (t *SyncAWSTest) GetTargetInfo() TargetInfo {
-	var method string
-	switch t.target {
-	case SyncAssociationsRead:
-		method = http.MethodGet
-	default:
-		method = http.MethodPost
-	}
-
 	return TargetInfo{
-		method:     method,
-		pathPrefix: "sys/sync",
+		method:     t.method,
+		pathPrefix: t.pathPrefix,
 	}
 }
 
 func (t *SyncAWSTest) Flags(_ *flag.FlagSet) {}
-
-func (t *SyncAWSTest) events(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: t.GetTargetInfo().method,
-		URL: fmt.Sprintf("%s/v1/%s/data/%s",
-			client.Address(),
-			t.mount,
-			fmt.Sprintf(secretNameFormat,
-				int(rand.Int31n(int32(t.config.NumAssociations))),
-			),
-		),
-		Header: http.Header{
-			vaultTokenHeader:     []string{client.Token()},
-			vaultNamespaceHeader: []string{client.Namespace()}},
-		Body: []byte(
-			fmt.Sprintf(`{"data": {"foo": "%s"}}`,
-				time.Now().Format(time.RFC3339),
-			),
-		),
-	}
-}
-
-func (t *SyncAWSTest) write(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: t.GetTargetInfo().method,
-		URL: fmt.Sprintf("%s/v1/%s/destinations/%s/%s/associations/set",
-			client.Address(),
-			t.GetTargetInfo().pathPrefix,
-			t.config.DestinationType,
-			t.config.DestinationName,
-		),
-		Header: http.Header{
-			vaultTokenHeader:     []string{client.Token()},
-			vaultNamespaceHeader: []string{client.Namespace()}},
-		Body: []byte(
-			fmt.Sprintf(`{"mount": "%s", "secret_name": "%s"}`,
-				t.mount,
-				fmt.Sprintf(secretNameFormat,
-					int(rand.Int31n(int32(t.config.NumAssociations))),
-				),
-			),
-		),
-	}
-}
-
-func (t *SyncAWSTest) read(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: t.GetTargetInfo().method,
-		URL: fmt.Sprintf("%s/v1/%s/associations/destinations?mount=%s&secret_name=%s",
-			client.Address(),
-			t.GetTargetInfo().pathPrefix,
-			t.mount,
-			fmt.Sprintf(secretNameFormat,
-				int(rand.Int31n(int32(t.config.NumAssociations))),
-			),
-		),
-		Header: http.Header{
-			vaultTokenHeader:     []string{client.Token()},
-			vaultNamespaceHeader: []string{client.Namespace()}},
-	}
-}

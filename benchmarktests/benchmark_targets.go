@@ -60,6 +60,7 @@ type TargetInfo struct {
 	pathPrefix string
 }
 
+// TODO: collapse GetTargetInfo into ConfigureTarget, removing TargetInfo and the interface method for all 50+ targets
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Target = bt.Builder.Target
 	tInfo := bt.Builder.GetTargetInfo()

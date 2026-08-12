@@ -251,7 +251,6 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 		URL:    client.Address() + i.pathPrefix,
 		Header: i.header,
 	}
-
 	switch i.config.Workload {
 	case identityWorkloadLogin:
 		t.URL += "/login/" + i.loginPrefix + strconv.Itoa(rand.Intn(i.loginUsers))
@@ -259,7 +258,6 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 	case identityWorkloadGroupRead:
 		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
 	}
-
 	return t
 }
 

@@ -32,11 +32,21 @@ const (
 )
 
 func init() {
-	TestList[GCPKMSEncryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "encrypt"} }
-	TestList[GCPKMSDecryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "decrypt"} }
-	TestList[GCPKMSSignTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "sign"} }
-	TestList[GCPKMSVerifyTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "verify"} }
-	TestList[GCPKMSReencryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "reencrypt"} }
+	TestList[GCPKMSEncryptTestType] = func() BenchmarkBuilder {
+		return &GCPKMSTest{action: "encrypt", testType: GCPKMSEncryptTestType}
+	}
+	TestList[GCPKMSDecryptTestType] = func() BenchmarkBuilder {
+		return &GCPKMSTest{action: "decrypt", testType: GCPKMSDecryptTestType}
+	}
+	TestList[GCPKMSSignTestType] = func() BenchmarkBuilder {
+		return &GCPKMSTest{action: "sign", testType: GCPKMSSignTestType}
+	}
+	TestList[GCPKMSVerifyTestType] = func() BenchmarkBuilder {
+		return &GCPKMSTest{action: "verify", testType: GCPKMSVerifyTestType}
+	}
+	TestList[GCPKMSReencryptTestType] = func() BenchmarkBuilder {
+		return &GCPKMSTest{action: "reencrypt", testType: GCPKMSReencryptTestType}
+	}
 }
 
 type GCPKMSTest struct {
@@ -44,6 +54,7 @@ type GCPKMSTest struct {
 	header     http.Header
 	body       []byte
 	action     string
+	testType   string
 	config     *GCPKMSTestConfig
 	logger     hclog.Logger
 }
@@ -152,18 +163,7 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	var err error
 	secretPath := mountName
 
-	switch g.action {
-	case "encrypt":
-		g.logger = targetLogger.Named(GCPKMSEncryptTestType)
-	case "decrypt":
-		g.logger = targetLogger.Named(GCPKMSDecryptTestType)
-	case "sign":
-		g.logger = targetLogger.Named(GCPKMSSignTestType)
-	case "verify":
-		g.logger = targetLogger.Named(GCPKMSVerifyTestType)
-	case "reencrypt":
-		g.logger = targetLogger.Named(GCPKMSReencryptTestType)
-	}
+	g.logger = targetLogger.Named(g.testType)
 
 	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
@@ -203,18 +203,8 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		return nil, fmt.Errorf("error writing gcpkms config: %v", err)
 	}
 
-	switch g.action {
-	case "encrypt", "decrypt", "reencrypt":
-		err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger)
-		if err != nil {
-			return nil, err
-		}
-
-	case "sign", "verify":
-		err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger)
-		if err != nil {
-			return nil, err
-		}
+	if err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("generating test payload")

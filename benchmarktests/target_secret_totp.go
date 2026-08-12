@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"strconv"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -34,13 +36,13 @@ const (
 
 func init() {
 	TestList[TOTPSecretCreateTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "create"}
+		return &TOTPSecretTest{action: "create", testType: TOTPSecretCreateTestType}
 	}
 	TestList[TOTPSecretReadTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "read"}
+		return &TOTPSecretTest{action: "read", testType: TOTPSecretReadTestType}
 	}
 	TestList[TOTPSecretGenerateTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "generate"}
+		return &TOTPSecretTest{action: "generate", testType: TOTPSecretGenerateTestType}
 	}
 }
 
@@ -50,7 +52,7 @@ type TOTPSecretTest struct {
 	baseURL           string
 	createKeyDataJSON []byte
 	action            string
-	keyIndex          int
+	testType          string
 	config            *TOTPSecretTestConfig
 	logger            hclog.Logger
 	mountPath         string
@@ -96,16 +98,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	var err error
 	mountPath := mountName
 
-	switch t.action {
-	case "create":
-		t.logger = targetLogger.Named(TOTPSecretCreateTestType)
-	case "read":
-		t.logger = targetLogger.Named(TOTPSecretReadTestType)
-	case "generate":
-		t.logger = targetLogger.Named(TOTPSecretGenerateTestType)
-	default:
-		t.logger = targetLogger.Named(TOTPSecretCreateTestType)
-	}
+	t.logger = targetLogger.Named(t.testType)
 
 	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
@@ -167,26 +160,30 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 		pathPrefix:        "/v1/" + mountPath,
 		header:            http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		action:            t.action,
+		testType:          t.testType,
 		config:            &configCopy,
 		logger:            t.logger,
 		baseURL:           baseURL,
 		mountPath:         mountPath,
-		keyIndex:          0,
 		createKeyDataJSON: createKeyDataJSON,
 	}, nil
 }
 
 func (t *TOTPSecretTest) Target(client *api.Client) vegeta.Target {
+	tgt := vegeta.Target{
+		Method: TOTPSecretTestMethod,
+		URL:    t.baseURL + "/keys/" + t.config.KeyName,
+		Header: t.header,
+	}
 	switch t.action {
 	case "create":
-		return t.create()
+		tgt.Method = TOTPSecretCreateTestMethod
+		tgt.URL = t.baseURL + "/keys/" + t.config.KeyName + "-" + strconv.FormatInt(rand.Int63(), 36)
+		tgt.Body = t.createKeyDataJSON
 	case "generate":
-		return t.generate()
-	case "read":
-		return t.read()
-	default:
-		return t.create()
+		tgt.URL = t.baseURL + "/code/" + t.config.KeyName
 	}
+	return tgt
 }
 
 func (t *TOTPSecretTest) Cleanup(client *api.Client) error {
@@ -213,35 +210,3 @@ func (t *TOTPSecretTest) GetTargetInfo() TargetInfo {
 }
 
 func (t *TOTPSecretTest) Flags(fs *flag.FlagSet) {}
-
-func (t *TOTPSecretTest) create() vegeta.Target {
-	keyName := fmt.Sprintf("%s-shared-%d", t.config.KeyName, t.keyIndex)
-	t.keyIndex++
-
-	return vegeta.Target{
-		Method: TOTPSecretCreateTestMethod,
-		URL:    t.baseURL + "/keys/" + keyName,
-		Header: t.header,
-		Body:   t.createKeyDataJSON,
-	}
-}
-
-func (t *TOTPSecretTest) generate() vegeta.Target {
-	keyName := t.config.KeyName
-
-	return vegeta.Target{
-		Method: TOTPSecretTestMethod,
-		URL:    t.baseURL + "/code/" + keyName,
-		Header: t.header,
-	}
-}
-
-func (t *TOTPSecretTest) read() vegeta.Target {
-	keyName := t.config.KeyName
-
-	return vegeta.Target{
-		Method: TOTPSecretTestMethod,
-		URL:    t.baseURL + "/keys/" + keyName,
-		Header: t.header,
-	}
-}

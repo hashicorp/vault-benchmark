@@ -35,6 +35,7 @@ type GCPTest struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
+	targetURL  string
 	config     *GCPSecretTestConfig
 	logger     hclog.Logger
 }
@@ -158,27 +159,23 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 		return nil, fmt.Errorf("error writing gcp roleset: %v", err)
 	}
 
+	suffix := "/token"
+	if config.GCPRoleset.SecretType == GCPServiceAccountType {
+		suffix = "/key"
+	}
 	return &GCPTest{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.GCPRoleset.Name,
+		targetURL:  client.Address() + "/v1/" + secretPath + "/roleset/" + config.GCPRoleset.Name + suffix,
 		logger:     g.logger,
-		config:     g.config,
 	}, nil
 }
 
 func (g *GCPTest) Target(client *api.Client) vegeta.Target {
-	var url string
-
-	if g.config.GCPRoleset.SecretType == GCPAccessTokenType {
-		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/token"
-	} else if g.config.GCPRoleset.SecretType == GCPServiceAccountType {
-		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/key"
-	}
-
 	return vegeta.Target{
 		Method: GCPSecretTestMethod,
-		URL:    url,
+		URL:    g.targetURL,
 		Header: g.header,
 	}
 }

@@ -130,12 +130,17 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 }
 
 func (k *KVV2Test) Target(client *api.Client) vegeta.Target {
-	switch k.action {
-	case "write":
-		return k.write(client)
-	default:
-		return k.read(client)
+	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
+	t := vegeta.Target{
+		Method: KVV2ReadTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
+		Header: k.header,
 	}
+	if k.action == "write" {
+		t.Method = KVV2WriteTestMethod
+		t.Body = k.writeBody
+	}
+	return t
 }
 
 func (k *KVV2Test) Cleanup(client *api.Client) error {
@@ -162,22 +167,3 @@ func (k *KVV2Test) GetTargetInfo() TargetInfo {
 }
 
 func (k *KVV2Test) Flags(fs *flag.FlagSet) {}
-
-func (k *KVV2Test) read(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: KVV2ReadTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
-		Header: k.header,
-	}
-}
-
-func (k *KVV2Test) write(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: KVV2WriteTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
-		Header: k.header,
-		Body:   k.writeBody,
-	}
-}
