@@ -82,6 +82,7 @@ type PostgreSQLRoleConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
+
 func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
 	testConfig := &struct {
@@ -117,30 +118,6 @@ func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: PostgreSQLSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
-		Header: s.header,
-	}
-}
-
-func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     PostgreSQLSecretTestMethod,
-		pathPrefix: s.pathPrefix,
-	}
 }
 
 func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -203,6 +180,30 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 		logger:     s.logger,
 	}, nil
 
+}
+
+func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: PostgreSQLSecretTestMethod,
+		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
+		Header: s.header,
+	}
+}
+
+func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
+	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     PostgreSQLSecretTestMethod,
+		pathPrefix: s.pathPrefix,
+	}
 }
 
 func (l *PostgreSQLSecret) Flags(fs *flag.FlagSet) {}

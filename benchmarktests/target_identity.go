@@ -39,18 +39,18 @@ func init() {
 type Identity struct {
 	pathPrefix string
 	header     http.Header
-	config     *IdentityConfig
-	mountName  string
-	runID      string // per-run UUID; seeds every object name so each run is isolated
 
-	method      string
-	loginBody   []byte
-	loginUsers  int      // min(login_users, alias_count, entity_count)
-	loginPrefix string   // precomputed "mountName-entity-runID-"; avoids per-tick string allocs in Target
+	method    string
+	runID     string // per-run UUID; seeds every object name so each run is isolated
+	mountName string
+
+	loginBody  []byte
+	loginUsers int
 	groupIDs    []string // live ids for group_read; removing that workload simplifies this + Cleanup
 	accessors   []string
-	aliasCap    int      // aliases per filled entity; needed by Cleanup to disable all mounts
+	aliasCap    int // aliases per filled entity; needed by Cleanup to disable all mounts
 
+	config *IdentityConfig
 	logger hclog.Logger
 }
 
@@ -155,70 +155,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (i *Identity) Target(client *api.Client) vegeta.Target {
-	t := vegeta.Target{
-		Method: i.method,
-		URL:    client.Address() + i.pathPrefix,
-		Header: i.header,
-	}
-
-	switch i.config.Workload {
-	case identityWorkloadLogin:
-		t.URL += "/login/" + i.loginPrefix + strconv.Itoa(rand.Intn(i.loginUsers))
-		t.Body = i.loginBody
-	case identityWorkloadGroupRead:
-		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
-	}
-
-	return t
-}
-
-func (i *Identity) Cleanup(client *api.Client) error {
-	if i.config.Workload == identityWorkloadPopulate {
-		// TODO: populate intentionally skips cleanup; seeded objects persist for follow-on inspection.
-		i.logger.Info("populate workload; leaving seeded identity objects in place")
-		return nil
-	}
-
-	var allErrs []error
-
-	if i.config.PolicyCount > 0 {
-		if err := deletePhase(i.logger, "policy deletion", client, "sys/policies/acl/", identityConcurrency, i.config.PolicyCount, func(idx int) string {
-			return objectName(i.mountName, "policy", i.runID, idx)
-		}); err != nil {
-			allErrs = append(allErrs, err)
-		}
-	}
-
-	if err := deletePhase(i.logger, "group deletion", client, "identity/group/id/", identityConcurrency, len(i.groupIDs), func(idx int) string {
-		return i.groupIDs[idx]
-	}); err != nil {
-		allErrs = append(allErrs, err)
-	}
-
-	if err := deletePhase(i.logger, "entity deletion", client, "identity/entity/name/", identityConcurrency, i.config.EntityCount, func(idx int) string {
-		return objectName(i.mountName, "entity", i.runID, idx)
-	}); err != nil {
-		allErrs = append(allErrs, err)
-	}
-
-	for slot := range i.aliasCap {
-		mountPath := userpassSlotMountPath(i.runID, slot)
-		if err := client.Sys().DisableAuth(mountPath); err != nil {
-			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %w", mountPath, err))
-		}
-	}
-
-	return errors.Join(allErrs...)
-}
-
-func (i *Identity) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     i.method,
-		pathPrefix: i.pathPrefix,
-	}
-}
-
 func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	// identity is a built-in path; RandomMounts is ignored and the runID already isolates each run.
 	i.logger = targetLogger.Named(IdentityTestType)
@@ -229,12 +165,11 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}
 
 	result := &Identity{
-		config:      i.config,
-		logger:      i.logger,
-		mountName:   mountName,
-		runID:       runID,
-		loginUsers:  i.loginUsers,
-		loginPrefix: mountName + "-entity-" + runID + "-",
+		config:     i.config,
+		logger:     i.logger,
+		mountName:  mountName,
+		runID:      runID,
+		loginUsers: i.loginUsers,
 	}
 
 	var aliasFill, aliasCap int
@@ -306,6 +241,70 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	result.header = generateHeader(client)
 
 	return result, nil
+}
+
+func (i *Identity) Target(client *api.Client) vegeta.Target {
+	t := vegeta.Target{
+		Method: i.method,
+		URL:    client.Address() + i.pathPrefix,
+		Header: i.header,
+	}
+
+	switch i.config.Workload {
+	case identityWorkloadLogin:
+		t.URL += "/login/" + i.mountName + "-entity-" + i.runID + "-" + strconv.Itoa(rand.Intn(i.loginUsers))
+		t.Body = i.loginBody
+	case identityWorkloadGroupRead:
+		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
+	}
+
+	return t
+}
+
+func (i *Identity) Cleanup(client *api.Client) error {
+	if i.config.Workload == identityWorkloadPopulate {
+		// TODO: populate intentionally skips cleanup; seeded objects persist for follow-on inspection.
+		i.logger.Info("populate workload; leaving seeded identity objects in place")
+		return nil
+	}
+
+	var allErrs []error
+
+	if i.config.PolicyCount > 0 {
+		if err := deletePhase(i.logger, "policy deletion", client, "sys/policies/acl/", identityConcurrency, i.config.PolicyCount, func(idx int) string {
+			return objectName(i.mountName, "policy", i.runID, idx)
+		}); err != nil {
+			allErrs = append(allErrs, err)
+		}
+	}
+
+	if err := deletePhase(i.logger, "group deletion", client, "identity/group/id/", identityConcurrency, len(i.groupIDs), func(idx int) string {
+		return i.groupIDs[idx]
+	}); err != nil {
+		allErrs = append(allErrs, err)
+	}
+
+	if err := deletePhase(i.logger, "entity deletion", client, "identity/entity/name/", identityConcurrency, i.config.EntityCount, func(idx int) string {
+		return objectName(i.mountName, "entity", i.runID, idx)
+	}); err != nil {
+		allErrs = append(allErrs, err)
+	}
+
+	for slot := range i.aliasCap {
+		mountPath := userpassSlotMountPath(i.runID, slot)
+		if err := client.Sys().DisableAuth(mountPath); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %w", mountPath, err))
+		}
+	}
+
+	return errors.Join(allErrs...)
+}
+
+func (i *Identity) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     i.method,
+		pathPrefix: i.pathPrefix,
+	}
 }
 
 func (i *Identity) Flags(fs *flag.FlagSet) {}

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -33,9 +32,9 @@ func init() {
 
 type LDAPAuth struct {
 	pathPrefix string
-	authUser   string
-	body       []byte
 	header     http.Header
+	body       []byte
+	authUser   string
 	config     *LDAPAuthTestConfig
 	logger     hclog.Logger
 }
@@ -122,31 +121,6 @@ func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
-		Header: l.header,
-		Body:   l.body,
-	}
-}
-
-func (l *LDAPAuth) Cleanup(client *api.Client) error {
-	l.logger.Trace(cleanupLogMessage(l.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (l *LDAPAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     LDAPAuthTestMethod,
-		pathPrefix: l.pathPrefix,
-	}
-}
-
 func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -188,6 +162,26 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		body:       fmt.Appendf(nil, `{"password": "%s"}`, l.config.LDAPTestUserConfig.Password),
 		logger:     l.logger,
 	}, nil
+}
+
+func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: LDAPAuthTestMethod,
+		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
+		Header: l.header,
+		Body:   l.body,
+	}
+}
+
+func (l *LDAPAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(l.logger, client, l.pathPrefix)
+}
+
+func (l *LDAPAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     LDAPAuthTestMethod,
+		pathPrefix: l.pathPrefix,
+	}
 }
 
 func (l *LDAPAuth) Flags(fs *flag.FlagSet) {}

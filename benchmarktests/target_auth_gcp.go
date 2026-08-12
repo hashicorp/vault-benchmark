@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -43,8 +42,8 @@ func init() {
 
 type GCPAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *GCPAuthTestConfig
 	logger     hclog.Logger
 }
@@ -102,31 +101,6 @@ func (g *GCPAuth) ParseConfig(body hcl.Body) error {
 
 	g.config = testConfig.Config
 	return nil
-}
-
-func (g *GCPAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: GCPAuthTestMethod,
-		URL:    client.Address() + g.pathPrefix + "/login",
-		Header: g.header,
-		Body:   g.body,
-	}
-}
-
-func (g *GCPAuth) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPAuthTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
 }
 
 func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -208,6 +182,26 @@ func (g *GCPAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, g.config.GCPTestRoleConfig.Name, jwt),
 		logger:     g.logger,
 	}, nil
+}
+
+func (g *GCPAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GCPAuthTestMethod,
+		URL:    client.Address() + g.pathPrefix + "/login",
+		Header: g.header,
+		Body:   g.body,
+	}
+}
+
+func (g *GCPAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(g.logger, client, g.pathPrefix)
+}
+
+func (g *GCPAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPAuthTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
 }
 
 func (g *GCPAuth) Flags(fs *flag.FlagSet) {}

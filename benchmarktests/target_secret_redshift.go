@@ -82,6 +82,7 @@ type RedshiftRoleConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
+
 func (r *RedshiftSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
 	testConfig := &struct {
@@ -122,30 +123,6 @@ func (r *RedshiftSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (r *RedshiftSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RedshiftSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *RedshiftSecret) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RedshiftSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RedshiftSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
 }
 
 func (r *RedshiftSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -207,6 +184,30 @@ func (r *RedshiftSecret) Setup(client *api.Client, mountName string, topLevelCon
 		roleName:   r.config.RedshiftRoleConfig.Name,
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *RedshiftSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RedshiftSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *RedshiftSecret) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (r *RedshiftSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RedshiftSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (r *RedshiftSecret) Flags(fs *flag.FlagSet) {}

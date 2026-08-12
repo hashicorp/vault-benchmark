@@ -4,6 +4,7 @@
 package benchmarktests
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Configuration that applies to all individual tests
 type TopLevelTargetConfig struct {
 	Duration     time.Duration
 	RandomMounts bool
@@ -30,24 +30,11 @@ const (
 )
 
 type BenchmarkBuilder interface {
-	// Target generates and returns a vegeta.Target struct which is used for the attack
 	Target(client *api.Client) vegeta.Target
-
-	// Setup uses the passed in client and configuration to create the necessary test resources
-	// in Vault, and retrieve any necessary information needed to perform the test itself. Setup
-	// returns a test struct type which satisfies this BenchmarkBuilder interface.
 	Setup(client *api.Client, mountName string, config *TopLevelTargetConfig) (BenchmarkBuilder, error)
-
-	// Cleanup uses the passed in client to clean up any created resources used as part of the test
 	Cleanup(client *api.Client) error
-
-	// ParseConfig accepts an hcl.Body and parses it into the underlying test struct
 	ParseConfig(body hcl.Body) error
-
-	// GetTargetInfo retrieves specific Target information required to pass on to Attack
 	GetTargetInfo() TargetInfo
-
-	// Flags allows tests to define flags in the passed in command flag set
 	Flags(fs *flag.FlagSet)
 }
 
@@ -80,8 +67,7 @@ func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Method = tInfo.method
 }
 
-// TargetMulti allows building a vegeta targetter that chooses between various
-// operations randomly following a specified distribution.
+// TargetMulti chooses between various operations randomly following a specified distribution.
 type TargetMulti struct {
 	targets []BenchmarkTarget
 }
@@ -110,7 +96,7 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 
 	wg := new(sync.WaitGroup)
 	errch := make(chan CleanupMsg)
-	var errCount int
+	var errs []error
 
 	for _, target := range tm.targets {
 		target := target
@@ -125,16 +111,16 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		}()
 	}
 
-	for i := 0; i < len(tm.targets); i++ {
+	for range tm.targets {
 		cleanupMsg := <-errch
 		if cleanupMsg.err != nil {
-			errCount++
+			errs = append(errs, cleanupMsg.err)
 			targetLogger.Error("error cleaning up", "target", cleanupMsg.targetName, "error", cleanupMsg.err.Error())
 		} else {
 			targetLogger.Trace("done cleaning up", "target", cleanupMsg.targetName)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
@@ -190,13 +176,11 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 	var err error
 	targetLogger = *logger
 
-	// Check to make sure all weights add to 100
 	err = percentageValidate(tests)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build tests
 	for _, bvTest := range tests {
 		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name

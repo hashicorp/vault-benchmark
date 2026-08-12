@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -44,7 +43,7 @@ type RoleConfig struct {
 	Name                 string   `hcl:"role_name,optional"`
 	BindSecretID         *bool    `hcl:"bind_secret_id,optional"`
 	SecretIDBoundCIDRS   []string `hcl:"secret_id_bound_cidrs,optional"`
-	SecredIDNumUses      int      `hcl:"secret_id_num_uses,optional"`
+	SecretIDNumUses      int      `hcl:"secret_id_num_uses,optional"`
 	SecretIDTTL          string   `hcl:"secret_id_ttl,optional"`
 	LocalSecretIDs       bool     `hcl:"local_secret_ids,optional"`
 	TokenTTL             string   `hcl:"token_ttl,optional"`
@@ -85,31 +84,6 @@ func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 	return nil
-}
-
-func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: ApproleAuthTestMethod,
-		URL:    client.Address() + a.pathPrefix + "/login",
-		Header: a.header,
-		Body:   a.body,
-	}
-}
-
-func (a *ApproleAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *ApproleAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     ApproleAuthTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
 }
 
 func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -175,4 +149,24 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 	}, nil
 }
 
-func (l *ApproleAuth) Flags(fs *flag.FlagSet) {}
+func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: ApproleAuthTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/login",
+		Header: a.header,
+		Body:   a.body,
+	}
+}
+
+func (a *ApproleAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(a.logger, client, a.pathPrefix)
+}
+
+func (a *ApproleAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     ApproleAuthTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
+}
+
+func (a *ApproleAuth) Flags(fs *flag.FlagSet) {}

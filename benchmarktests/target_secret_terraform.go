@@ -26,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[TerraformSecretTestType] = func() BenchmarkBuilder { return &TerraformTest{} }
 }
 
@@ -87,30 +86,6 @@ func (t *TerraformTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TerraformTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: TerraformSecretTestMethod,
-		URL:    client.Address() + t.pathPrefix + "/creds/" + t.roleName,
-		Header: t.header,
-	}
-}
-
-func (t *TerraformTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (t *TerraformTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     TerraformSecretTestMethod,
-		pathPrefix: t.pathPrefix,
-	}
-}
-
 func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -168,6 +143,30 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 		roleName:   config.TerraformRoleConfig.Name,
 		logger:     t.logger,
 	}, nil
+}
+
+func (t *TerraformTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: TerraformSecretTestMethod,
+		URL:    client.Address() + t.pathPrefix + "/creds/" + t.roleName,
+		Header: t.header,
+	}
+}
+
+func (t *TerraformTest) Cleanup(client *api.Client) error {
+	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (t *TerraformTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     TerraformSecretTestMethod,
+		pathPrefix: t.pathPrefix,
+	}
 }
 
 func (t *TerraformTest) Flags(fs *flag.FlagSet) {}

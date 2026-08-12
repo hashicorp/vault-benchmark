@@ -101,30 +101,6 @@ func (a *AzureTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AzureTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
-		Header: a.header,
-	}
-}
-
-func (a *AzureTest) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *AzureTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     AzureSecretTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
-}
-
 func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -182,6 +158,30 @@ func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *
 		roleName:   config.AzureRole.Name,
 		logger:     a.logger,
 	}, nil
+}
+
+func (a *AzureTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: AzureSecretTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
+		Header: a.header,
+	}
+}
+
+func (a *AzureTest) Cleanup(client *api.Client) error {
+	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (a *AzureTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     AzureSecretTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
 }
 
 func (a *AzureTest) Flags(fs *flag.FlagSet) {}

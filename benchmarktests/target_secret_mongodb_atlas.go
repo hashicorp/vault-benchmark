@@ -103,30 +103,6 @@ func (m *MongoDBAtlasTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *MongoDBAtlasTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *MongoDBAtlasTest) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *MongoDBAtlasTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     MongoDBAtlasSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
-}
-
 func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -183,6 +159,30 @@ func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelC
 		roleName:   m.config.MongoDBAtlasRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
+}
+
+func (m *MongoDBAtlasTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: MongoDBAtlasSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *MongoDBAtlasTest) Cleanup(client *api.Client) error {
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (m *MongoDBAtlasTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     MongoDBAtlasSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
 }
 
 func (m *MongoDBAtlasTest) Flags(fs *flag.FlagSet) {}

@@ -58,11 +58,11 @@ type SSHKeySignCAConfig struct {
 }
 
 type SSHKeySigningConfig struct {
-	PublicKey       *string                `hcl:"public_key,optional"`
-	TTL             string                 `hcl:"ttl,optional"`
-	ValidPrincipals string                 `hcl:"valid_principals,optional"`
-	CertType        string                 `hcl:"cert_type,optional"`
-	KeyID           string                 `hcl:"key_id,optional"`
+	PublicKey       *string        `hcl:"public_key,optional"`
+	TTL             string         `hcl:"ttl,optional"`
+	ValidPrincipals string         `hcl:"valid_principals,optional"`
+	CertType        string         `hcl:"cert_type,optional"`
+	KeyID           string         `hcl:"key_id,optional"`
 	CriticalOptions map[string]any `hcl:"critical_options,optional"`
 	Extensions      map[string]any `hcl:"extensions,optional"`
 }
@@ -79,31 +79,31 @@ type SSHKeySignRoleConfig struct {
 	KeyOptionSpecs []string `hcl:"key_option_specs,optional"`
 
 	// Common
-	Name                   string                 `hcl:"name,optional"`
-	DefaultUser            string                 `hcl:"default_user,optional"`
-	DefaultUserTemplate    bool                   `hcl:"default_user_template,optional"`
-	CIDRList               []string               `hcl:"cidr_list,optional"`
-	ExcludeCIDRList        []string               `hcl:"exclude_cidr_list,optional"`
-	Port                   int                    `hcl:"port,optional"`
-	KeyType                string                 `hcl:"key_type,optional"`
-	AllowedUsers           []string               `hcl:"allowed_users,optional"`
-	AllowedUsersTemplate   bool                   `hcl:"allowed_users_template,optional"`
-	AllowedDomains         []string               `hcl:"allowed_domains,optional"`
-	TTL                    string                 `hcl:"ttl,optional"`
-	MaxTTL                 string                 `hcl:"max_ttl,optional"`
-	AllowedCriticalOptions []string               `hcl:"allowed_critical_options,optional"`
-	AllowedExtensions      []string               `hcl:"allowed_extensions,optional"`
-	DefaultCriticalOptions map[string]string      `hcl:"default_critical_options,optional"`
-	DefaultExtensions      map[string]string      `hcl:"default_extensions,optional"`
-	AllowUserCertificates  bool                   `hcl:"allow_user_certificates,optional"`
-	AllowHostCertificates  bool                   `hcl:"allow_host_certificates,optional"`
-	AllowBareDomains       bool                   `hcl:"allow_bare_domains,optional"`
-	AllowSubdomains        bool                   `hcl:"allow_subdomains,optional"`
-	AllowUserKeyIDs        bool                   `hcl:"allow_user_key_ids,optional"`
-	KeyIDFormat            string                 `hcl:"key_id_format,optional"`
-	AllowedUserKeyLengths  map[string]any `hcl:"allowed_user_key_lengths,optional"`
-	AlgorithmSigner        string                 `hcl:"algorithm_signer,optional"`
-	NotBeforeDuration      string                 `hcl:"not_before_duration,optional"`
+	Name                   string            `hcl:"name,optional"`
+	DefaultUser            string            `hcl:"default_user,optional"`
+	DefaultUserTemplate    bool              `hcl:"default_user_template,optional"`
+	CIDRList               []string          `hcl:"cidr_list,optional"`
+	ExcludeCIDRList        []string          `hcl:"exclude_cidr_list,optional"`
+	Port                   int               `hcl:"port,optional"`
+	KeyType                string            `hcl:"key_type,optional"`
+	AllowedUsers           []string          `hcl:"allowed_users,optional"`
+	AllowedUsersTemplate   bool              `hcl:"allowed_users_template,optional"`
+	AllowedDomains         []string          `hcl:"allowed_domains,optional"`
+	TTL                    string            `hcl:"ttl,optional"`
+	MaxTTL                 string            `hcl:"max_ttl,optional"`
+	AllowedCriticalOptions []string          `hcl:"allowed_critical_options,optional"`
+	AllowedExtensions      []string          `hcl:"allowed_extensions,optional"`
+	DefaultCriticalOptions map[string]string `hcl:"default_critical_options,optional"`
+	DefaultExtensions      map[string]string `hcl:"default_extensions,optional"`
+	AllowUserCertificates  bool              `hcl:"allow_user_certificates,optional"`
+	AllowHostCertificates  bool              `hcl:"allow_host_certificates,optional"`
+	AllowBareDomains       bool              `hcl:"allow_bare_domains,optional"`
+	AllowSubdomains        bool              `hcl:"allow_subdomains,optional"`
+	AllowUserKeyIDs        bool              `hcl:"allow_user_key_ids,optional"`
+	KeyIDFormat            string            `hcl:"key_id_format,optional"`
+	AllowedUserKeyLengths  map[string]any    `hcl:"allowed_user_key_lengths,optional"`
+	AlgorithmSigner        string            `hcl:"algorithm_signer,optional"`
+	NotBeforeDuration      string            `hcl:"not_before_duration,optional"`
 }
 
 func (s *SSHKeySignTest) ParseConfig(body hcl.Body) error {
@@ -132,31 +132,6 @@ func (s *SSHKeySignTest) ParseConfig(body hcl.Body) error {
 	}
 	s.config = testConfig.Config
 	return nil
-}
-
-func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: SSHKeySignTestMethod,
-		URL:    client.Address() + s.pathPrefix,
-		Body:   s.body,
-		Header: s.header,
-	}
-}
-
-func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.mountPath))
-	_, err := client.Logical().Delete(strings.Replace(s.mountPath, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     SSHKeySignTestMethod,
-		pathPrefix: s.pathPrefix,
-	}
 }
 
 func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -270,6 +245,31 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 		header:     generateHeader(client),
 		logger:     s.logger,
 	}, nil
+}
+
+func (s *SSHKeySignTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: SSHKeySignTestMethod,
+		URL:    client.Address() + s.pathPrefix,
+		Body:   s.body,
+		Header: s.header,
+	}
+}
+
+func (s *SSHKeySignTest) Cleanup(client *api.Client) error {
+	s.logger.Trace(cleanupLogMessage(s.mountPath))
+	_, err := client.Logical().Delete(strings.Replace(s.mountPath, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (s *SSHKeySignTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     SSHKeySignTestMethod,
+		pathPrefix: s.pathPrefix,
+	}
 }
 
 func (s *SSHKeySignTest) Flags(fs *flag.FlagSet) {}

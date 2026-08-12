@@ -17,7 +17,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for TOTP test types
 const (
 	TOTPSecretCreateTestType   = "totp_create"
 	TOTPSecretGenerateTestType = "totp_generate"
@@ -34,7 +33,6 @@ const (
 )
 
 func init() {
-	// Register these tests to the main test registry
 	TestList[TOTPSecretCreateTestType] = func() BenchmarkBuilder {
 		return &TOTPSecretTest{action: "create"}
 	}
@@ -68,9 +66,7 @@ type TOTPSecretTestConfig struct {
 	Generate    bool   `hcl:"generate,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during testing
 func (t *TOTPSecretTest) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *TOTPSecretTestConfig `hcl:"config,block"`
 	}{
@@ -93,78 +89,6 @@ func (t *TOTPSecretTest) ParseConfig(body hcl.Body) error {
 	if t.config.KeyName == "" {
 		t.config.KeyName = DefaultKeyName
 	}
-	return nil
-}
-
-func (t *TOTPSecretTest) create() vegeta.Target {
-	// Optimization: Use index-based naming for unique keys
-	keyName := fmt.Sprintf("%s-shared-%d", t.config.KeyName, t.keyIndex)
-	t.keyIndex++
-
-	return vegeta.Target{
-		Method: TOTPSecretCreateTestMethod,
-		URL:    t.baseURL + "/keys/" + keyName,
-		Header: t.header,
-		Body:   t.createKeyDataJSON, // Use pre-marshaled JSON
-	}
-}
-
-func (t *TOTPSecretTest) generate() vegeta.Target {
-	// Use the base key name for generate operations
-	keyName := t.config.KeyName
-
-	return vegeta.Target{
-		Method: TOTPSecretTestMethod,
-		URL:    t.baseURL + "/code/" + keyName,
-		Header: t.header,
-	}
-}
-
-func (t *TOTPSecretTest) read() vegeta.Target {
-	// Use the base key name for read operations
-	keyName := t.config.KeyName
-
-	return vegeta.Target{
-		Method: TOTPSecretTestMethod,
-		URL:    t.baseURL + "/keys/" + keyName,
-		Header: t.header,
-	}
-}
-
-func (t *TOTPSecretTest) Target(client *api.Client) vegeta.Target {
-	switch t.action {
-	case "create":
-		return t.create()
-	case "generate":
-		return t.generate()
-	case "read":
-		return t.read()
-	default:
-		return t.create()
-	}
-}
-
-func (t *TOTPSecretTest) GetTargetInfo() TargetInfo {
-	method := TOTPSecretTestMethod
-	if t.action == "create" {
-		method = TOTPSecretCreateTestMethod
-	}
-	return TargetInfo{
-		method:     method,
-		pathPrefix: t.pathPrefix,
-	}
-}
-
-func (t *TOTPSecretTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-
-	// Clean up the mount itself (this will clean up all keys in the mount)
-	err := client.Sys().Unmount(t.mountPath)
-	if err != nil {
-		return fmt.Errorf("error unmounting TOTP secrets engine at %s: %v", t.mountPath, err)
-	}
-
-	t.logger.Trace("successfully cleaned up TOTP mount", "path", t.mountPath)
 	return nil
 }
 
@@ -247,17 +171,88 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	createKeyDataJSON, _ := json.Marshal(createKeyData)
 
 	return &TOTPSecretTest{
-		pathPrefix: "/v1/" + mountPath,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-		action:     t.action,
-		config:     &configCopy,
-		logger:     t.logger,
-		baseURL:    baseURL,
-		mountPath:  mountPath,
-		keyIndex:   0,
-		// Optimization: Pre-compute URL patterns to avoid sprintf in hot path]
+		pathPrefix:        "/v1/" + mountPath,
+		header:            http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
+		action:            t.action,
+		config:            &configCopy,
+		logger:            t.logger,
+		baseURL:           baseURL,
+		mountPath:         mountPath,
+		keyIndex:          0,
 		createKeyDataJSON: createKeyDataJSON,
 	}, nil
 }
 
+func (t *TOTPSecretTest) Target(client *api.Client) vegeta.Target {
+	switch t.action {
+	case "create":
+		return t.create()
+	case "generate":
+		return t.generate()
+	case "read":
+		return t.read()
+	default:
+		return t.create()
+	}
+}
+
+func (t *TOTPSecretTest) Cleanup(client *api.Client) error {
+	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
+
+	// Clean up the mount itself (this will clean up all keys in the mount)
+	err := client.Sys().Unmount(t.mountPath)
+	if err != nil {
+		return fmt.Errorf("error unmounting TOTP secrets engine at %s: %v", t.mountPath, err)
+	}
+
+	t.logger.Trace("successfully cleaned up TOTP mount", "path", t.mountPath)
+	return nil
+}
+
+func (t *TOTPSecretTest) GetTargetInfo() TargetInfo {
+	method := TOTPSecretTestMethod
+	if t.action == "create" {
+		method = TOTPSecretCreateTestMethod
+	}
+	return TargetInfo{
+		method:     method,
+		pathPrefix: t.pathPrefix,
+	}
+}
+
 func (t *TOTPSecretTest) Flags(fs *flag.FlagSet) {}
+
+func (t *TOTPSecretTest) create() vegeta.Target {
+	// Optimization: Use index-based naming for unique keys
+	keyName := fmt.Sprintf("%s-shared-%d", t.config.KeyName, t.keyIndex)
+	t.keyIndex++
+
+	return vegeta.Target{
+		Method: TOTPSecretCreateTestMethod,
+		URL:    t.baseURL + "/keys/" + keyName,
+		Header: t.header,
+		Body:   t.createKeyDataJSON,
+	}
+}
+
+func (t *TOTPSecretTest) generate() vegeta.Target {
+	// Use the base key name for generate operations
+	keyName := t.config.KeyName
+
+	return vegeta.Target{
+		Method: TOTPSecretTestMethod,
+		URL:    t.baseURL + "/code/" + keyName,
+		Header: t.header,
+	}
+}
+
+func (t *TOTPSecretTest) read() vegeta.Target {
+	// Use the base key name for read operations
+	keyName := t.config.KeyName
+
+	return vegeta.Target{
+		Method: TOTPSecretTestMethod,
+		URL:    t.baseURL + "/keys/" + keyName,
+		Header: t.header,
+	}
+}

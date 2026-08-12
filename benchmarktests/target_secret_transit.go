@@ -29,7 +29,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "sign"} }
 	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "verify"} }
 	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "encrypt"} }
@@ -68,66 +67,66 @@ type TransitConfigKeys struct {
 	ManagedKeyName       string `hcl:"managed_key_name,optional"`
 	ManagedKeyID         string `hcl:"managed_key_id,optional"`
 	ParameterSet         string `hcl:"parameter_set,optional"`
-    HybridKeyTypeEC      string `hcl:"hybrid_key_type_ec,optional"`
-    HybridKeyTypePQC     string `hcl:"hybrid_key_type_pqc,optional"`
+	HybridKeyTypeEC      string `hcl:"hybrid_key_type_ec,optional"`
+	HybridKeyTypePQC     string `hcl:"hybrid_key_type_pqc,optional"`
 }
 
 // /transit/sign/:name
 type TransitConfigSign struct {
-	Name                string        `hcl:"name,optional"`
-	KeyVersion          int           `hcl:"key_version,optional"`
-	HashAlgorithm       string        `hcl:"hash_algorithm,optional"`
-	Input               string        `hcl:"input,optional"`
-	Reference           string        `hcl:"reference,optional"`
-	BatchInput          []any `hcl:"batch_input,optional"`
-	Context             string        `hcl:"context,optional"`
-	Prehashed           bool          `hcl:"prehashed,optional"`
-	SignatureAlgorithm  string        `hcl:"signature_algorithm,optional"`
-	MarshalingAlgorithm string        `hcl:"marshaling_algorithm,optional"`
-	SaltLength          string        `hcl:"salt_length,optional"`
+	Name                string `hcl:"name,optional"`
+	KeyVersion          int    `hcl:"key_version,optional"`
+	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
+	Input               string `hcl:"input,optional"`
+	Reference           string `hcl:"reference,optional"`
+	BatchInput          []any  `hcl:"batch_input,optional"`
+	Context             string `hcl:"context,optional"`
+	Prehashed           bool   `hcl:"prehashed,optional"`
+	SignatureAlgorithm  string `hcl:"signature_algorithm,optional"`
+	MarshalingAlgorithm string `hcl:"marshaling_algorithm,optional"`
+	SaltLength          string `hcl:"salt_length,optional"`
 }
 
 // /transit/verify/:name(/:hash_algorithm)
 type TransitConfigVerify struct {
-	Name                string        `hcl:"name,optional"`
-	HashAlgorithm       string        `hcl:"hash_algorithm,optional"`
-	Input               string        `hcl:"input,optional"`
-	Signature           string        `hcl:"signature,optional"`
-	HMAC                string        `hcl:"hmac,optional"`
-	Reference           string        `hcl:"reference,optional"`
-	BatchInput          []any `hcl:"batch_input,optional"`
-	Context             string        `hcl:"context,optional"`
-	Prehashed           bool          `hcl:"prehashed,optional"`
-	SignatureAlgorithm  string        `hcl:"signature_algorithm,optional"`
-	MarshalingAlgorithm string        `hcl:"marshaling_algorithm,optional"`
-	SaltLength          string        `hcl:"salt_length,optional"`
+	Name                string `hcl:"name,optional"`
+	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
+	Input               string `hcl:"input,optional"`
+	Signature           string `hcl:"signature,optional"`
+	HMAC                string `hcl:"hmac,optional"`
+	Reference           string `hcl:"reference,optional"`
+	BatchInput          []any  `hcl:"batch_input,optional"`
+	Context             string `hcl:"context,optional"`
+	Prehashed           bool   `hcl:"prehashed,optional"`
+	SignatureAlgorithm  string `hcl:"signature_algorithm,optional"`
+	MarshalingAlgorithm string `hcl:"marshaling_algorithm,optional"`
+	SaltLength          string `hcl:"salt_length,optional"`
 }
 
 // /transit/encrypt/:name
 type TransitConfigEncrypt struct {
-	Name                       string        `hcl:"name,optional"`
-	Plaintext                  string        `hcl:"plaintext,optional"`
-	AssociatedData             string        `hcl:"associated_data,optional"`
-	Context                    string        `hcl:"context,optional"`
-	KeyVersion                 int           `hcl:"key_version,optional"`
-	Nonce                      string        `hcl:"nonce,optional"`
-	Reference                  string        `hcl:"reference,optional"`
-	BatchInput                 []any `hcl:"batch_input,optional"`
-	Type                       string        `hcl:"type,optional"`
-	ConvergentEncryption       bool          `hcl:"convergent_encryption,optional"`
-	PartialFailureResponseCode int           `hcl:"partial_failure_response_code,optional"`
+	Name                       string `hcl:"name,optional"`
+	Plaintext                  string `hcl:"plaintext,optional"`
+	AssociatedData             string `hcl:"associated_data,optional"`
+	Context                    string `hcl:"context,optional"`
+	KeyVersion                 int    `hcl:"key_version,optional"`
+	Nonce                      string `hcl:"nonce,optional"`
+	Reference                  string `hcl:"reference,optional"`
+	BatchInput                 []any  `hcl:"batch_input,optional"`
+	Type                       string `hcl:"type,optional"`
+	ConvergentEncryption       bool   `hcl:"convergent_encryption,optional"`
+	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
 }
 
 // /transit/decrypt/:name
 type TransitConfigDecrypt struct {
-	Name                       string        `hcl:"name,optional"`
-	Ciphertext                 string        `hcl:"ciphertext,optional"`
-	AssociatedData             string        `hcl:"associated_data,optional"`
-	Context                    string        `hcl:"context,optional"`
-	Nonce                      string        `hcl:"nonce,optional"`
-	Reference                  string        `hcl:"reference,optional"`
-	BatchInput                 []any `hcl:"batch_input,optional"`
-	PartialFailureResponseCode int           `hcl:"partial_failure_response_code,optional"`
+	Name                       string `hcl:"name,optional"`
+	Ciphertext                 string `hcl:"ciphertext,optional"`
+	AssociatedData             string `hcl:"associated_data,optional"`
+	Context                    string `hcl:"context,optional"`
+	Nonce                      string `hcl:"nonce,optional"`
+	Reference                  string `hcl:"reference,optional"`
+	BatchInput                 []any  `hcl:"batch_input,optional"`
+	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
 }
 
 func (t *TransitTest) ParseConfig(body hcl.Body) error {
@@ -173,31 +172,6 @@ func (t *TransitTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TransitTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: TransitSecretTestMethod,
-		URL:    client.Address() + t.pathPrefix,
-		Body:   t.body,
-		Header: t.header,
-	}
-}
-
-func (t *TransitTest) Cleanup(client *api.Client) error {
-	parts := strings.Split(t.pathPrefix, "/")
-	t.logger.Trace(cleanupLogMessage(parts[2]))
-	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (t *TransitTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     TransitSecretTestMethod,
-		pathPrefix: t.pathPrefix,
-	}
-}
 func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -390,6 +364,32 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	default:
 		return nil, fmt.Errorf("unknown or unsupported transit operation: %v", t.action)
+	}
+}
+
+func (t *TransitTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: TransitSecretTestMethod,
+		URL:    client.Address() + t.pathPrefix,
+		Body:   t.body,
+		Header: t.header,
+	}
+}
+
+func (t *TransitTest) Cleanup(client *api.Client) error {
+	parts := strings.Split(t.pathPrefix, "/")
+	t.logger.Trace(cleanupLogMessage(parts[2]))
+	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (t *TransitTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     TransitSecretTestMethod,
+		pathPrefix: t.pathPrefix,
 	}
 }
 

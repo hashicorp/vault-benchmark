@@ -202,7 +202,6 @@ func generateHeader(client *api.Client) http.Header {
 }
 
 func IsFile(path string) (bool, error) {
-	// File Validity checking
 	f, err := os.Stat(path)
 	if err != nil {
 		return false, err
@@ -233,7 +232,6 @@ func natLess(a, b string) bool {
 				j++
 			}
 
-			// Compare by numeric value, ignoring leading zeros.
 			numA := strings.TrimLeft(a[startA:i], "0")
 			numB := strings.TrimLeft(b[startB:j], "0")
 			if len(numA) != len(numB) {

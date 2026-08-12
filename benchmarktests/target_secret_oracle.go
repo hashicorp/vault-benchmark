@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	OracleSecretTestType   = "oracle_secret"
 	OracleSecretTestMethod = "GET"
@@ -28,11 +27,9 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[OracleSecretTestType] = func() BenchmarkBuilder { return &OracleSecret{} }
 }
 
-// Oracle Secret Test Struct
 type OracleSecret struct {
 	pathPrefix string
 	roleName   string
@@ -41,13 +38,11 @@ type OracleSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type OracleSecretTestConfig struct {
 	OracleDBConfig   *OracleDBConfig   `hcl:"db_connection,block"`
 	OracleRoleConfig *OracleRoleConfig `hcl:"role,block"`
 }
 
-// Oracle DB Config
 type OracleDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -64,12 +59,10 @@ type OracleDBConfig struct {
 	MaxIdleConnections     int      `hcl:"max_idle_connections,optional"`
 	MaxConnectionLifetime  string   `hcl:"max_connection_lifetime,optional"`
 	UsernameTemplate       string   `hcl:"username_template,optional"`
-	// Oracle-specific configurations
-	SplitStatements    bool `hcl:"split_statements,optional"`
-	DisconnectSessions bool `hcl:"disconnect_sessions,optional"`
+	SplitStatements        bool     `hcl:"split_statements,optional"`
+	DisconnectSessions     bool     `hcl:"disconnect_sessions,optional"`
 }
 
-// Oracle Role Config
 type OracleRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -82,11 +75,7 @@ type OracleRoleConfig struct {
 	RotationStatements   string `hcl:"rotation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (o *OracleSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *OracleSecretTestConfig `hcl:"config,block"`
 	}{
@@ -127,30 +116,6 @@ func (o *OracleSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (o *OracleSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: OracleSecretTestMethod,
-		URL:    client.Address() + o.pathPrefix + "/creds/" + o.roleName,
-		Header: o.header,
-	}
-}
-
-func (o *OracleSecret) Cleanup(client *api.Client) error {
-	o.logger.Trace(cleanupLogMessage(o.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(o.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (o *OracleSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     OracleSecretTestMethod,
-		pathPrefix: o.pathPrefix,
-	}
 }
 
 func (o *OracleSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -212,6 +177,30 @@ func (o *OracleSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		roleName:   o.config.OracleRoleConfig.Name,
 		logger:     o.logger,
 	}, nil
+}
+
+func (o *OracleSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: OracleSecretTestMethod,
+		URL:    client.Address() + o.pathPrefix + "/creds/" + o.roleName,
+		Header: o.header,
+	}
+}
+
+func (o *OracleSecret) Cleanup(client *api.Client) error {
+	o.logger.Trace(cleanupLogMessage(o.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(o.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (o *OracleSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     OracleSecretTestMethod,
+		pathPrefix: o.pathPrefix,
+	}
 }
 
 func (o *OracleSecret) Flags(fs *flag.FlagSet) {}

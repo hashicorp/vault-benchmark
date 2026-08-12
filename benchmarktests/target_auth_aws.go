@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -27,18 +26,16 @@ const (
 	AWSAuthTestMethod = "POST"
 	AWSAuthAccessKey  = VaultBenchmarkEnvVarPrefix + "AWS_ACCESS_KEY"
 	AWSAuthSecretKey  = VaultBenchmarkEnvVarPrefix + "AWS_SECRET_KEY"
+
+	// awsSigV4TTL is hardcoded by the AWS spec; awsBodyRefreshMargin ensures we
+	// refresh before the signature window closes rather than after.
+	awsSigV4TTL          = 15 * time.Minute
+	awsBodyRefreshMargin = 1 * time.Minute
 )
 
 func init() {
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
-
-// awsSigV4TTL is hardcoded by the AWS spec; awsBodyRefreshMargin ensures we
-// refresh before the signature window closes rather than after.
-const (
-	awsSigV4TTL          = 15 * time.Minute
-	awsBodyRefreshMargin = 1 * time.Minute
-)
 
 type AWSAuth struct {
 	pathPrefix string
@@ -125,43 +122,6 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
-	a.login.mu.Lock()
-	if time.Now().After(a.login.expiry) {
-		if body, err := a.buildLoginBody(); err != nil {
-			a.logger.Warn("failed to refresh AWS login body; using stale credentials", "error", err)
-		} else {
-			a.login.body = body
-			a.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
-		}
-	}
-	body := a.login.body
-	a.login.mu.Unlock()
-
-	return vegeta.Target{
-		Method: AWSAuthTestMethod,
-		URL:    client.Address() + a.pathPrefix + "/login",
-		Header: a.header,
-		Body:   body,
-	}
-}
-
-func (a *AWSAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *AWSAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     AWSAuthTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
-}
-
 func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -223,6 +183,38 @@ func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 	result.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
 
 	return result, nil
+}
+
+func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
+	a.login.mu.Lock()
+	if time.Now().After(a.login.expiry) {
+		if body, err := a.buildLoginBody(); err != nil {
+			a.logger.Warn("failed to refresh AWS login body; using stale credentials", "error", err)
+		} else {
+			a.login.body = body
+			a.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
+		}
+	}
+	body := a.login.body
+	a.login.mu.Unlock()
+
+	return vegeta.Target{
+		Method: AWSAuthTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/login",
+		Header: a.header,
+		Body:   body,
+	}
+}
+
+func (a *AWSAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(a.logger, client, a.pathPrefix)
+}
+
+func (a *AWSAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     AWSAuthTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
 }
 
 func (a *AWSAuth) Flags(fs *flag.FlagSet) {}

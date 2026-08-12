@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -77,30 +76,6 @@ func (g *GCPImpersonationTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (g *GCPImpersonationTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + g.pathPrefix + "/impersonated-account/" + g.config.GCPImpersonate.Name,
-		Header: g.header,
-	}
-}
-
-func (g *GCPImpersonationTest) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up gcp impersonation mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPImpersonationTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPImpersonationSecretTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
-}
-
 func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -127,7 +102,7 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 	// check if the credentials argument should be read from file
 	creds := config.GCPConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
-		contents, err := ioutil.ReadFile(creds[1:])
+		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading credentials file: %w", err)
 		}
@@ -169,6 +144,30 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 		logger:     g.logger,
 		config:     g.config,
 	}, nil
+}
+
+func (g *GCPImpersonationTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GCPImpersonationSecretTestMethod,
+		URL:    client.Address() + g.pathPrefix + "/impersonated-account/" + g.config.GCPImpersonate.Name,
+		Header: g.header,
+	}
+}
+
+func (g *GCPImpersonationTest) Cleanup(client *api.Client) error {
+	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up gcp impersonation mount: %v", err)
+	}
+	return nil
+}
+
+func (g *GCPImpersonationTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPImpersonationSecretTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
 }
 
 func (a *GCPImpersonationTest) Flags(fs *flag.FlagSet) {}

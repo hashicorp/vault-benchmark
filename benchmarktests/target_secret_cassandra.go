@@ -12,15 +12,13 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl/v2"
-
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	CassandraSecretTestType   = "cassandra_secret"
 	CassandraSecretTestMethod = "GET"
@@ -29,11 +27,9 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[CassandraSecretTestType] = func() BenchmarkBuilder { return &CassandraSecret{} }
 }
 
-// Cassandra Secret Test Struct
 type CassandraSecret struct {
 	pathPrefix string
 	roleName   string
@@ -42,13 +38,11 @@ type CassandraSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type CassandraSecretTestConfig struct {
 	CassandraDBConfig   *CassandraDBConfig   `hcl:"db_connection,block"`
 	CassandraRoleConfig *CassandraRoleConfig `hcl:"role,block"`
 }
 
-// Cassandra DB Config
 type CassandraDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -75,7 +69,6 @@ type CassandraDBConfig struct {
 	UsernameTemplate       string   `hcl:"username_template,optional"`
 }
 
-// Cassandra Role Config
 type CassandraRoleConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	DBName                 string   `hcl:"db_name,optional"`
@@ -87,11 +80,7 @@ type CassandraRoleConfig struct {
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *CassandraSecretTestConfig `hcl:"config,block"`
 	}{
@@ -126,30 +115,6 @@ func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: CassandraSecretTestMethod,
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
-	}
-}
-
-func (c *CassandraSecret) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (c *CassandraSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     CassandraSecretTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
 }
 
 func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -212,6 +177,30 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 		logger:     c.logger,
 	}, nil
 
+}
+
+func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: CassandraSecretTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *CassandraSecret) Cleanup(client *api.Client) error {
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (c *CassandraSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     CassandraSecretTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
 }
 
 func (c *CassandraSecret) Flags(fs *flag.FlagSet) {}

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -34,8 +33,8 @@ func init() {
 
 type AzureAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *AzureAuthTestConfig
 	logger     hclog.Logger
 }
@@ -112,31 +111,6 @@ func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + a.pathPrefix + "/login",
-		Header: a.header,
-		Body:   a.body,
-	}
-}
-
-func (a *AzureAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *AzureAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     AzureAuthTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
-}
-
 func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -201,6 +175,26 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 		body:       azureBody,
 		logger:     a.logger,
 	}, nil
+}
+
+func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: AzureAuthTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/login",
+		Header: a.header,
+		Body:   a.body,
+	}
+}
+
+func (a *AzureAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(a.logger, client, a.pathPrefix)
+}
+
+func (a *AzureAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     AzureAuthTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
 }
 
 func (a *AzureAuth) Flags(fs *flag.FlagSet) {}

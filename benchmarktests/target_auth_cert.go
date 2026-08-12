@@ -9,10 +9,8 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -85,21 +83,6 @@ func (c *CertAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *CertAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: CertAuthTestMethod,
-		URL:    client.Address() + c.pathPrefix + "/login",
-		Header: c.header,
-	}
-}
-
-func (c *CertAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     CertAuthTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
 func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -116,19 +99,19 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		c.logger.Warn("no CA provided; creating self-signed CA")
 		benchCA, err := GenerateCA()
 		if err != nil {
-			log.Fatalf("error generating benchmark CA: %v", err)
+			return nil, fmt.Errorf("error generating benchmark CA: %w", err)
 		}
 
 		c.logger.Trace("creating client cert")
 		clientCert, clientKey, err := GenerateCert(benchCA.Template, benchCA.Signer)
 		if err != nil {
-			log.Fatalf("error generating client cert: %v", err)
+			return nil, fmt.Errorf("error generating client cert: %w", err)
 		}
 
 		c.logger.Trace("generating x509 key pair")
 		keyPair, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
 		if err != nil {
-			log.Fatalf("error generating client key pair: %v", err)
+			return nil, fmt.Errorf("error generating client key pair: %w", err)
 		}
 
 		c.logger.Trace("creating new client with generated cert")
@@ -177,13 +160,23 @@ func (c *CertAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
-func (c *CertAuth) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
+func (c *CertAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: CertAuthTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/login",
+		Header: c.header,
 	}
-	return nil
+}
+
+func (c *CertAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(c.logger, client, c.pathPrefix)
+}
+
+func (c *CertAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     CertAuthTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
 }
 
 func (c *CertAuth) Flags(fs *flag.FlagSet) {}

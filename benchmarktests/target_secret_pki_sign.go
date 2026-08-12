@@ -264,39 +264,6 @@ func (p *PKISignTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (p *PKISignTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: PKISignTestMethod,
-		URL:    client.Address() + p.pathPrefix,
-		Body:   p.body,
-		Header: p.header,
-	}
-}
-
-func (p *PKISignTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     PKISignTestMethod,
-		pathPrefix: p.pathPrefix,
-	}
-}
-
-func (p *PKISignTest) Cleanup(client *api.Client) error {
-	// Unmount Root
-	p.logger.Trace(cleanupLogMessage(p.rootpath))
-	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-
-	// Unmount Intermediate
-	p.logger.Trace(cleanupLogMessage(p.intpath))
-	_, err = client.Logical().Delete(filepath.Join("/sys/mounts/", p.intpath))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
 func (p *PKISignTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -387,6 +354,41 @@ func (p *PKISignTest) Setup(client *api.Client, mountName string, topLevelConfig
 		logger:     p.logger,
 	}, nil
 }
+
+func (p *PKISignTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: PKISignTestMethod,
+		URL:    client.Address() + p.pathPrefix,
+		Body:   p.body,
+		Header: p.header,
+	}
+}
+
+func (p *PKISignTest) Cleanup(client *api.Client) error {
+	// Unmount Root
+	p.logger.Trace(cleanupLogMessage(p.rootpath))
+	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+
+	// Unmount Intermediate
+	p.logger.Trace(cleanupLogMessage(p.intpath))
+	_, err = client.Logical().Delete(filepath.Join("/sys/mounts/", p.intpath))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (p *PKISignTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     PKISignTestMethod,
+		pathPrefix: p.pathPrefix,
+	}
+}
+
+func (p *PKISignTest) Flags(fs *flag.FlagSet) {}
 
 func (p *PKISignTest) createRootCA(cli *api.Client, pfx string) error {
 	rootPath := pfx + "-root"
@@ -548,5 +550,3 @@ func (p *PKISignTest) generateTestCSR() (string, error) {
 
 	return bundle.CSR, nil
 }
-
-func (p *PKISignTest) Flags(fs *flag.FlagSet) {}

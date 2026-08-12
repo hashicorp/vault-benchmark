@@ -91,38 +91,6 @@ func (g *GCPTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (g *GCPTest) Target(client *api.Client) vegeta.Target {
-	var url string
-
-	if g.config.GCPRoleset.SecretType == GCPAccessTokenType {
-		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/token"
-	} else if g.config.GCPRoleset.SecretType == GCPServiceAccountType {
-		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/key"
-	}
-
-	return vegeta.Target{
-		Method: "GET",
-		URL:    url,
-		Header: g.header,
-	}
-}
-
-func (g *GCPTest) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPSecretTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
-}
-
 func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -203,6 +171,38 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 		logger:     g.logger,
 		config:     g.config,
 	}, nil
+}
+
+func (g *GCPTest) Target(client *api.Client) vegeta.Target {
+	var url string
+
+	if g.config.GCPRoleset.SecretType == GCPAccessTokenType {
+		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/token"
+	} else if g.config.GCPRoleset.SecretType == GCPServiceAccountType {
+		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/key"
+	}
+
+	return vegeta.Target{
+		Method: GCPSecretTestMethod,
+		URL:    url,
+		Header: g.header,
+	}
+}
+
+func (g *GCPTest) Cleanup(client *api.Client) error {
+	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (g *GCPTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPSecretTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
 }
 
 func (g *GCPTest) Flags(fs *flag.FlagSet) {}

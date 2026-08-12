@@ -20,7 +20,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[HAStatusTestType] = func() BenchmarkBuilder { return &StatusCheck{pathPrefix: "ha-status"} }
 	TestList[SealStatusTestType] = func() BenchmarkBuilder { return &StatusCheck{pathPrefix: "seal-status"} }
 	TestList[MetricsTestType] = func() BenchmarkBuilder { return &StatusCheck{pathPrefix: "metrics"} }
@@ -57,7 +56,6 @@ func (s *StatusCheck) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-// Cleanup is a no-op for this test
 func (s *StatusCheck) Cleanup(client *api.Client) error {
 	return nil
 }

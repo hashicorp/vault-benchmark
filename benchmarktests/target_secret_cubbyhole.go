@@ -50,6 +50,7 @@ type CubbyholeSecretTestConfig struct {
 }
 
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
+
 func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 	// provide defaults
 	testConfig := &struct {
@@ -69,57 +70,6 @@ func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 		c.config.Path = DefaultSecretPath // Set default if empty instead of error
 	}
 	return nil
-}
-
-func (c *CubbyholeTest) read() vegeta.Target {
-	return vegeta.Target{
-		Method: CubbyholeSecretReadTestMethod,
-		URL:    c.baseURL,
-		Header: c.header,
-	}
-}
-
-func (c *CubbyholeTest) write() vegeta.Target {
-	return vegeta.Target{
-		Method: CubbyholeSecretWriteTestMethod,
-		URL:    c.baseURL,
-		Body:   []byte(`{"foo": "bar"}`),
-		Header: c.header,
-	}
-}
-
-func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
-	switch c.action {
-	case "write":
-		return c.write()
-	default:
-		return c.read()
-	}
-}
-
-func (c *CubbyholeTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	// Cubbyhole secrets are automatically cleaned up when token is revoked
-	// But we can explicitly delete the secret if needed
-	_, err := client.Logical().Delete(fmt.Sprintf("cubbyhole/%s", c.config.Path))
-	if err != nil {
-		return fmt.Errorf("error cleaning up cubbyhole secret: %v", err)
-	}
-	return nil
-}
-
-func (c *CubbyholeTest) GetTargetInfo() TargetInfo {
-	var method string
-	switch c.action {
-	case "write":
-		method = CubbyholeSecretWriteTestMethod
-	default:
-		method = CubbyholeSecretReadTestMethod
-	}
-	return TargetInfo{
-		method:     method,
-		pathPrefix: c.pathPrefix,
-	}
 }
 
 func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -171,4 +121,53 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	}, nil
 }
 
+func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
+	switch c.action {
+	case "write":
+		return c.write()
+	default:
+		return c.read()
+	}
+}
+
+func (c *CubbyholeTest) Cleanup(client *api.Client) error {
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
+	_, err := client.Logical().Delete(fmt.Sprintf("cubbyhole/%s", c.config.Path))
+	if err != nil {
+		return fmt.Errorf("error cleaning up cubbyhole secret: %v", err)
+	}
+	return nil
+}
+
+func (c *CubbyholeTest) GetTargetInfo() TargetInfo {
+	var method string
+	switch c.action {
+	case "write":
+		method = CubbyholeSecretWriteTestMethod
+	default:
+		method = CubbyholeSecretReadTestMethod
+	}
+	return TargetInfo{
+		method:     method,
+		pathPrefix: c.pathPrefix,
+	}
+}
+
 func (c *CubbyholeTest) Flags(fs *flag.FlagSet) {}
+
+func (c *CubbyholeTest) read() vegeta.Target {
+	return vegeta.Target{
+		Method: CubbyholeSecretReadTestMethod,
+		URL:    c.baseURL,
+		Header: c.header,
+	}
+}
+
+func (c *CubbyholeTest) write() vegeta.Target {
+	return vegeta.Target{
+		Method: CubbyholeSecretWriteTestMethod,
+		URL:    c.baseURL,
+		Body:   []byte(`{"foo": "bar"}`),
+		Header: c.header,
+	}
+}

@@ -260,39 +260,6 @@ func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (p *PKIIssueTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: PKIIssueTestMethod,
-		URL:    client.Address() + p.pathPrefix,
-		Body:   p.body,
-		Header: p.header,
-	}
-}
-
-func (p *PKIIssueTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     PKIIssueTestMethod,
-		pathPrefix: p.pathPrefix,
-	}
-}
-
-func (p *PKIIssueTest) Cleanup(client *api.Client) error {
-	// Unmount Root
-	p.logger.Trace(cleanupLogMessage(p.rootpath))
-	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-
-	// Unmount Intermediate
-	p.logger.Trace(cleanupLogMessage(p.intpath))
-	_, err = client.Logical().Delete(filepath.Join("/sys/mounts/", p.intpath))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
 func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -340,6 +307,41 @@ func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 		logger:     p.logger,
 	}, nil
 }
+
+func (p *PKIIssueTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: PKIIssueTestMethod,
+		URL:    client.Address() + p.pathPrefix,
+		Body:   p.body,
+		Header: p.header,
+	}
+}
+
+func (p *PKIIssueTest) Cleanup(client *api.Client) error {
+	// Unmount Root
+	p.logger.Trace(cleanupLogMessage(p.rootpath))
+	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+
+	// Unmount Intermediate
+	p.logger.Trace(cleanupLogMessage(p.intpath))
+	_, err = client.Logical().Delete(filepath.Join("/sys/mounts/", p.intpath))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (p *PKIIssueTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     PKIIssueTestMethod,
+		pathPrefix: p.pathPrefix,
+	}
+}
+
+func (p *PKIIssueTest) Flags(fs *flag.FlagSet) {}
 
 func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	rootPath := pfx + "-root"
@@ -473,5 +475,3 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 
 	return filepath.Join(intPath, "issue", p.config.RoleConfig.Name), nil
 }
-
-func (p *PKIIssueTest) Flags(fs *flag.FlagSet) {}

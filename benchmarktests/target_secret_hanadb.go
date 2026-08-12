@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	HanaDBSecretTestType   = "hanadb_secret"
 	HanaDBSecretTestMethod = "GET"
@@ -28,11 +27,9 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[HanaDBSecretTestType] = func() BenchmarkBuilder { return &HanaDBSecret{} }
 }
 
-// HanaDB Secret Test Struct
 type HanaDBSecret struct {
 	pathPrefix string
 	roleName   string
@@ -41,13 +38,11 @@ type HanaDBSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type HanaDBSecretTestConfig struct {
 	HanaDBDBConfig   *HanaDBDBConfig   `hcl:"db_connection,block"`
 	HanaDBRoleConfig *HanaDBRoleConfig `hcl:"role,block"`
 }
 
-// HanaDB DB Config
 type HanaDBDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -70,7 +65,6 @@ type HanaDBDBConfig struct {
 	TLSSkipVerify          bool     `hcl:"tls_skip_verify,optional"`
 }
 
-// HanaDB Role Config
 type HanaDBRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -80,11 +74,7 @@ type HanaDBRoleConfig struct {
 	RevocationStatements string `hcl:"revocation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (m *HanaDBSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *HanaDBSecretTestConfig `hcl:"config,block"`
 	}{
@@ -119,30 +109,6 @@ func (m *HanaDBSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (m *HanaDBSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: HanaDBSecretTestMethod,
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *HanaDBSecret) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *HanaDBSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     HanaDBSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
 }
 
 func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -204,6 +170,30 @@ func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		roleName:   m.config.HanaDBRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
+}
+
+func (m *HanaDBSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: HanaDBSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *HanaDBSecret) Cleanup(client *api.Client) error {
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (m *HanaDBSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     HanaDBSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
 }
 
 func (m *HanaDBSecret) Flags(fs *flag.FlagSet) {}

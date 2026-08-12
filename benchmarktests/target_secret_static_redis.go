@@ -44,7 +44,6 @@ type RedisStaticSecretTestConfig struct {
 	RoleConfig *RedisStaticRoleConfig `hcl:"role,block"`
 }
 
-// Redis DB Config
 type RedisDBConfig struct {
 	// Common
 	Name             string   `hcl:"name,optional"`
@@ -72,11 +71,7 @@ type RedisStaticRoleConfig struct {
 	InsecureTLS    bool   `hcl:"insecure_tls,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *RedisStaticSecretTestConfig `hcl:"config,block"`
 	}{
@@ -111,32 +106,6 @@ func (r *RedisStaticSecret) ParseConfig(body hcl.Body) error {
 
 	return nil
 }
-
-func (r *RedisStaticSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RedisStaticSecretTestMethod,
-		URL:    fmt.Sprintf("%s%s/creds/%s", client.Address(), r.pathPrefix, r.roleName),
-		Header: r.header,
-	}
-}
-
-func (r *RedisStaticSecret) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RedisStaticSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RedisStaticSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
-func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {}
 
 func (r *RedisStaticSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
@@ -198,3 +167,29 @@ func (r *RedisStaticSecret) Setup(client *api.Client, mountName string, topLevel
 		logger:     r.logger,
 	}, nil
 }
+
+func (r *RedisStaticSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RedisStaticSecretTestMethod,
+		URL:    fmt.Sprintf("%s%s/creds/%s", client.Address(), r.pathPrefix, r.roleName),
+		Header: r.header,
+	}
+}
+
+func (r *RedisStaticSecret) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (r *RedisStaticSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RedisStaticSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
+}
+
+func (r *RedisStaticSecret) Flags(fs *flag.FlagSet) {}

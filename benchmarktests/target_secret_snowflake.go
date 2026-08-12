@@ -162,30 +162,6 @@ func (s *SnowflakeDynamicSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *SnowflakeDynamicSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: SnowflakeSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
-		Header: s.header,
-	}
-}
-
-func (s *SnowflakeDynamicSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (s *SnowflakeDynamicSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     SnowflakeSecretTestMethod,
-		pathPrefix: s.pathPrefix,
-	}
-}
-
 func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -245,6 +221,30 @@ func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, top
 		roleName:   s.config.SnowflakeRoleConfig.Name,
 		logger:     s.logger,
 	}, nil
+}
+
+func (s *SnowflakeDynamicSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: SnowflakeSecretTestMethod,
+		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
+		Header: s.header,
+	}
+}
+
+func (s *SnowflakeDynamicSecret) Cleanup(client *api.Client) error {
+	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (s *SnowflakeDynamicSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     SnowflakeSecretTestMethod,
+		pathPrefix: s.pathPrefix,
+	}
 }
 
 func (s *SnowflakeDynamicSecret) Flags(fs *flag.FlagSet) {}
@@ -323,30 +323,6 @@ func (s *SnowflakeStaticSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *SnowflakeStaticSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: SnowflakeSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/static-creds/" + s.roleName,
-		Header: s.header,
-	}
-}
-
-func (s *SnowflakeStaticSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (s *SnowflakeStaticSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     SnowflakeSecretTestMethod,
-		pathPrefix: s.pathPrefix,
-	}
-}
-
 func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -406,6 +382,30 @@ func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topL
 		roleName:   s.config.SnowflakeStaticRoleConfig.Name,
 		logger:     s.logger,
 	}, nil
+}
+
+func (s *SnowflakeStaticSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: SnowflakeSecretTestMethod,
+		URL:    client.Address() + s.pathPrefix + "/static-creds/" + s.roleName,
+		Header: s.header,
+	}
+}
+
+func (s *SnowflakeStaticSecret) Cleanup(client *api.Client) error {
+	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (s *SnowflakeStaticSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     SnowflakeSecretTestMethod,
+		pathPrefix: s.pathPrefix,
+	}
 }
 
 func (s *SnowflakeStaticSecret) Flags(fs *flag.FlagSet) {}

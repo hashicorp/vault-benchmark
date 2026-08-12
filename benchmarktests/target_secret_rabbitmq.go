@@ -94,30 +94,6 @@ func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *RabbitMQTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RabbitMQSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *RabbitMQTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RabbitMQSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
 func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -174,6 +150,30 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 		roleName:   r.config.RabbitMQRoleConfig.Name,
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *RabbitMQTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RabbitMQSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *RabbitMQTest) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RabbitMQSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (m *RabbitMQTest) Flags(fs *flag.FlagSet) {}

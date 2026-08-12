@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	KubernetesSecretTestType          = "kubernetes_secret"
 	KubernetesSecretTestMethod        = "POST"
@@ -29,7 +28,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[KubernetesSecretTestType] = func() BenchmarkBuilder { return &KubernetesTest{} }
 }
 
@@ -97,31 +95,6 @@ func (k *KubernetesTest) ParseConfig(body hcl.Body) error {
 	k.config = testConfig.Config
 
 	return nil
-}
-
-func (k *KubernetesTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: KubernetesSecretTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/creds/" + k.roleName,
-		Body:   k.body,
-		Header: k.header,
-	}
-}
-
-func (k *KubernetesTest) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (k *KubernetesTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     KubernetesSecretTestMethod,
-		pathPrefix: k.pathPrefix,
-	}
 }
 
 func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -214,6 +187,31 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 		body:       bodyBytes,
 		logger:     k.logger,
 	}, nil
+}
+
+func (k *KubernetesTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: KubernetesSecretTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/creds/" + k.roleName,
+		Body:   k.body,
+		Header: k.header,
+	}
+}
+
+func (k *KubernetesTest) Cleanup(client *api.Client) error {
+	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (k *KubernetesTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     KubernetesSecretTestMethod,
+		pathPrefix: k.pathPrefix,
+	}
 }
 
 func (k *KubernetesTest) Flags(fs *flag.FlagSet) {}

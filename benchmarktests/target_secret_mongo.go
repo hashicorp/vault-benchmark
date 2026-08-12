@@ -107,30 +107,6 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *MongoDBTest) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *MongoDBTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     MongoDBSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
-}
-
 func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -187,6 +163,30 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 		roleName:   m.config.MongoDBRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
+}
+
+func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: MongoDBSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *MongoDBTest) Cleanup(client *api.Client) error {
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (m *MongoDBTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     MongoDBSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
 }
 
 func (m *MongoDBTest) Flags(fs *flag.FlagSet) {}

@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	LDAPStaticSecretTestType       = "ldap_static_secret"
 	LDAPStaticSecretTestMethod     = "POST"
@@ -26,7 +25,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{action: "rotate"} }
 }
 
@@ -35,11 +33,10 @@ type LDAPStaticSecretTest struct {
 	header     http.Header
 	roleName   string
 	config     *LDAPStaticSecretTestConfig
-	logger     hclog.Logger
 	action     string
+	logger     hclog.Logger
 }
 
-// Main Config Struct
 type LDAPStaticSecretTestConfig struct {
 	LDAPStaticConfig     *LDAPStaticConfig     `hcl:"secret,block"`
 	LDAPStaticRoleConfig *LDAPStaticRoleConfig `hcl:"role,block"`
@@ -93,30 +90,6 @@ func (r *LDAPStaticSecretTest) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: LDAPStaticSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/rotate-role/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *LDAPStaticSecretTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     LDAPStaticSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
 }
 
 func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -175,6 +148,30 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 		roleName:   r.config.LDAPStaticRoleConfig.Username,
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: LDAPStaticSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/rotate-role/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *LDAPStaticSecretTest) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     LDAPStaticSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (m *LDAPStaticSecretTest) Flags(fs *flag.FlagSet) {}

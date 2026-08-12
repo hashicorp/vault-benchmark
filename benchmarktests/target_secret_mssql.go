@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	MSSQLSecretTestType   = "mssql_secret"
 	MSSQLSecretTestMethod = "GET"
@@ -28,11 +27,9 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[MSSQLSecretTestType] = func() BenchmarkBuilder { return &MSSQLSecret{} }
 }
 
-// Postgres Secret Test Struct
 type MSSQLSecret struct {
 	pathPrefix string
 	roleName   string
@@ -41,13 +38,11 @@ type MSSQLSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type MSSQLSecretTestConfig struct {
 	MSSQLDBConfig   *MSSQLDBConfig   `hcl:"db_connection,block"`
 	MSSQLRoleConfig *MSSQLRoleConfig `hcl:"role,block"`
 }
 
-// MSSQL DB Config
 type MSSQLDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -67,7 +62,6 @@ type MSSQLDBConfig struct {
 	ContainedDB            bool     `hcl:"contained_db,optional"`
 }
 
-// MSSQL Role Config
 type MSSQLRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -77,11 +71,7 @@ type MSSQLRoleConfig struct {
 	RevocationStatements string `hcl:"revocation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *MSSQLSecretTestConfig `hcl:"config,block"`
 	}{
@@ -115,30 +105,6 @@ func (m *MSSQLSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (m *MSSQLSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: MSSQLSecretTestMethod,
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *MSSQLSecret) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *MSSQLSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     MSSQLSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
 }
 
 func (m *MSSQLSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -200,6 +166,30 @@ func (m *MSSQLSecret) Setup(client *api.Client, mountName string, topLevelConfig
 		roleName:   m.config.MSSQLRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
+}
+
+func (m *MSSQLSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: MSSQLSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *MSSQLSecret) Cleanup(client *api.Client) error {
+	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (m *MSSQLSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     MSSQLSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
 }
 
 func (m *MSSQLSecret) Flags(fs *flag.FlagSet) {}

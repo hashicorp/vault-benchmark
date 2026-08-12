@@ -87,13 +87,13 @@ type TransformTokenizationConfig struct {
 }
 
 type TransformInputConfig struct {
-	Value          string        `hcl:"value,optional"`
-	Transformation string        `hcl:"transformation,optional"`
-	TTL            string        `hcl:"ttl,optional"`
-	Metadata       string        `hcl:"metadata,optional"`
-	Tweak          string        `hcl:"tweak,optional"`
-	Reference      string        `hcl:"reference,optional"`
-	BatchInput     []any `hcl:"batch_input,optional"`
+	Value          string `hcl:"value,optional"`
+	Transformation string `hcl:"transformation,optional"`
+	TTL            string `hcl:"ttl,optional"`
+	Metadata       string `hcl:"metadata,optional"`
+	Tweak          string `hcl:"tweak,optional"`
+	Reference      string `hcl:"reference,optional"`
+	BatchInput     []any  `hcl:"batch_input,optional"`
 }
 
 func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
@@ -126,31 +126,6 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 	}
 	t.config = testConfig.Config
 
-	return nil
-}
-
-func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: TransformTokenizationTestMethod,
-		URL:    client.Address() + t.pathPrefix + "/encode/" + t.roleName,
-		Body:   t.body,
-		Header: t.header,
-	}
-}
-
-func (t *TransformTokenizationTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     TransformTokenizationTestMethod,
-		pathPrefix: t.pathPrefix,
-	}
-}
-
-func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
 	return nil
 }
 
@@ -265,6 +240,31 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 		roleName:   t.config.RoleConfig.Name,
 		logger:     t.logger,
 	}, nil
+}
+
+func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: TransformTokenizationTestMethod,
+		URL:    client.Address() + t.pathPrefix + "/encode/" + t.roleName,
+		Body:   t.body,
+		Header: t.header,
+	}
+}
+
+func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
+	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (t *TransformTokenizationTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     TransformTokenizationTestMethod,
+		pathPrefix: t.pathPrefix,
+	}
 }
 
 func (t *TransformTokenizationTest) Flags(fs *flag.FlagSet) {}

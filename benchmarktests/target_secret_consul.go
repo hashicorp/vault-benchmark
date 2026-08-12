@@ -99,30 +99,6 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
-	}
-}
-
-func (c *ConsulTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (c *ConsulTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     ConsulSecretTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
 func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -200,6 +176,30 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		roleName:   c.config.ConsulRoleConfig.Name,
 		logger:     c.logger,
 	}, nil
+}
+
+func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: ConsulSecretTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *ConsulTest) Cleanup(client *api.Client) error {
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (c *ConsulTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     ConsulSecretTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
 }
 
 func (c *ConsulTest) Flags(fs *flag.FlagSet) {}

@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	RedisDynamicSecretTestType         = "redis_dynamic_secret"
 	RedisDynamicSecretTestMethod       = "GET"
@@ -52,11 +51,7 @@ type RedisDynamicRoleConfig struct {
 	CreationStatements string `hcl:"creation_statements"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *RedisDynamicSecretTestConfig `hcl:"config,block"`
 	}{
@@ -90,30 +85,6 @@ func (r *RedisDynamicSecret) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (r *RedisDynamicSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RedisDynamicSecretTestMethod,
-		URL:    fmt.Sprintf("%s%s/creds/%s", client.Address(), r.pathPrefix, r.roleName),
-		Header: r.header,
-	}
-}
-
-func (r *RedisDynamicSecret) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RedisDynamicSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RedisDynamicSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
 }
 
 func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -175,6 +146,30 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 		config:     r.config,
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *RedisDynamicSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RedisDynamicSecretTestMethod,
+		URL:    fmt.Sprintf("%s%s/creds/%s", client.Address(), r.pathPrefix, r.roleName),
+		Header: r.header,
+	}
+}
+
+func (r *RedisDynamicSecret) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (r *RedisDynamicSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RedisDynamicSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (r *RedisDynamicSecret) Flags(fs *flag.FlagSet) {}

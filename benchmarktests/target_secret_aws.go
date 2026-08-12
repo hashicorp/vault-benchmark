@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	AWSSecretTestType   = "aws_secret"
 	AWSSecretTestMethod = "GET"
@@ -27,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[AWSSecretTestType] = func() BenchmarkBuilder { return &AWSTest{} }
 }
 
@@ -39,7 +37,6 @@ type AWSTest struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type AWSSecretTestConfig struct {
 	AWSConnectionConfig *AWSConnectionConfig `hcl:"connection,block"`
 	AWSRoleConfig       *AWSRoleConfig       `hcl:"role,block"`
@@ -102,30 +99,6 @@ func (a *AWSTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AWSTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: AWSSecretTestMethod,
-		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
-		Header: a.header,
-	}
-}
-
-func (a *AWSTest) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *AWSTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     AWSSecretTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
-}
-
 func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -182,6 +155,30 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 		roleName:   a.config.AWSRoleConfig.Name,
 		logger:     a.logger,
 	}, nil
+}
+
+func (a *AWSTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: AWSSecretTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
+		Header: a.header,
+	}
+}
+
+func (a *AWSTest) Cleanup(client *api.Client) error {
+	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (a *AWSTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     AWSSecretTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
 }
 
 func (a *AWSTest) Flags(fs *flag.FlagSet) {}

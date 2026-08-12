@@ -86,8 +86,6 @@ func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *SyncAWSTest) Flags(_ *flag.FlagSet) {}
-
 func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	t.logger = targetLogger.Named(t.target)
 
@@ -95,7 +93,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	if topLevelConfig.RandomMounts {
 		mountName += "-" + uuid.New().String()
 	}
-	
+
 	t.logger.Debug(mountLogMessage("secrets", "kvv2", mountName))
 	err := client.Sys().Mount(mountName, &api.MountInput{
 		Type: "kv",
@@ -108,7 +106,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}
 
 	// Create 1 secret to sync per association
-	for i := 0; i < t.config.NumAssociations; i++ {
+	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("creating secret on test mount", "mount", mountName, "secret", secretName)
 
@@ -136,7 +134,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	// If test is read or event based, pre-populate the associations
 	if t.target == SyncEvents || t.target == SyncAssociationsRead {
-		for i := 0; i < t.config.NumAssociations; i++ {
+		for i := range t.config.NumAssociations {
 			secretName := fmt.Sprintf(secretNameFormat, i)
 			t.logger.Debug("creating association", "mount", mountName, "secret", secretName)
 
@@ -158,9 +156,20 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}, nil
 }
 
+func (t *SyncAWSTest) Target(client *api.Client) vegeta.Target {
+	switch t.target {
+	case SyncEvents:
+		return t.events(client)
+	case SyncAssociationsWrite:
+		return t.write(client)
+	default:
+		return t.read(client)
+	}
+}
+
 func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 	// Delete associations
-	for i := 0; i < t.config.NumAssociations; i++ {
+	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("deleting association for test secret", "mount", t.mount, "secret", secretName)
 
@@ -183,7 +192,7 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 	}
 
 	// Delete secrets
-	for i := 0; i < t.config.NumAssociations; i++ {
+	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("deleting test secret", "mount", t.mount, "secret", secretName)
 
@@ -218,16 +227,7 @@ func (t *SyncAWSTest) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (t *SyncAWSTest) Target(client *api.Client) vegeta.Target {
-	switch t.target {
-	case SyncEvents:
-		return t.events(client)
-	case SyncAssociationsWrite:
-		return t.write(client)
-	default:
-		return t.read(client)
-	}
-}
+func (t *SyncAWSTest) Flags(_ *flag.FlagSet) {}
 
 func (t *SyncAWSTest) events(client *api.Client) vegeta.Target {
 	return vegeta.Target{

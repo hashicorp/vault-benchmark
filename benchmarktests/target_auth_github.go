@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -31,8 +30,8 @@ func init() {
 
 type GitHubAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *GitHubAuthTestConfig
 	logger     hclog.Logger
 }
@@ -87,31 +86,6 @@ func (g *GitHubAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (g *GitHubAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + g.pathPrefix + "/login",
-		Header: g.header,
-		Body:   g.body,
-	}
-}
-
-func (g *GitHubAuth) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GitHubAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GitHubAuthTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
-}
-
 func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -152,6 +126,26 @@ func (g *GitHubAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		body:       fmt.Appendf(nil, `{"token": "%s"}`, g.config.GitHubTestUserConfig.Token),
 		logger:     g.logger,
 	}, nil
+}
+
+func (g *GitHubAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GitHubAuthTestMethod,
+		URL:    client.Address() + g.pathPrefix + "/login",
+		Header: g.header,
+		Body:   g.body,
+	}
+}
+
+func (g *GitHubAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(g.logger, client, g.pathPrefix)
+}
+
+func (g *GitHubAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GitHubAuthTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
 }
 
 func (g *GitHubAuth) Flags(fs *flag.FlagSet) {}

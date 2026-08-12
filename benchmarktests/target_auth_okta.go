@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -29,8 +28,8 @@ func init() {
 
 type OktaAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	username   string
 	config     *OktaAuthTestConfig
 	logger     hclog.Logger
@@ -85,31 +84,6 @@ func (o *OktaAuth) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("no okta password provided but required")
 	}
 	return nil
-}
-
-func (o *OktaAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: OktaAuthTestMethod,
-		URL:    client.Address() + o.pathPrefix + "/login/" + o.username,
-		Header: o.header,
-		Body:   o.body,
-	}
-}
-
-func (o *OktaAuth) Cleanup(client *api.Client) error {
-	o.logger.Trace(cleanupLogMessage(o.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(o.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (o *OktaAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     OktaAuthTestMethod,
-		pathPrefix: o.pathPrefix,
-	}
 }
 
 func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -170,6 +144,26 @@ func (o *OktaAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		username:   o.config.OktaUserConfig.Username,
 		logger:     o.logger,
 	}, nil
+}
+
+func (o *OktaAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: OktaAuthTestMethod,
+		URL:    client.Address() + o.pathPrefix + "/login/" + o.username,
+		Header: o.header,
+		Body:   o.body,
+	}
+}
+
+func (o *OktaAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(o.logger, client, o.pathPrefix)
+}
+
+func (o *OktaAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     OktaAuthTestMethod,
+		pathPrefix: o.pathPrefix,
+	}
 }
 
 func (o *OktaAuth) Flags(fs *flag.FlagSet) {}

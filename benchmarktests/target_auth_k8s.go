@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -31,8 +30,8 @@ func init() {
 
 type KubeAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *KubeAuthTestConfig
 	logger     hclog.Logger
 }
@@ -87,39 +86,6 @@ func (k *KubeAuth) ParseConfig(body hcl.Body) error {
 	}
 	k.config = testConfig.Config
 	return nil
-}
-
-func (k *KubeAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: KubeAuthTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/login",
-		Header: k.header,
-		Body:   k.body,
-	}
-}
-
-func (k *KubeAuth) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (k *KubeAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     KubeAuthTestMethod,
-		pathPrefix: k.pathPrefix,
-	}
-}
-
-func readTokenFromFile(filepath string) (string, error) {
-	jwt, err := os.ReadFile(filepath)
-	if err != nil {
-		return "", fmt.Errorf("unable to read file containing service account token: %w", err)
-	}
-	return string(jwt), nil
 }
 
 func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -182,4 +148,32 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
+func (k *KubeAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: KubeAuthTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/login",
+		Header: k.header,
+		Body:   k.body,
+	}
+}
+
+func (k *KubeAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(k.logger, client, k.pathPrefix)
+}
+
+func (k *KubeAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     KubeAuthTestMethod,
+		pathPrefix: k.pathPrefix,
+	}
+}
+
 func (k *KubeAuth) Flags(fs *flag.FlagSet) {}
+
+func readTokenFromFile(filepath string) (string, error) {
+	jwt, err := os.ReadFile(filepath)
+	if err != nil {
+		return "", fmt.Errorf("unable to read file containing service account token: %w", err)
+	}
+	return string(jwt), nil
+}

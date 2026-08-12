@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
@@ -37,8 +36,8 @@ func init() {
 
 type JWTAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
+	body       []byte
 	config     *JWTAuthTestConfig
 	logger     hclog.Logger
 }
@@ -118,31 +117,6 @@ func (j *JWTAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (j *JWTAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: JWTAuthTestMethod,
-		URL:    client.Address() + j.pathPrefix + "/login",
-		Header: j.header,
-		Body:   j.body,
-	}
-}
-
-func (j *JWTAuth) Cleanup(client *api.Client) error {
-	j.logger.Trace(cleanupLogMessage(j.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(j.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (j *JWTAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     JWTAuthTestMethod,
-		pathPrefix: j.pathPrefix,
-	}
-}
-
 func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -212,6 +186,26 @@ func (j *JWTAuth) Setup(client *api.Client, mountName string, topLevelConfig *To
 		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, j.config.JWTRoleConfig.Name, jwtData),
 		logger:     j.logger,
 	}, nil
+}
+
+func (j *JWTAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: JWTAuthTestMethod,
+		URL:    client.Address() + j.pathPrefix + "/login",
+		Header: j.header,
+		Body:   j.body,
+	}
+}
+
+func (j *JWTAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(j.logger, client, j.pathPrefix)
+}
+
+func (j *JWTAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     JWTAuthTestMethod,
+		pathPrefix: j.pathPrefix,
+	}
 }
 
 func (j *JWTAuth) Flags(fs *flag.FlagSet) {}

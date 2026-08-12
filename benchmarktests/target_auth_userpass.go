@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -30,9 +29,9 @@ func init() {
 
 type UserpassAuth struct {
 	pathPrefix string
-	user       string
-	body       []byte
 	header     http.Header
+	body       []byte
+	user       string
 	config     *UserpassAuthConfig
 	logger     hclog.Logger
 }
@@ -67,31 +66,6 @@ func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 	}
 	u.config = testConfig.Config
 	return nil
-}
-
-func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: UserpassAuthTestMethod,
-		URL:    client.Address() + u.pathPrefix + "/login/" + u.user,
-		Header: u.header,
-		Body:   u.body,
-	}
-}
-
-func (u *UserpassAuth) Cleanup(client *api.Client) error {
-	u.logger.Trace(cleanupLogMessage(u.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (u *UserpassAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     UserpassAuthTestMethod,
-		pathPrefix: u.pathPrefix,
-	}
 }
 
 func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -136,6 +110,26 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 		body:       fmt.Appendf(nil, `{"password": "%s"}`, u.config.Password),
 		logger:     u.logger,
 	}, nil
+}
+
+func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: UserpassAuthTestMethod,
+		URL:    client.Address() + u.pathPrefix + "/login/" + u.user,
+		Header: u.header,
+		Body:   u.body,
+	}
+}
+
+func (u *UserpassAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(u.logger, client, u.pathPrefix)
+}
+
+func (u *UserpassAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     UserpassAuthTestMethod,
+		pathPrefix: u.pathPrefix,
+	}
 }
 
 func (u *UserpassAuth) Flags(fs *flag.FlagSet) {}

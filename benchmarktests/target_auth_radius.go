@@ -33,9 +33,9 @@ func init() {
 
 type RADIUSAuth struct {
 	pathPrefix string
-	authUser   string
-	body       []byte
 	header     http.Header
+	body       []byte
+	authUser   string
 	config     *RADIUSAuthTestConfig
 	logger     hclog.Logger
 }
@@ -112,31 +112,6 @@ func (r *RADIUSAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *RADIUSAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RADIUSAuthTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/login/" + r.authUser,
-		Header: r.header,
-		Body:   r.body,
-	}
-}
-
-func (r *RADIUSAuth) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RADIUSAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RADIUSAuthTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
 func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
@@ -190,6 +165,26 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 		body:       fmt.Appendf(nil, `{"password": "%s"}`, r.config.RADIUSTestUserConfig.Password),
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *RADIUSAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RADIUSAuthTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/login/" + r.authUser,
+		Header: r.header,
+		Body:   r.body,
+	}
+}
+
+func (r *RADIUSAuth) Cleanup(client *api.Client) error {
+	return cleanupAuthMount(r.logger, client, r.pathPrefix)
+}
+
+func (r *RADIUSAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RADIUSAuthTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (r *RADIUSAuth) Flags(fs *flag.FlagSet) {}

@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	ElasticSearchSecretTestType   = "elasticsearch_secret"
 	ElasticSearchSecretTestMethod = "GET"
@@ -28,7 +27,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[ElasticSearchSecretTestType] = func() BenchmarkBuilder { return &ElasticSearchTest{} }
 }
 
@@ -49,7 +47,7 @@ type ElasticSearchConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
 	PluginVersion          string   `hcl:"plugin_version,optional"`
-	VerifyConnectioon      *bool    `hcl:"verify_connection,optional"`
+	VerifyConnection       *bool    `hcl:"verify_connection,optional"`
 	AllowedRoles           []string `hcl:"allowed_roles,optional"`
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 	PasswordPolicy         string   `hcl:"password_policy,optional"`
@@ -114,30 +112,6 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: ElasticSearchSecretTestMethod,
-		URL:    client.Address() + e.pathPrefix + "/creds/" + e.roleName,
-		Header: e.header,
-	}
-}
-
-func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
-	e.logger.Trace(cleanupLogMessage(e.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     ElasticSearchSecretTestMethod,
-		pathPrefix: e.pathPrefix,
-	}
-}
-
 func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -196,6 +170,30 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 		roleName:   e.config.ElasticSearchRoleConfig.RoleName,
 		logger:     e.logger,
 	}, nil
+}
+
+func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: ElasticSearchSecretTestMethod,
+		URL:    client.Address() + e.pathPrefix + "/creds/" + e.roleName,
+		Header: e.header,
+	}
+}
+
+func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
+	e.logger.Trace(cleanupLogMessage(e.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     ElasticSearchSecretTestMethod,
+		pathPrefix: e.pathPrefix,
+	}
 }
 
 func (e *ElasticSearchTest) Flags(fs *flag.FlagSet) {}

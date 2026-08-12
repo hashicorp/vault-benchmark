@@ -32,7 +32,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[GCPKMSEncryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "encrypt"} }
 	TestList[GCPKMSDecryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "decrypt"} }
 	TestList[GCPKMSSignTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "sign"} }
@@ -60,13 +59,11 @@ type GCPKMSTestConfig struct {
 	GCPKMSReencryptConfig *GCPKMSReencryptConfig `hcl:"reencrypt,block"`
 }
 
-// Configuration for the GCP KMS engine
 type GCPKMSConfig struct {
 	Credentials string   `hcl:"credentials,optional"`
 	Scopes      []string `hcl:"scopes,optional"`
 }
 
-// Configuration for creating/managing keys
 type GCPKMSKeyConfig struct {
 	Key             string            `hcl:"key,optional"`
 	KeyRing         string            `hcl:"key_ring"`
@@ -79,32 +76,27 @@ type GCPKMSKeyConfig struct {
 	Mode            string            `hcl:"mode,optional"` // "create" (default) or "register"
 }
 
-// Configuration for encryption operations
 type GCPKMSEncryptConfig struct {
 	Plaintext                   string `hcl:"plaintext,optional"`
 	AdditionalAuthenticatedData string `hcl:"additional_authenticated_data,optional"`
 }
 
-// Configuration for decryption operations
 type GCPKMSDecryptConfig struct {
 	Ciphertext                  string `hcl:"ciphertext,optional"`
 	AdditionalAuthenticatedData string `hcl:"additional_authenticated_data,optional"`
 }
 
-// Configuration for signing operations
 type GCPKMSSignConfig struct {
 	KeyVersion int    `hcl:"key_version,optional"`
 	Digest     string `hcl:"digest,optional"`
 }
 
-// Configuration for verification operations
 type GCPKMSVerifyConfig struct {
 	KeyVersion int    `hcl:"key_version,optional"`
 	Digest     string `hcl:"digest,optional"`
 	Signature  string `hcl:"signature,optional"`
 }
 
-// Configuration for re-encryption operations
 type GCPKMSReencryptConfig struct {
 	Ciphertext                  string `hcl:"ciphertext,optional"`
 	AdditionalAuthenticatedData string `hcl:"additional_authenticated_data,optional"`
@@ -155,32 +147,6 @@ func (g *GCPKMSTest) ParseConfig(body hcl.Body) error {
 	}
 
 	return nil
-}
-
-func (g *GCPKMSTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: GCPKMSTestMethod,
-		URL:    client.Address() + g.pathPrefix,
-		Body:   g.body,
-		Header: g.header,
-	}
-}
-
-func (g *GCPKMSTest) Cleanup(client *api.Client) error {
-	parts := strings.Split(g.pathPrefix, "/")
-	g.logger.Trace(cleanupLogMessage(parts[2]))
-	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPKMSTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPKMSTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
 }
 
 func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -440,6 +406,35 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 // In "create" mode (default), it creates new keys with randomized suffixes to prevent collisions.
 // In "register" mode, it registers existing GCP KMS keys without attempting to create them.
 // Note: Keys created in GCP KMS are not automatically cleaned up during benchmark cleanup.
+
+func (g *GCPKMSTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GCPKMSTestMethod,
+		URL:    client.Address() + g.pathPrefix,
+		Body:   g.body,
+		Header: g.header,
+	}
+}
+
+func (g *GCPKMSTest) Cleanup(client *api.Client) error {
+	parts := strings.Split(g.pathPrefix, "/")
+	g.logger.Trace(cleanupLogMessage(parts[2]))
+	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (g *GCPKMSTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPKMSTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
+}
+
+func (g *GCPKMSTest) Flags(fs *flag.FlagSet) {}
+
 func (g *GCPKMSTest) createKey(client *api.Client, secretPath string, keyConfig *GCPKMSKeyConfig, logger hclog.Logger) error {
 	mode := keyConfig.Mode
 
@@ -505,5 +500,3 @@ func (g *GCPKMSTest) registerExistingKey(client *api.Client, secretPath string, 
 	logger.Trace("successfully registered existing key", "name", keyConfig.CryptoKey)
 	return nil
 }
-
-func (g *GCPKMSTest) Flags(fs *flag.FlagSet) {}

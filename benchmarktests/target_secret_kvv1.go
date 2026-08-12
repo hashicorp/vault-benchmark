@@ -68,57 +68,6 @@ func (k *KVV1Test) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KVV1Test) read(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: KVV1ReadTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
-		Header: k.header,
-	}
-}
-
-func (k *KVV1Test) write(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: KVV1WriteTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
-		Body:   k.writeBody,
-		Header: k.header,
-	}
-}
-
-func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
-	switch k.action {
-	case "write":
-		return k.write(client)
-	default:
-		return k.read(client)
-	}
-}
-
-func (k *KVV1Test) GetTargetInfo() TargetInfo {
-	var method string
-	switch k.action {
-	case "write":
-		method = KVV1WriteTestMethod
-	default:
-		method = KVV1ReadTestMethod
-	}
-	return TargetInfo{
-		method:     method,
-		pathPrefix: k.pathPrefix,
-	}
-}
-
-func (k *KVV1Test) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
 func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
@@ -182,4 +131,55 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
+func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
+	switch k.action {
+	case "write":
+		return k.write(client)
+	default:
+		return k.read(client)
+	}
+}
+
+func (k *KVV1Test) Cleanup(client *api.Client) error {
+	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (k *KVV1Test) GetTargetInfo() TargetInfo {
+	var method string
+	switch k.action {
+	case "write":
+		method = KVV1WriteTestMethod
+	default:
+		method = KVV1ReadTestMethod
+	}
+	return TargetInfo{
+		method:     method,
+		pathPrefix: k.pathPrefix,
+	}
+}
+
 func (k *KVV1Test) Flags(fs *flag.FlagSet) {}
+
+func (k *KVV1Test) read(client *api.Client) vegeta.Target {
+	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
+	return vegeta.Target{
+		Method: KVV1ReadTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
+		Header: k.header,
+	}
+}
+
+func (k *KVV1Test) write(client *api.Client) vegeta.Target {
+	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
+	return vegeta.Target{
+		Method: KVV1WriteTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
+		Body:   k.writeBody,
+		Header: k.header,
+	}
+}

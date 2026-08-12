@@ -76,6 +76,7 @@ type RedisElastiCacheRoleConfig struct {
 // ParseConfig parses the passed in hcl.Body into Configuration structs for use during
 // test configuration in Vault. Any default configuration definitions for required
 // parameters will be set here.
+
 func (r *RedisElastiCacheSecret) ParseConfig(body hcl.Body) error {
 	// provide defaults
 	testConfig := &struct {
@@ -122,33 +123,7 @@ func (r *RedisElastiCacheSecret) ParseConfig(body hcl.Body) error {
 }
 
 // Target returns a vegeta.Target for the Redis ElastiCache secret test
-func (r *RedisElastiCacheSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RedisElastiCacheSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/static-creds/" + r.roleName,
-		Header: r.header,
-	}
-}
 
-// Cleanup removes the mount created during the test setup
-func (r *RedisElastiCacheSecret) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-// GetTargetInfo returns the target info for Redis ElastiCache secret test
-func (r *RedisElastiCacheSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RedisElastiCacheSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
-// Setup configures the database secrets engine with Redis ElastiCache plugin
 func (r *RedisElastiCacheSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -210,5 +185,35 @@ func (r *RedisElastiCacheSecret) Setup(client *api.Client, mountName string, top
 		logger:     r.logger,
 	}, nil
 }
+
+func (r *RedisElastiCacheSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RedisElastiCacheSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/static-creds/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+// Cleanup removes the mount created during the test setup
+
+func (r *RedisElastiCacheSecret) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+// GetTargetInfo returns the target info for Redis ElastiCache secret test
+
+func (r *RedisElastiCacheSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RedisElastiCacheSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
+}
+
+// Setup configures the database secrets engine with Redis ElastiCache plugin
 
 func (r *RedisElastiCacheSecret) Flags(fs *flag.FlagSet) {}

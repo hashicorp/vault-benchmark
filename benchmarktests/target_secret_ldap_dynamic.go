@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	LDAPDynamicSecretTestType   = "ldap_dynamic_secret"
 	LDAPDynamicSecretTestMethod = "GET"
@@ -26,7 +25,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[LDAPDynamicSecretTestType] = func() BenchmarkBuilder { return &LDAPDynamicSecretTest{} }
 }
 
@@ -38,7 +36,6 @@ type LDAPDynamicSecretTest struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type LDAPDynamicSecretTestConfig struct {
 	LDAPDynamicConfig     *LDAPDynamicConfig     `hcl:"secret,block"`
 	LDAPDynamicRoleConfig *LDAPDynamicRoleConfig `hcl:"role,block"`
@@ -100,30 +97,6 @@ func (r *LDAPDynamicSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *LDAPDynamicSecretTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: LDAPDynamicSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *LDAPDynamicSecretTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *LDAPDynamicSecretTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     LDAPDynamicSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
 func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
@@ -180,6 +153,30 @@ func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topL
 		roleName:   r.config.LDAPDynamicRoleConfig.RoleName,
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *LDAPDynamicSecretTest) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: LDAPDynamicSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *LDAPDynamicSecretTest) Cleanup(client *api.Client) error {
+	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
+	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (r *LDAPDynamicSecretTest) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     LDAPDynamicSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (m *LDAPDynamicSecretTest) Flags(fs *flag.FlagSet) {}
