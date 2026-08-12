@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	SnowflakeDynamicSecretTestType = "snowflake_dynamic_secret"
 	SnowflakeStaticSecretTestType  = "snowflake_static_secret"
@@ -33,12 +32,10 @@ const (
 )
 
 func init() {
-	// "Register" these tests to the main test registry
 	TestList[SnowflakeDynamicSecretTestType] = func() BenchmarkBuilder { return &SnowflakeDynamicSecret{} }
 	TestList[SnowflakeStaticSecretTestType] = func() BenchmarkBuilder { return &SnowflakeStaticSecret{} }
 }
 
-// Snowflake Dynamic Secret Test Struct
 type SnowflakeDynamicSecret struct {
 	pathPrefix string
 	header     http.Header
@@ -47,7 +44,6 @@ type SnowflakeDynamicSecret struct {
 	logger     hclog.Logger
 }
 
-// Snowflake Static Secret Test Struct
 type SnowflakeStaticSecret struct {
 	pathPrefix string
 	header     http.Header
@@ -56,19 +52,16 @@ type SnowflakeStaticSecret struct {
 	logger     hclog.Logger
 }
 
-// Dynamic Secret Config Struct
 type SnowflakeDynamicSecretTestConfig struct {
 	SnowflakeDBConfig   *SnowflakeDBConfig   `hcl:"db_connection,block"`
 	SnowflakeRoleConfig *SnowflakeRoleConfig `hcl:"role,block"`
 }
 
-// Static Secret Config Struct
 type SnowflakeStaticSecretTestConfig struct {
 	SnowflakeDBConfig         *SnowflakeDBConfig         `hcl:"db_connection,block"`
 	SnowflakeStaticRoleConfig *SnowflakeStaticRoleConfig `hcl:"static_role,block"`
 }
 
-// Snowflake DB Config
 type SnowflakeDBConfig struct {
 	Name               string   `hcl:"name,optional"`
 	PluginName         string   `hcl:"plugin_name,optional"`
@@ -86,7 +79,6 @@ type SnowflakeDBConfig struct {
 	Role               string   `hcl:"role,optional"`
 }
 
-// Snowflake Role Config (Dynamic)
 type SnowflakeRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -98,7 +90,6 @@ type SnowflakeRoleConfig struct {
 	CredentialConfig     string `hcl:"credential_config,optional"`
 }
 
-// Snowflake Static Role Config
 type SnowflakeStaticRoleConfig struct {
 	Name               string `hcl:"name,optional"`
 	DBName             string `hcl:"db_name,optional"`
@@ -109,10 +100,7 @@ type SnowflakeStaticRoleConfig struct {
 	CredentialConfig   string `hcl:"credential_config,optional"`
 }
 
-// ===== SnowflakeDynamicSecret Implementation =====
-
 func (s *SnowflakeDynamicSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *SnowflakeDynamicSecretTestConfig `hcl:"config,block"`
 	}{
@@ -141,12 +129,10 @@ func (s *SnowflakeDynamicSecret) ParseConfig(body hcl.Body) error {
 	}
 	s.config = testConfig.Config
 
-	// Validate required fields
 	if s.config.SnowflakeDBConfig.Username == "" {
 		return fmt.Errorf("no snowflake username provided but required")
 	}
 
-	// Validate authentication method - either password or private key is required
 	hasPassword := s.config.SnowflakeDBConfig.Password != ""
 	hasPrivateKey := s.config.SnowflakeDBConfig.PrivateKey != ""
 
@@ -154,7 +140,6 @@ func (s *SnowflakeDynamicSecret) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("no snowflake password or private key provided but one is required")
 	}
 
-	// If using key pair authentication, account is typically required
 	if hasPrivateKey && s.config.SnowflakeDBConfig.Account == "" {
 		return fmt.Errorf("snowflake account identifier is required when using private key authentication")
 	}
@@ -174,7 +159,6 @@ func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, top
 		}
 	}
 
-	// Create Database Secret Mount
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -185,14 +169,12 @@ func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, top
 
 	setupLogger := s.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(s.config.SnowflakeDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("snowflake dynamic db config"), "name", s.config.SnowflakeDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -200,14 +182,12 @@ func (s *SnowflakeDynamicSecret) Setup(client *api.Client, mountName string, top
 		return nil, fmt.Errorf("error writing snowflake db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(s.config.SnowflakeRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Dynamic Role
 	setupLogger.Trace(writingLogMessage("snowflake dynamic role"), "name", s.config.SnowflakeRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", s.config.SnowflakeRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)
@@ -249,10 +229,7 @@ func (s *SnowflakeDynamicSecret) GetTargetInfo() TargetInfo {
 
 func (s *SnowflakeDynamicSecret) Flags(fs *flag.FlagSet) {}
 
-// ===== SnowflakeStaticSecret Implementation =====
-
 func (s *SnowflakeStaticSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *SnowflakeStaticSecretTestConfig `hcl:"config,block"`
 	}{
@@ -283,7 +260,6 @@ func (s *SnowflakeStaticSecret) ParseConfig(body hcl.Body) error {
 	}
 	s.config = testConfig.Config
 
-	// Validate required fields
 	if s.config.SnowflakeDBConfig.Username == "" {
 		return fmt.Errorf("no snowflake username provided but required")
 	}
@@ -292,7 +268,6 @@ func (s *SnowflakeStaticSecret) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("no static role username provided but required")
 	}
 
-	// Validate authentication method - either password or private key is required
 	hasPassword := s.config.SnowflakeDBConfig.Password != ""
 	hasPrivateKey := s.config.SnowflakeDBConfig.PrivateKey != ""
 
@@ -300,7 +275,6 @@ func (s *SnowflakeStaticSecret) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("no snowflake password or private key provided but one is required")
 	}
 
-	// If using key pair authentication, account is typically required
 	if hasPrivateKey && s.config.SnowflakeDBConfig.Account == "" {
 		return fmt.Errorf("snowflake account identifier is required when using private key authentication")
 	}
@@ -335,7 +309,6 @@ func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topL
 		}
 	}
 
-	// Create Database Secret Mount
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -346,14 +319,12 @@ func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topL
 
 	setupLogger := s.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(s.config.SnowflakeDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("snowflake static db config"), "name", s.config.SnowflakeDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", s.config.SnowflakeDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -361,14 +332,12 @@ func (s *SnowflakeStaticSecret) Setup(client *api.Client, mountName string, topL
 		return nil, fmt.Errorf("error writing snowflake db config: %v", err)
 	}
 
-	// Decode Static Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("static role"))
 	staticRoleData, err := structToMap(s.config.SnowflakeStaticRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing static role config from struct: %v", err)
 	}
 
-	// Create Static Role
 	setupLogger.Trace(writingLogMessage("snowflake static role"), "name", s.config.SnowflakeStaticRoleConfig.Name)
 	staticRolePath := filepath.Join(secretPath, "static-roles", s.config.SnowflakeStaticRoleConfig.Name)
 	_, err = client.Logical().Write(staticRolePath, staticRoleData)

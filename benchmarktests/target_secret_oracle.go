@@ -130,7 +130,6 @@ func (o *OracleSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		}
 	}
 
-	// Create Database Secret Mount
 	o.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -141,14 +140,12 @@ func (o *OracleSecret) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := o.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(o.config.OracleDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("oracle db config"), "name", o.config.OracleDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", o.config.OracleDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -156,14 +153,12 @@ func (o *OracleSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, fmt.Errorf("error writing oracle db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(o.config.OracleRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("oracle role"), "name", o.config.OracleRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", o.config.OracleRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

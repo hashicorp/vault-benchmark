@@ -121,28 +121,24 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	setupLogger := a.logger.Named(secretPath)
 
-	// Decode AWS Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("aws connection"))
 	connectionConfigData, err := structToMap(a.config.AWSConnectionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing aws connection config from struct: %v", err)
 	}
 
-	// Write connection config
 	setupLogger.Trace(writingLogMessage("aws connection config"))
 	_, err = client.Logical().Write(secretPath+"/config/root", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing aws connection config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfigData, err := structToMap(a.config.AWSRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("aws role"), "name", a.config.AWSRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+a.config.AWSRoleConfig.Name, roleConfigData)
 	if err != nil {

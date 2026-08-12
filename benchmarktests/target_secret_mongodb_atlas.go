@@ -26,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[MongoDBAtlasSecretTestType] = func() BenchmarkBuilder { return &MongoDBAtlasTest{} }
 }
 
@@ -91,7 +90,6 @@ func (m *MongoDBAtlasTest) ParseConfig(body hcl.Body) error {
 	}
 	m.config = testConfig.Config
 
-	// Ensure that the username and password are set
 	if m.config.MongoDBAtlasConfig.PublicKey == "" {
 		return fmt.Errorf("no mongodb_atlas PublicKey provided but required")
 	}
@@ -125,28 +123,24 @@ func (m *MongoDBAtlasTest) Setup(client *api.Client, mountName string, topLevelC
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbConfigData, err := structToMap(m.config.MongoDBAtlasConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding mongodb_atlas config from struct: %v", err)
 	}
 
-	// Write DB config
 	setupLogger.Trace(writingLogMessage("mongodb_atlas config"), "name", m.config.MongoDBAtlasConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBAtlasConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfigData, err := structToMap(m.config.MongoDBAtlasRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("mongodb_atlas role"), "name", m.config.MongoDBAtlasRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBAtlasRoleConfig.Name, roleConfigData)
 	if err != nil {

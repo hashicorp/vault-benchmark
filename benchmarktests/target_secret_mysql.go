@@ -123,7 +123,6 @@ func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig
 		}
 	}
 
-	// Create Database Secret Mount
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -134,14 +133,12 @@ func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(m.config.MySQLDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("mysql db config"), "name", m.config.MySQLDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", m.config.MySQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -149,14 +146,12 @@ func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error writing mysql db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(m.config.MySQLRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("mysql role"), "name", m.config.MySQLRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", m.config.MySQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

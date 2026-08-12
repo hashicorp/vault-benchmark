@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	TerraformSecretTestType   = "terraform_secret"
 	TerraformSecretTestMethod = "GET"
@@ -109,28 +108,24 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 
 	setupLogger := t.logger.Named(secretPath)
 
-	// Decode Terraform Config
 	setupLogger.Trace(parsingConfigLogMessage("terraform"))
 	terraformConfigData, err := structToMap(config.TerraformConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing terraform config from struct: %v", err)
 	}
 
-	// Write Terraform config
 	setupLogger.Trace(writingLogMessage("terraform config"))
 	_, err = client.Logical().Write(secretPath+"/config", terraformConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing terraform config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	terraformRoleConfigData, err := structToMap(config.TerraformRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("terraform role"), "name", config.TerraformRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/role/"+config.TerraformRoleConfig.Name, terraformRoleConfigData)
 	if err != nil {

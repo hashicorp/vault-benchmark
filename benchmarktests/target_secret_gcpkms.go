@@ -137,7 +137,6 @@ func (g *GCPKMSTest) ParseConfig(body hcl.Body) error {
 	}
 	g.config = testConfig.Config
 
-	// Validate required configuration
 	if g.config.GCPKMSConfig.Credentials == "" {
 		return fmt.Errorf("GCP KMS credentials are required")
 	}
@@ -183,7 +182,6 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := g.logger.Named(secretPath)
 
-	// Check if the credentials argument should be read from file
 	creds := g.config.GCPKMSConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
 		contents, err := os.ReadFile(creds[1:])
@@ -193,7 +191,6 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		g.config.GCPKMSConfig.Credentials = string(contents)
 	}
 
-	// Configure the GCP KMS backend
 	setupLogger.Trace(parsingConfigLogMessage("gcpkms config"))
 	configData, err := structToMap(g.config.GCPKMSConfig)
 	if err != nil {
@@ -206,24 +203,20 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		return nil, fmt.Errorf("error writing gcpkms config: %v", err)
 	}
 
-	// Create keys for the specific operations
 	switch g.action {
 	case "encrypt", "decrypt", "reencrypt":
-		// Create symmetric encryption key
 		err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger)
 		if err != nil {
 			return nil, err
 		}
 
 	case "sign", "verify":
-		// Create asymmetric signing key
 		err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Generate payload for testing
 	setupLogger.Trace("generating test payload")
 	rawPayload, err := uuid.GenerateRandomBytes(g.config.PayloadLen)
 	if err != nil {
@@ -233,7 +226,6 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	keyName := g.config.GCPKMSKeyConfig.Key
 
-	// Now dispatch the operation
 	switch g.action {
 	case "encrypt":
 		g.config.GCPKMSEncryptConfig.Plaintext = base64Payload
@@ -258,7 +250,6 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		}, nil
 
 	case "decrypt":
-		// First encrypt some data to get ciphertext
 		testEncryptData := map[string]any{
 			"plaintext": base64Payload,
 		}
@@ -295,7 +286,6 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		}, nil
 
 	case "sign":
-		// Generate a digest for signing
 		digest := base64.StdEncoding.EncodeToString(rawPayload)
 		g.config.GCPKMSSignConfig.Digest = digest
 
@@ -319,11 +309,9 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		}, nil
 
 	case "verify":
-		// Generate a digest and sign it first
 		digest := base64.StdEncoding.EncodeToString(rawPayload)
 		g.config.GCPKMSVerifyConfig.Digest = digest
 
-		// Sign the digest
 		signData := map[string]any{
 			"digest":      digest,
 			"key_version": g.config.GCPKMSVerifyConfig.KeyVersion,
@@ -361,7 +349,6 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		}, nil
 
 	case "reencrypt":
-		// First encrypt some data to get ciphertext
 		testEncryptData := map[string]any{
 			"plaintext": base64Payload,
 		}
@@ -440,7 +427,6 @@ func (g *GCPKMSTest) createKey(client *api.Client, secretPath string, keyConfig 
 
 	logger.Trace(parsingConfigLogMessage("gcpkms key"), "name", keyConfig.Key, "mode", mode)
 
-	// Handle create vs register mode
 	if mode == "create" {
 		uuid, err := uuid.GenerateUUID()
 		if err != nil {
@@ -463,7 +449,6 @@ func (g *GCPKMSTest) createNewKey(client *api.Client, keyPath string, keyConfig 
 
 	keyConfig.Mode = "" // Exclude mode from API payload
 
-	// Convert to map
 	keyCreateData, err := structToMap(keyConfig)
 	if err != nil {
 		return fmt.Errorf("error parsing gcpkms key config from struct: %v", err)
@@ -483,7 +468,6 @@ func (g *GCPKMSTest) registerExistingKey(client *api.Client, secretPath string, 
 		keyConfig.CryptoKey = keyConfig.Key
 	}
 
-	// Build full crypto key resource ID for registration
 	fullCryptoKeyID := fmt.Sprintf("%s/cryptoKeys/%s", keyConfig.KeyRing, keyConfig.CryptoKey)
 
 	registerData := map[string]any{

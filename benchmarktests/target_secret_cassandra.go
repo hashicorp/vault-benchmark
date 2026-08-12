@@ -129,7 +129,6 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 		}
 	}
 
-	// Create Database Secret Mount
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -140,14 +139,12 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(c.config.CassandraDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", c.config.CassandraDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -155,14 +152,12 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 		return nil, fmt.Errorf("error writing cassandra db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(c.config.CassandraRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Set Up Role
 	setupLogger.Trace(writingLogMessage("role"), "name", c.config.CassandraRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

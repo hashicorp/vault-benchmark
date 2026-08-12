@@ -68,7 +68,6 @@ func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
 	cfg := &struct {
 		Config *SyncAWSTestConfig `hcl:"config,block"`
 	}{
-		// Defaults
 		Config: &SyncAWSTestConfig{
 			NumAssociations:   3,
 			DestinationName:   fmt.Sprintf("benchmark-test-%s", uuid.New().String()),
@@ -89,7 +88,6 @@ func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
 func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	t.logger = targetLogger.Named(t.target)
 
-	// Create test mount
 	if topLevelConfig.RandomMounts {
 		mountName += "-" + uuid.New().String()
 	}
@@ -105,7 +103,6 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error setupping KVv2 engine: %v", err)
 	}
 
-	// Create 1 secret to sync per association
 	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("creating secret on test mount", "mount", mountName, "secret", secretName)
@@ -116,7 +113,6 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		}
 	}
 
-	// Create the test destination
 	t.logger.Debug("creating destination", "type", t.config.DestinationType, "name", t.config.DestinationName)
 
 	body := map[string]any{}
@@ -132,7 +128,6 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error setupping destination: %w", err)
 	}
 
-	// If test is read or event based, pre-populate the associations
 	if t.target == SyncEvents || t.target == SyncAssociationsRead {
 		for i := range t.config.NumAssociations {
 			secretName := fmt.Sprintf(secretNameFormat, i)
@@ -202,7 +197,6 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 		}
 	}
 
-	// Unmount KVv2 engine
 	t.logger.Debug("deleting test engine", "mount", t.mount)
 	err = client.Sys().Unmount(t.mount)
 	if err != nil {

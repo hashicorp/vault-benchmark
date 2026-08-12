@@ -123,7 +123,6 @@ func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		}
 	}
 
-	// Create Database Secret Mount
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -134,14 +133,12 @@ func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(m.config.HanaDBDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("hanadb config"), "name", m.config.HanaDBDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", m.config.HanaDBDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -149,14 +146,12 @@ func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, fmt.Errorf("error writing hanadb config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(m.config.HanaDBRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("hanadb role"), "name", m.config.HanaDBRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", m.config.HanaDBRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

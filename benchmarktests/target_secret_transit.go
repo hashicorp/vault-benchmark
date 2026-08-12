@@ -205,7 +205,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}
 
 	setupLogger := t.logger.Named(secretPath)
-	// Generate Keys for testing
 	setupLogger.Trace(parsingConfigLogMessage("transit key"))
 	keysConfigData, err := structToMap(t.config.TransitConfigKeys)
 	if err != nil {
@@ -218,7 +217,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error writing transit key config: %v", err)
 	}
 
-	// Generate our payload and context
 	setupLogger.Trace("generating test payload and context")
 	rawPayload, err := uuid.GenerateRandomBytes(t.config.PayloadLen)
 	if err != nil {
@@ -232,7 +230,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}
 	base64Context := base64.StdEncoding.EncodeToString(rawContext)
 
-	// Now dispatch the operation.
 	switch t.action {
 	case "sign":
 		secretPath = filepath.Join(secretPath, "sign", t.config.TransitConfigSign.Name)
@@ -262,7 +259,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 		}
 		verifyPath := filepath.Join(secretPath, "verify", t.config.TransitConfigVerify.Name)
 
-		// Sign the payload first
 		setupLogger.Trace("signing payload")
 		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitConfigVerify.Name), signData)
 		if err != nil {
@@ -318,7 +314,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 		}, nil
 
 	case "decrypt":
-		// Encrypt test payload
 		testEncryptData := map[string]any{
 			"plaintext": base64Payload,
 		}
@@ -340,7 +335,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 		t.config.TransitConfigDecrypt.Ciphertext = resp.Data["ciphertext"].(string)
 
-		// Prepare for decryption
 		decryptPath := filepath.Join(secretPath, "decrypt", t.config.TransitConfigDecrypt.Name)
 
 		setupLogger.Trace(parsingConfigLogMessage("transit decrypt"))
@@ -354,7 +348,6 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 			return nil, fmt.Errorf("error marshaling transit decrypt data: %v", err)
 		}
 
-		// Now decrypt it
 		return &TransitTest{
 			pathPrefix: "/v1/" + decryptPath,
 			header:     generateHeader(client),

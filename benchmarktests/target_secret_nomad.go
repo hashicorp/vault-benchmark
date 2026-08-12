@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	NomadSecretTestType   = "nomad_secret"
 	NomadSecretTestMethod = "GET"
@@ -26,7 +25,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[NomadSecretTestType] = func() BenchmarkBuilder { return &NomadTest{} }
 }
 
@@ -79,7 +77,6 @@ func (c *NomadTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 
-	// Ensure that the token has been set by either the environment variable or the config
 	if c.config.NomadConfig.Token == "" {
 		return fmt.Errorf("nomad token must be set")
 	}
@@ -109,28 +106,24 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode Nomad Config
 	setupLogger.Trace(parsingConfigLogMessage("nomad"))
 	nomadConfigData, err := structToMap(config.NomadConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing nomad config from struct: %v", err)
 	}
 
-	// Write Nomad config
 	setupLogger.Trace(writingLogMessage("nomad config"))
 	_, err = client.Logical().Write(secretPath+"/config/access", nomadConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing nomad config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	nomadRoleConfigData, err := structToMap(config.NomadRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("nomad role"), "name", config.NomadRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
 	if err != nil {

@@ -120,57 +120,48 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 
 	setupLogger := k.logger.Named(secretPath)
 
-	// Decode Kubernetes Config
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes"))
 	kubernetesConfigData, err := structToMap(config.KubernetesConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing kubernetes config from struct: %v", err)
 	}
 
-	// Write Kubernetes config
 	setupLogger.Trace(writingLogMessage("kubernetes config"))
 	_, err = client.Logical().Write(secretPath+"/config", kubernetesConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing kubernetes config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	kubernetesRoleConfigData, err := structToMap(config.KubernetesRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("kubernetes role"), "name", config.KubernetesRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.KubernetesRoleConfig.Name, kubernetesRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing kubernetes role: %v", err)
 	}
 
-	// Prepare request body for credential generation
 	// Default namespace to a randomly selected allowed namespace or "default"
 	namespace := "default"
 	if len(config.KubernetesRoleConfig.AllowedKubernetesNamespaces) > 0 {
 		allowedNS := config.KubernetesRoleConfig.AllowedKubernetesNamespaces
-		// If "*" is allowed, any namespace can be used, so use "default"
 		// Otherwise randomly pick from the explicitly allowed namespaces
 		if allowedNS[0] != "*" {
 			namespace = allowedNS[rand.Intn(len(allowedNS))]
 		}
 	}
 
-	// Build request body for credential generation
 	requestBody := map[string]any{
 		"kubernetes_namespace": namespace,
 	}
 
-	// Add optional audiences if specified
 	if config.KubernetesRoleConfig.TokenDefaultAudiences != "" {
 		requestBody["audiences"] = config.KubernetesRoleConfig.TokenDefaultAudiences
 	}
 
-	// For ClusterRole types, set cluster_role_binding to true
 	if config.KubernetesRoleConfig.KubernetesRoleType == "ClusterRole" {
 		requestBody["cluster_role_binding"] = true
 	}

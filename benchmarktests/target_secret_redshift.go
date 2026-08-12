@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	RedshiftSecretTestType   = "redshift_secret"
 	RedshiftSecretTestMethod = "GET"
@@ -28,11 +27,9 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[RedshiftSecretTestType] = func() BenchmarkBuilder { return &RedshiftSecret{} }
 }
 
-// Redshift Secret Test Struct
 type RedshiftSecret struct {
 	pathPrefix string
 	header     http.Header
@@ -41,13 +38,11 @@ type RedshiftSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type RedshiftSecretTestConfig struct {
 	RedshiftDBConfig   *RedshiftDBConfig   `hcl:"db_connection,block"`
 	RedshiftRoleConfig *RedshiftRoleConfig `hcl:"role,block"`
 }
 
-// Redshift DB Config
 type RedshiftDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -66,7 +61,6 @@ type RedshiftDBConfig struct {
 	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
 }
 
-// Redshift Role Config
 type RedshiftRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -79,12 +73,8 @@ type RedshiftRoleConfig struct {
 	RotationStatements   string `hcl:"rotation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 
 func (r *RedshiftSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *RedshiftSecretTestConfig `hcl:"config,block"`
 	}{
@@ -137,7 +127,6 @@ func (r *RedshiftSecret) Setup(client *api.Client, mountName string, topLevelCon
 		}
 	}
 
-	// Create Database Secret Mount
 	r.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -148,14 +137,12 @@ func (r *RedshiftSecret) Setup(client *api.Client, mountName string, topLevelCon
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(r.config.RedshiftDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("redshift db config"), "name", r.config.RedshiftDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", r.config.RedshiftDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -163,14 +150,12 @@ func (r *RedshiftSecret) Setup(client *api.Client, mountName string, topLevelCon
 		return nil, fmt.Errorf("error writing redshift db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(r.config.RedshiftRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("redshift role"), "name", r.config.RedshiftRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", r.config.RedshiftRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

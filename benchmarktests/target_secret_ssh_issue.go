@@ -74,7 +74,6 @@ type SSHRoleConfig struct {
 	InstallScript  string   `hcl:"install_script,optional"`
 	KeyOptionSpecs []string `hcl:"key_option_specs,optional"`
 
-	// Common
 	Name                   string            `hcl:"name,optional"`
 	DefaultUser            string            `hcl:"default_user,optional"`
 	DefaultUserTemplate    bool              `hcl:"default_user_template,optional"`
@@ -144,7 +143,6 @@ func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 		}
 	}
 
-	// Create SSH Secrets engine Mount
 	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "ssh",
@@ -155,14 +153,12 @@ func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := s.logger.Named(mountPath)
 
-	// Decode CA Config into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("ca"))
 	caConfig, err := structToMap(s.config.CAConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding ca config from struct: %v", err)
 	}
 
-	// Write CA Config
 	setupLogger.Trace(writingLogMessage("ca config"))
 	caPath := filepath.Join(mountPath, "config", "ca")
 	_, err = client.Logical().Write(caPath, caConfig)
@@ -170,14 +166,12 @@ func (s *SSHIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, fmt.Errorf("error writing ca config: %v", err)
 	}
 
-	// Decode Role Config into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfig, err := structToMap(s.config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Write Role
 	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
 	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfig)

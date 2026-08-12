@@ -99,7 +99,6 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 		}
 	}
 
-	// Create Database Secret Mount
 	r.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -110,14 +109,12 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(r.config.DBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("redis db config"), "name", r.config.DBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", r.config.DBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -131,7 +128,6 @@ func (r *RedisDynamicSecret) Setup(client *api.Client, mountName string, topLeve
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Set Up Role
 	setupLogger.Trace(writingLogMessage("redis role"), "name", r.config.RoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", r.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	PostgreSQLSecretTestType   = "postgresql_secret"
 	PostgreSQLSecretTestMethod = "GET"
@@ -28,11 +27,9 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[PostgreSQLSecretTestType] = func() BenchmarkBuilder { return &PostgreSQLSecret{} }
 }
 
-// Postgres Secret Test Struct
 type PostgreSQLSecret struct {
 	pathPrefix string
 	header     http.Header
@@ -41,13 +38,11 @@ type PostgreSQLSecret struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type PostgreSQLSecretTestConfig struct {
 	PostgreSQLDBConfig   *PostgreSQLDBConfig   `hcl:"db_connection,block"`
 	PostgreSQLRoleConfig *PostgreSQLRoleConfig `hcl:"role,block"`
 }
 
-// PostgreSQL DB Config
 type PostgreSQLDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -66,7 +61,6 @@ type PostgreSQLDBConfig struct {
 	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
 }
 
-// PostgreSQL Role Config
 type PostgreSQLRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -79,12 +73,8 @@ type PostgreSQLRoleConfig struct {
 	RotationStatements   string `hcl:"rotation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 
 func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *PostgreSQLSecretTestConfig `hcl:"config,block"`
 	}{
@@ -132,7 +122,6 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 		}
 	}
 
-	// Create Database Secret Mount
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -143,14 +132,12 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 
 	setupLogger := s.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(s.config.PostgreSQLDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Set up db
 	setupLogger.Trace(writingLogMessage("postgres db config"), "name", s.config.PostgreSQLDBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", s.config.PostgreSQLDBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -158,14 +145,12 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 		return nil, fmt.Errorf("error writing postgresql db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(s.config.PostgreSQLRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("postgres role"), "name", s.config.PostgreSQLRoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", s.config.PostgreSQLRoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

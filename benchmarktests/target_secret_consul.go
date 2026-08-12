@@ -19,7 +19,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	ConsulSecretTestType   = "consul_secret"
 	ConsulSecretTestMethod = "GET"
@@ -27,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[ConsulSecretTestType] = func() BenchmarkBuilder { return &ConsulTest{} }
 }
 
@@ -92,7 +90,6 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 
-	// Ensure that the token has been set by either the environment variable or the config
 	if c.config.ConsulConfig.Token == "" {
 		return fmt.Errorf("consul token must be set")
 	}
@@ -121,49 +118,42 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode Consul Config
 	setupLogger.Trace(parsingConfigLogMessage("consul"))
 	consulConfigData, err := structToMap(c.config.ConsulConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul config from struct: %v", err)
 	}
 
-	// Write Consul config
 	setupLogger.Trace(writingLogMessage("consul config"))
 	_, err = client.Logical().Write(secretPath+"/config/access", consulConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul config: %v", err)
 	}
 
-	// Get consul version
 	setupLogger.Trace("parsing consul version from config")
 	v, err := version.NewVersion(c.config.Version)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul version: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	consulRoleConfigData, err := structToMap(c.config.ConsulRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// For Consul < 1.8, we need to unset node_identities and consul_namespace
 	if v.LessThan(version.Must(version.NewVersion("1.8"))) {
 		delete(consulRoleConfigData, "node_identities")
 		delete(consulRoleConfigData, "consul_namespace")
 		setupLogger.Warn("node_identities and consul_namespace are not supported in Consul < 1.8.  These fields will be ignored.")
 	}
 
-	// For Consul < 1.5, we need to unset service_identities and consul_roles
 	if v.LessThan(version.Must(version.NewVersion("1.5"))) {
 		delete(consulRoleConfigData, "service_identities")
 		delete(consulRoleConfigData, "consul_roles")
 		setupLogger.Warn("service_identities and consul_roles are not supported in Consul < 1.5.  These fields will be ignored.")
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("consul role"), "name", c.config.ConsulRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+c.config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {

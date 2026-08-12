@@ -116,7 +116,6 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 
 	setupLogger := t.logger.Named("totp")
 
-	// Enable TOTP secrets engine
 	setupLogger.Trace("mounting TOTP secrets engine", "path", mountPath)
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "totp",
@@ -125,7 +124,6 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 		return nil, fmt.Errorf("error mounting TOTP secrets engine: %v", err)
 	}
 
-	// Generate a unique key name if randomization is requested
 	keyName := t.config.KeyName
 	if topLevelConfig.RandomMounts {
 		randomSuffix, err := uuid.GenerateUUID()
@@ -135,7 +133,6 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 		keyName = fmt.Sprintf("%s-%s", t.config.KeyName, randomSuffix)
 	}
 
-	// Prepare key data for TOTP operations
 	keyData := map[string]any{
 		"generate":     t.config.Generate,
 		"issuer":       t.config.Issuer,
@@ -145,7 +142,6 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 		"period":       t.config.Period,
 	}
 
-	// Create keys for operations that need to read existing keys
 	if t.action == "generate" || t.action == "read" {
 		setupLogger.Trace("creating TOTP key for operations", "key", keyName, "action", t.action)
 
@@ -155,14 +151,11 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 		}
 	}
 
-	// Update the config with the potentially randomized key name
 	configCopy := *t.config
 	configCopy.KeyName = keyName
 
-	// Pre-compute base URL for performance optimization
 	baseURL := fmt.Sprintf("%s/v1/%s", client.Address(), mountPath)
 
-	// Optimization: Pre-marshal JSON for create operations (simplified keyData for creation)
 	createKeyData := map[string]any{
 		"generate":     true,
 		"issuer":       configCopy.Issuer,
@@ -199,7 +192,6 @@ func (t *TOTPSecretTest) Target(client *api.Client) vegeta.Target {
 func (t *TOTPSecretTest) Cleanup(client *api.Client) error {
 	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
 
-	// Clean up the mount itself (this will clean up all keys in the mount)
 	err := client.Sys().Unmount(t.mountPath)
 	if err != nil {
 		return fmt.Errorf("error unmounting TOTP secrets engine at %s: %v", t.mountPath, err)
@@ -223,7 +215,6 @@ func (t *TOTPSecretTest) GetTargetInfo() TargetInfo {
 func (t *TOTPSecretTest) Flags(fs *flag.FlagSet) {}
 
 func (t *TOTPSecretTest) create() vegeta.Target {
-	// Optimization: Use index-based naming for unique keys
 	keyName := fmt.Sprintf("%s-shared-%d", t.config.KeyName, t.keyIndex)
 	t.keyIndex++
 
@@ -236,7 +227,6 @@ func (t *TOTPSecretTest) create() vegeta.Target {
 }
 
 func (t *TOTPSecretTest) generate() vegeta.Target {
-	// Use the base key name for generate operations
 	keyName := t.config.KeyName
 
 	return vegeta.Target{
@@ -247,7 +237,6 @@ func (t *TOTPSecretTest) generate() vegeta.Target {
 }
 
 func (t *TOTPSecretTest) read() vegeta.Target {
-	// Use the base key name for read operations
 	keyName := t.config.KeyName
 
 	return vegeta.Target{

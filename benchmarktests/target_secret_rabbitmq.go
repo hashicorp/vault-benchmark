@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	RabbitMQSecretTestType   = "rabbitmq_secret"
 	RabbitMQSecretTestMethod = "GET"
@@ -27,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[RabbitMQSecretTestType] = func() BenchmarkBuilder { return &RabbitMQTest{} }
 }
 
@@ -39,7 +37,6 @@ type RabbitMQTest struct {
 	logger     hclog.Logger
 }
 
-// Main Config Struct
 type RabbitMQSecretTestConfig struct {
 	RabbitMQConnectionConfig *RabbitMQConnectionConfig `hcl:"connection,block"`
 	RabbitMQRoleConfig       *RabbitMQRoleConfig       `hcl:"role,block"`
@@ -116,28 +113,24 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode RabbitMQ Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("rabbitmq connection"))
 	connectionConfigData, err := structToMap(r.config.RabbitMQConnectionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing rabbitmq connection config from struct: %v", err)
 	}
 
-	// Write connection config
 	setupLogger.Trace(writingLogMessage("rabbitmq connection config"))
 	_, err = client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing rabbitmq connection config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfigData, err := structToMap(r.config.RabbitMQRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", r.config.RabbitMQRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
 	if err != nil {

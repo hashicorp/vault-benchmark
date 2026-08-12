@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	AzureSecretTestType       = "azure_secret"
 	AzureSecretTestMethod     = "GET"
@@ -30,7 +29,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[AzureSecretTestType] = func() BenchmarkBuilder { return &AzureTest{} }
 }
 
@@ -124,28 +122,24 @@ func (a *AzureTest) Setup(client *api.Client, mountName string, topLevelConfig *
 		return nil, fmt.Errorf("error mounting azure: %v", err)
 	}
 
-	// Decode Azure Config
 	setupLogger.Trace(parsingConfigLogMessage("azure"))
 	azureConfigData, err := structToMap(config.AzureConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing azure config from struct: %v", err)
 	}
 
-	// Write Azure config
 	setupLogger.Trace(writingLogMessage("azure config"))
 	_, err = client.Logical().Write(secretPath+"/config", azureConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing azure config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	azureRoleConfigData, err := structToMap(config.AzureRole)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("azure role"), "name", config.AzureRole.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+config.AzureRole.Name, azureRoleConfigData)
 	if err != nil {

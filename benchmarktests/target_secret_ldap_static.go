@@ -113,28 +113,24 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode LDAP Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret"))
 	connectionConfigData, err := structToMap(r.config.LDAPStaticConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing ldap secret config from struct: %v", err)
 	}
 
-	// Write connection config
 	setupLogger.Trace(writingLogMessage("ldap secret config"))
 	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret role"))
 	roleConfigData, err := structToMap(r.config.LDAPStaticRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPStaticRoleConfig.Username)
 	_, err = client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
 	if err != nil {

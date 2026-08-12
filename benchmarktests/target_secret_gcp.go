@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	GCPSecretTestType     = "gcp_secret"
 	GCPSecretTestMethod   = "GET"
@@ -29,7 +28,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[GCPSecretTestType] = func() BenchmarkBuilder { return &GCPTest{} }
 }
 
@@ -136,28 +134,24 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 		config.GCPRoleset.Bindings = string(contents)
 	}
 
-	// Encode GCP Config
 	setupLogger.Trace(parsingConfigLogMessage("gcp"))
 	gcpConfigData, err := structToMap(config.GCPConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcp config from struct: %v", err)
 	}
 
-	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp config"))
 	_, err = client.Logical().Write(secretPath+"/config", gcpConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	gcpRolesetData, err := structToMap(config.GCPRoleset)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing roleset config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("gcp roleset"), "name", config.GCPRoleset.Name)
 	_, err = client.Logical().Write(secretPath+"/roleset/"+config.GCPRoleset.Name, gcpRolesetData)
 	if err != nil {

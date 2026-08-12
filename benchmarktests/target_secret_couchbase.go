@@ -44,7 +44,6 @@ type CouchbaseSecretTestConfig struct {
 }
 
 type CouchbaseConfig struct {
-	// Common
 	Name             string   `hcl:"name,optional"`
 	PluginName       string   `hcl:"plugin_name,optional"`
 	PluginVersion    string   `hcl:"plugin_version,optional"`
@@ -55,7 +54,6 @@ type CouchbaseConfig struct {
 	Password         string   `hcl:"password,optional"`
 	DisableEscaping  bool     `hcl:"disable_escaping,optional"`
 
-	// Couchbase Specific
 	Hosts            string `hcl:"hosts"`
 	TLS              bool   `hcl:"tls,optional"`
 	InsecureTLS      bool   `hcl:"insecure_tls,optional"`
@@ -123,7 +121,6 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 		}
 	}
 
-	// Create Database Secret Mount
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -134,14 +131,12 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbData, err := structToMap(c.config.DBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
 	}
 
-	// Write Config
 	setupLogger.Trace(writingLogMessage("couchbase db config"), "name", c.config.DBConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", c.config.DBConfig.Name)
 	_, err = client.Logical().Write(dbPath, dbData)
@@ -149,14 +144,12 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 		return nil, fmt.Errorf("error writing couchbase db config: %v", err)
 	}
 
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(c.config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("couchbase role"), "name", c.config.RoleConfig.Name)
 	rolePath := filepath.Join(secretPath, "roles", c.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleData)

@@ -18,7 +18,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	GCPImpersonationSecretTestType            = "gcp_impersonation_secret"
 	GCPImpersonationSecretTestMethod          = "GET"
@@ -26,7 +25,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[GCPImpersonationSecretTestType] = func() BenchmarkBuilder { return &GCPImpersonationTest{} }
 }
 
@@ -110,28 +108,24 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 		config.GCPConfig.Credentials = string(contents)
 	}
 
-	// Encode GCP Config
 	setupLogger.Trace(parsingConfigLogMessage("gcp impersonation"))
 	gcpImpersonationConfigData, err := structToMap(config.GCPConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcp config from struct: %v", err)
 	}
 
-	// Write GCP config
 	setupLogger.Trace(writingLogMessage("gcp impersonation config"))
 	_, err = client.Logical().Write(secretPath+"/config", gcpImpersonationConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing gcp config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("gcp impersonation"))
 	gcpImpersonationData, err := structToMap(config.GCPImpersonate)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcp impersonation config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("gcp impersonation"), "name", config.GCPImpersonate.Name)
 	_, err = client.Logical().Write(secretPath+"/impersonated-account/"+config.GCPImpersonate.Name, gcpImpersonationData)
 	if err != nil {

@@ -26,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[MongoDBSecretTestType] = func() BenchmarkBuilder { return &MongoDBTest{} }
 }
 
@@ -95,7 +94,6 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	}
 	m.config = testConfig.Config
 
-	// Ensure that the username and password are set
 	if m.config.MongoDBConfig.Username == "" {
 		return fmt.Errorf("no mongodb username provided but required")
 	}
@@ -129,28 +127,24 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	dbConfigData, err := structToMap(m.config.MongoDBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding mongodb config from struct: %v", err)
 	}
 
-	// Write DB config
 	setupLogger.Trace(writingLogMessage("mongodb config"), "name", m.config.MongoDBConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBConfig.Name, dbConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing db config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfigData, err := structToMap(m.config.MongoDBRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("mongodb role"), "name", m.config.MongoDBRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, roleConfigData)
 	if err != nil {

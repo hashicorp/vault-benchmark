@@ -78,7 +78,6 @@ type SSHKeySignRoleConfig struct {
 	InstallScript  string   `hcl:"install_script,optional"`
 	KeyOptionSpecs []string `hcl:"key_option_specs,optional"`
 
-	// Common
 	Name                   string            `hcl:"name,optional"`
 	DefaultUser            string            `hcl:"default_user,optional"`
 	DefaultUserTemplate    bool              `hcl:"default_user_template,optional"`
@@ -146,7 +145,6 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 		}
 	}
 
-	// Create SSH Secrets engine Mount
 	s.logger.Trace(mountLogMessage("secrets", "ssh", mountPath))
 	err = client.Sys().Mount(mountPath, &api.MountInput{
 		Type: "ssh",
@@ -157,14 +155,12 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 
 	setupLogger := s.logger.Named(mountPath)
 
-	// Decode CA Config into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("ca"))
 	caConfig, err := structToMap(s.config.CAConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing ca config from struct: %v", err)
 	}
 
-	// Write CA Config
 	setupLogger.Trace(writingLogMessage("ca config"))
 	caPath := filepath.Join(mountPath, "config", "ca")
 	_, err = client.Logical().Write(caPath, caConfig)
@@ -172,14 +168,12 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 		return nil, fmt.Errorf("error writing ca config: %v", err)
 	}
 
-	// Decode Role Config into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	roleConfig, err := structToMap(s.config.RoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Write Role
 	setupLogger.Trace(writingLogMessage("ssh role"), "name", s.config.RoleConfig.Name)
 	rolePath := filepath.Join(mountPath, "roles", s.config.RoleConfig.Name)
 	_, err = client.Logical().Write(rolePath, roleConfig)
@@ -187,9 +181,7 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 		return nil, fmt.Errorf("error writing ssh role: %v", err)
 	}
 
-	// Check to see if a public key was provided already
 	if s.config.KeySigningConfig.PublicKey != nil {
-		// Check to see if we got a file or a string and handle
 		if ok, err := IsFile(*s.config.KeySigningConfig.PublicKey); ok {
 			keyBytes, err := os.ReadFile(*s.config.KeySigningConfig.PublicKey)
 			if err != nil {
@@ -202,21 +194,18 @@ func (s *SSHKeySignTest) Setup(client *api.Client, mountName string, topLevelCon
 				return nil, fmt.Errorf("error parsing public key from file: %v", err)
 			}
 			setupLogger.Trace("parsing provided public key")
-			// Attempt to parse public key to verify its in a valid format
 			_, _, _, _, err := ssh.ParseAuthorizedKey([]byte(*s.config.KeySigningConfig.PublicKey))
 			if err != nil {
 				return nil, fmt.Errorf("error parsing public key: %v", err)
 			}
 		}
 	} else {
-		// Create test key-pair
 		setupLogger.Warn("public key not provided, generating test RSA key-pair")
 		tKeyPair, err := rsa.GenerateKey(rand.Reader, 4096)
 		if err != nil {
 			return nil, fmt.Errorf("error generating test RSA key-pair: %v", err)
 		}
 
-		// Get Public key to sign
 		pubKey, err := ssh.NewPublicKey(tKeyPair.Public())
 		if err != nil {
 			return nil, fmt.Errorf("error generating test RSA public key: %v", err)

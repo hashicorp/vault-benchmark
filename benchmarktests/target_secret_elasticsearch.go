@@ -134,14 +134,12 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 
 	setupLogger := e.logger.Named(secretPath)
 
-	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
 	elasticSearchConfigData, err := structToMap(e.config.ElasticSearchConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing elasticsearch config from struct: %v", err)
 	}
 
-	// Write DB config
 	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", e.config.ElasticSearchConfig.Name)
 	dbPath := filepath.Join(secretPath, "config", e.config.ElasticSearchConfig.Name)
 	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
@@ -149,14 +147,12 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	elasticSearchRoleConfigData, err := structToMap(e.config.ElasticSearchRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("elasticsearc role"), "name", e.config.ElasticSearchRoleConfig.RoleName)
 	rolePath := filepath.Join(secretPath, "roles", e.config.ElasticSearchRoleConfig.RoleName)
 	_, err = client.Logical().Write(rolePath, elasticSearchRoleConfigData)

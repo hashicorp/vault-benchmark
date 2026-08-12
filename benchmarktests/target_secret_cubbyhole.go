@@ -26,7 +26,6 @@ const (
 )
 
 func init() {
-	// "Register" these tests to the main test registry
 	TestList[CubbyholeSecretReadTestType] = func() BenchmarkBuilder {
 		return &CubbyholeTest{action: "read"}
 	}
@@ -38,7 +37,9 @@ func init() {
 type CubbyholeTest struct {
 	pathPrefix string
 	header     http.Header
-	baseURL    string
+	body       []byte
+	method     string
+	targetURL  string
 	action     string
 	config     *CubbyholeSecretTestConfig
 	logger     hclog.Logger
@@ -49,10 +50,7 @@ type CubbyholeSecretTestConfig struct {
 	Path string `hcl:"path"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-
 func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
 		Config *CubbyholeSecretTestConfig `hcl:"config,block"`
 	}{
@@ -67,7 +65,7 @@ func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 	if c.config.Path == "" {
-		c.config.Path = DefaultSecretPath // Set default if empty instead of error
+		c.config.Path = DefaultSecretPath
 	}
 	return nil
 }
@@ -79,60 +77,56 @@ func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConf
 	default:
 		c.logger = targetLogger.Named(CubbyholeSecretReadTestType)
 	}
-	// Generate a unique secret key if randomization is requested
+
 	secretPath := c.config.Path
 	if topLevelConfig.RandomMounts {
 		randomSuffix, err := uuid.GenerateUUID()
 		if err != nil {
 			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
-		secretPath = fmt.Sprintf("%s-%s", c.config.Path, randomSuffix)
+		secretPath = c.config.Path + "-" + randomSuffix
 	}
+
 	setupLogger := c.logger.Named("cubbyhole")
-
-	// Cubbyhole is built-in at /cubbyhole/, no mounting required
-	setupLogger.Trace("Setting up cubbyhole secret")
-
-	// Write secret data to cubbyhole
 	setupLogger.Trace(writingLogMessage("cubbyhole secret"), "key", secretPath)
-	secretDataPath := fmt.Sprintf("cubbyhole/%s", secretPath)
-
-	secretData := map[string]any{
-		"foo": "bar",
-	}
-	_, err := client.Logical().Write(secretDataPath, secretData)
+	_, err := client.Logical().Write("cubbyhole/"+secretPath, map[string]any{"foo": "bar"})
 	if err != nil {
 		return nil, fmt.Errorf("error writing cubbyhole secret: %v", err)
 	}
 
-	// Update the config with the potentially randomized secret key
-	configCopy := *c.config
-	configCopy.Path = secretPath
-	baseURL := fmt.Sprintf("%s%s/%s", client.Address(), CubbyholePathPrefix, secretPath)
+	method := CubbyholeSecretReadTestMethod
+	var body []byte
+	if c.action == "write" {
+		method = CubbyholeSecretWriteTestMethod
+		body = []byte(`{"foo": "bar"}`)
+	}
 
 	return &CubbyholeTest{
 		pathPrefix: CubbyholePathPrefix,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-		secretPath: "cubbyhole",
-		action:     c.action,
-		config:     &configCopy,
+		header: http.Header{
+			"X-Vault-Token":     []string{client.Token()},
+			"X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")},
+		},
+		body:       body,
+		method:     method,
+		targetURL:  client.Address() + CubbyholePathPrefix + "/" + secretPath,
 		logger:     c.logger,
-		baseURL:    baseURL,
+		secretPath: secretPath,
 	}, nil
 }
 
 func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
-	switch c.action {
-	case "write":
-		return c.write()
-	default:
-		return c.read()
+	return vegeta.Target{
+		Method: c.method,
+		URL:    c.targetURL,
+		Body:   c.body,
+		Header: c.header,
 	}
 }
 
 func (c *CubbyholeTest) Cleanup(client *api.Client) error {
 	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(fmt.Sprintf("cubbyhole/%s", c.config.Path))
+	_, err := client.Logical().Delete("cubbyhole/" + c.secretPath)
 	if err != nil {
 		return fmt.Errorf("error cleaning up cubbyhole secret: %v", err)
 	}
@@ -140,34 +134,10 @@ func (c *CubbyholeTest) Cleanup(client *api.Client) error {
 }
 
 func (c *CubbyholeTest) GetTargetInfo() TargetInfo {
-	var method string
-	switch c.action {
-	case "write":
-		method = CubbyholeSecretWriteTestMethod
-	default:
-		method = CubbyholeSecretReadTestMethod
-	}
 	return TargetInfo{
-		method:     method,
+		method:     c.method,
 		pathPrefix: c.pathPrefix,
 	}
 }
 
 func (c *CubbyholeTest) Flags(fs *flag.FlagSet) {}
-
-func (c *CubbyholeTest) read() vegeta.Target {
-	return vegeta.Target{
-		Method: CubbyholeSecretReadTestMethod,
-		URL:    c.baseURL,
-		Header: c.header,
-	}
-}
-
-func (c *CubbyholeTest) write() vegeta.Target {
-	return vegeta.Target{
-		Method: CubbyholeSecretWriteTestMethod,
-		URL:    c.baseURL,
-		Body:   []byte(`{"foo": "bar"}`),
-		Header: c.header,
-	}
-}
