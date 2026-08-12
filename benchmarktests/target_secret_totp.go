@@ -36,13 +36,13 @@ const (
 
 func init() {
 	TestList[TOTPSecretCreateTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "create", testType: TOTPSecretCreateTestType}
+		return &TOTPSecretTest{action: "create", typeKey: TOTPSecretCreateTestType}
 	}
 	TestList[TOTPSecretReadTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "read", testType: TOTPSecretReadTestType}
+		return &TOTPSecretTest{action: "read", typeKey: TOTPSecretReadTestType}
 	}
 	TestList[TOTPSecretGenerateTestType] = func() BenchmarkBuilder {
-		return &TOTPSecretTest{action: "generate", testType: TOTPSecretGenerateTestType}
+		return &TOTPSecretTest{action: "generate", typeKey: TOTPSecretGenerateTestType}
 	}
 }
 
@@ -52,7 +52,7 @@ type TOTPSecretTest struct {
 	baseURL           string
 	createKeyDataJSON []byte
 	action            string
-	testType          string
+	typeKey          string
 	config            *TOTPSecretTestConfig
 	logger            hclog.Logger
 	mountPath         string
@@ -98,7 +98,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 	var err error
 	mountPath := mountName
 
-	t.logger = targetLogger.Named(t.testType)
+	t.logger = targetLogger.Named(t.typeKey)
 
 	if topLevelConfig.RandomMounts {
 		mountPath, err = uuid.GenerateUUID()
@@ -160,7 +160,7 @@ func (t *TOTPSecretTest) Setup(client *api.Client, mountName string, topLevelCon
 		pathPrefix:        "/v1/" + mountPath,
 		header:            http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		action:            t.action,
-		testType:          t.testType,
+		typeKey:          t.typeKey,
 		config:            &configCopy,
 		logger:            t.logger,
 		baseURL:           baseURL,

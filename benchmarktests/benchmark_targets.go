@@ -39,6 +39,11 @@ type BenchmarkBuilder interface {
 }
 
 var (
+	// TODO: targets with multiple actions (transit, gcpkms, totp) register one TestList entry per action,
+	// mirroring the identity workload pattern incorrectly. The correct fix is a single registration per engine
+	// with an action field in the HCL config block validated in ParseConfig — identical to how identity uses
+	// workload. This is a breaking change to user-facing HCL type keys (e.g. "transit_sign" → "transit") and
+	// requires a docs update and migration note. Defer to a dedicated PR.
 	TestList     = make(map[string]func() BenchmarkBuilder)
 	targetLogger hclog.Logger
 )

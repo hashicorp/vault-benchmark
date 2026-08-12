@@ -33,19 +33,19 @@ const (
 
 func init() {
 	TestList[GCPKMSEncryptTestType] = func() BenchmarkBuilder {
-		return &GCPKMSTest{action: "encrypt", testType: GCPKMSEncryptTestType}
+		return &GCPKMSTest{action: "encrypt", typeKey: GCPKMSEncryptTestType}
 	}
 	TestList[GCPKMSDecryptTestType] = func() BenchmarkBuilder {
-		return &GCPKMSTest{action: "decrypt", testType: GCPKMSDecryptTestType}
+		return &GCPKMSTest{action: "decrypt", typeKey: GCPKMSDecryptTestType}
 	}
 	TestList[GCPKMSSignTestType] = func() BenchmarkBuilder {
-		return &GCPKMSTest{action: "sign", testType: GCPKMSSignTestType}
+		return &GCPKMSTest{action: "sign", typeKey: GCPKMSSignTestType}
 	}
 	TestList[GCPKMSVerifyTestType] = func() BenchmarkBuilder {
-		return &GCPKMSTest{action: "verify", testType: GCPKMSVerifyTestType}
+		return &GCPKMSTest{action: "verify", typeKey: GCPKMSVerifyTestType}
 	}
 	TestList[GCPKMSReencryptTestType] = func() BenchmarkBuilder {
-		return &GCPKMSTest{action: "reencrypt", testType: GCPKMSReencryptTestType}
+		return &GCPKMSTest{action: "reencrypt", typeKey: GCPKMSReencryptTestType}
 	}
 }
 
@@ -54,7 +54,7 @@ type GCPKMSTest struct {
 	header     http.Header
 	body       []byte
 	action     string
-	testType   string
+	typeKey   string
 	config     *GCPKMSTestConfig
 	logger     hclog.Logger
 }
@@ -163,7 +163,7 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	var err error
 	secretPath := mountName
 
-	g.logger = targetLogger.Named(g.testType)
+	g.logger = targetLogger.Named(g.typeKey)
 
 	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()

@@ -30,16 +30,16 @@ const (
 
 func init() {
 	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "sign", testType: TransitSignSecretTestType}
+		return &TransitTest{action: "sign", typeKey: TransitSignSecretTestType}
 	}
 	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "verify", testType: TransitVerifySecretTestType}
+		return &TransitTest{action: "verify", typeKey: TransitVerifySecretTestType}
 	}
 	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "encrypt", testType: TransitEncryptSecretTestType}
+		return &TransitTest{action: "encrypt", typeKey: TransitEncryptSecretTestType}
 	}
 	TestList[TransitDecryptSecretTestType] = func() BenchmarkBuilder {
-		return &TransitTest{action: "decrypt", testType: TransitDecryptSecretTestType}
+		return &TransitTest{action: "decrypt", typeKey: TransitDecryptSecretTestType}
 	}
 }
 
@@ -48,7 +48,7 @@ type TransitTest struct {
 	header     http.Header
 	body       []byte
 	action     string
-	testType   string
+	typeKey   string
 	config     *TransitTestConfig
 	logger     hclog.Logger
 }
@@ -184,7 +184,7 @@ func (t *TransitTest) ParseConfig(body hcl.Body) error {
 func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	t.logger = targetLogger.Named(t.testType)
+	t.logger = targetLogger.Named(t.typeKey)
 
 	if topLevelConfig.RandomMounts {
 		secretPath, err = uuid.GenerateUUID()
