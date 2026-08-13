@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -73,7 +72,6 @@ func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Method = tInfo.method
 }
 
-// TargetMulti chooses between various operations randomly following a specified distribution.
 type TargetMulti struct {
 	targets []BenchmarkTarget
 }
@@ -100,16 +98,17 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		targetName string
 	}
 
-	wg := new(sync.WaitGroup)
-	errch := make(chan CleanupMsg)
-	var errs []error
+	names := make([]string, len(tm.targets))
+	for i, t := range tm.targets {
+		names[i] = t.Name
+	}
+	prog := newStageProgress(os.Stderr, "cleaning up targets", cleanupPhrases, names, 0)
+	cleanupStarted := time.Now()
 
+	errch := make(chan CleanupMsg, len(tm.targets))
 	for _, target := range tm.targets {
 		target := target
-		wg.Add(1)
-		targetLogger.Debug("cleaning up", "target", target.Name)
 		go func() {
-			defer wg.Done()
 			errch <- CleanupMsg{
 				err:        target.Builder.Cleanup(client),
 				targetName: target.Name,
@@ -117,16 +116,24 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		}()
 	}
 
+	var errs []error
 	for range tm.targets {
-		cleanupMsg := <-errch
-		if cleanupMsg.err != nil {
-			errs = append(errs, cleanupMsg.err)
-			targetLogger.Error("error cleaning up", "target", cleanupMsg.targetName, "error", cleanupMsg.err.Error())
-		} else {
-			targetLogger.Trace("done cleaning up", "target", cleanupMsg.targetName)
+		msg := <-errch
+		if msg.err != nil {
+			errs = append(errs, msg.err)
+			targetLogger.Error("error cleaning up", "target", msg.targetName, "error", msg.err.Error())
 		}
 	}
-	return errors.Join(errs...)
+
+	joined := errors.Join(errs...)
+	if joined != nil {
+		prog.Fail(joined)
+	} else if time.Since(cleanupStarted) < 100*time.Millisecond {
+		prog.Skip()
+	} else {
+		prog.Complete()
+	}
+	return joined
 }
 
 func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
@@ -187,22 +194,25 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 		return nil, err
 	}
 
+	prog := newStageProgress(os.Stderr, "setting up targets", setupPhrases, targetNames(tests), 0)
+
 	for _, bvTest := range tests {
-		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name
 		if bvTest.MountName != "" {
 			mountName = bvTest.MountName
 		}
 		bvTest.Builder, err = bvTest.Builder.Setup(client, mountName, config)
 		if err != nil {
-			// TODO:
-			// We should look to implement some mechanism to clean up the mount if we
-			// fail to configure some aspect of it (config, role, etc.)
+			prog.Fail(err)
+			// TODO: clean up already-provisioned targets on partial failure.
 			return nil, err
 		}
+		prog.TargetComplete()
 		bvTest.ConfigureTarget(client)
 		tm.targets = append(tm.targets, *bvTest)
 	}
+
+	prog.Complete()
 
 	// Put the biggest fractions first as an optimization
 	sort.Slice(tm.targets, func(i, j int) bool {
