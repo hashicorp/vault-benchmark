@@ -26,6 +26,14 @@ type TopLevelTargetConfig struct {
 
 const (
 	VaultBenchmarkEnvVarPrefix = "VAULT_BENCHMARK_"
+
+	// cleanupNoOpThreshold is the wall-clock duration under which a Cleanup is
+	// considered a no-op (no real Vault I/O). Chosen to be well above any
+	// expected unmount RTT on a real cluster while staying below the fastest
+	// possible real cleanup (a single mount disable is typically 5–50ms on a
+	// local dev cluster).
+	// TODO: replace with per-target I/O detection if this heuristic misfires on heavily throttled CI runners.
+	cleanupNoOpThreshold = 100 * time.Millisecond
 )
 
 type BenchmarkBuilder interface {
@@ -38,11 +46,7 @@ type BenchmarkBuilder interface {
 }
 
 var (
-	// TODO: targets with multiple actions (transit, gcpkms, totp) register one TestList entry per action,
-	// mirroring the identity workload pattern incorrectly. The correct fix is a single registration per engine
-	// with an action field in the HCL config block validated in ParseConfig — identical to how identity uses
-	// workload. This is a breaking change to user-facing HCL type keys (e.g. "transit_sign" → "transit") and
-	// requires a docs update and migration note. Defer to a dedicated PR.
+	// TODO: targets with multiple actions (transit, gcpkms, totp) should use a single TestList entry with an action field in HCL (like identity's workload), not one entry per action. Breaking change to type keys; defer to a dedicated PR.
 	TestList     = make(map[string]func() BenchmarkBuilder)
 	targetLogger hclog.Logger
 )
@@ -64,7 +68,7 @@ type TargetInfo struct {
 	pathPrefix string
 }
 
-// TODO: collapse GetTargetInfo into ConfigureTarget, removing TargetInfo and the interface method for all 50+ targets
+// TODO: collapse GetTargetInfo into ConfigureTarget, removing TargetInfo and the interface method across all targets. Mechanical but broad; defer to a standalone cleanup PR.
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Target = bt.Builder.Target
 	tInfo := bt.Builder.GetTargetInfo()
@@ -98,11 +102,7 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		targetName string
 	}
 
-	names := make([]string, len(tm.targets))
-	for i, t := range tm.targets {
-		names[i] = t.Name
-	}
-	prog := newStageProgress(os.Stderr, "cleaning up targets", cleanupPhrases, names, 0)
+	prog := newStageProgress(os.Stderr, "cleaning up targets", cleanupPhrases, targetNames(tm.targets), 0)
 	cleanupStarted := time.Now()
 
 	errch := make(chan CleanupMsg, len(tm.targets))
@@ -128,7 +128,10 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 	joined := errors.Join(errs...)
 	if joined != nil {
 		prog.Fail(joined)
-	} else if time.Since(cleanupStarted) < 100*time.Millisecond {
+	} else if time.Since(cleanupStarted) < cleanupNoOpThreshold {
+		// Targets whose Cleanup returns in under cleanupNoOpThreshold performed no
+		// real Vault I/O (e.g. populate workload). Skip the spinner line rather
+		// than printing a 0s cleanup for something that was a no-op.
 		prog.Skip()
 	} else {
 		prog.Complete()
@@ -204,17 +207,15 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 		bvTest.Builder, err = bvTest.Builder.Setup(client, mountName, config)
 		if err != nil {
 			prog.Fail(err)
-			// TODO: clean up already-provisioned targets on partial failure.
+			// TODO: clean up already-provisioned targets on partial failure; deferred until Cleanup error handling is hardened.
 			return nil, err
 		}
-		prog.TargetComplete()
 		bvTest.ConfigureTarget(client)
 		tm.targets = append(tm.targets, *bvTest)
 	}
 
 	prog.Complete()
 
-	// Put the biggest fractions first as an optimization
 	sort.Slice(tm.targets, func(i, j int) bool {
 		return tm.targets[j].Weight < tm.targets[i].Weight
 	})

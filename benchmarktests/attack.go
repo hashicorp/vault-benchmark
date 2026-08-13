@@ -27,11 +27,7 @@ func Attack(tm *TargetMulti, client *api.Client, duration time.Duration, rps int
 		return nil, err
 	}
 
-	names := make([]string, len(tm.targets))
-	for i, t := range tm.targets {
-		names[i] = t.Name
-	}
-	prog := newStageProgress(os.Stderr, "benchmarking", attackPhrases, names, duration)
+	prog := newStageProgress(os.Stderr, "benchmarking", attackPhrases, targetNames(tm.targets), duration)
 
 	rpt := newReporter(tm, client)
 	for res := range attacker.Attack(targeter, rate, duration, "Big Bang!") {

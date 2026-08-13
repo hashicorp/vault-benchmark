@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	// maxLineLength is the maximum width of any line.
 	maxLineLength int = 78
 )
 
@@ -223,7 +222,6 @@ func (r *RunCommand) Flags() *FlagSets {
 		Usage:   "Force HTTP/1.1",
 	})
 
-	// Add any additional flags from tests
 	for _, vbTest := range benchmarktests.TestList {
 		vbTest().Flags(f.mainSet)
 		vbTest().Flags(f.flagSet)
@@ -238,14 +236,12 @@ func (r *RunCommand) Run(args []string) int {
 		Level: hclog.Info,
 	})
 
-	// Parse Flags
 	f := r.Flags()
 	if err := f.Parse(args); err != nil {
 		benchmarkLogger.Error("error parsing flags", "error", hclog.Fmt("%v", err))
 		return 1
 	}
 
-	// Load config from File
 	if r.flagVBCoreConfigPath == "" {
 		benchmarkLogger.Error("no config file location passed")
 		return 1
@@ -261,13 +257,11 @@ func (r *RunCommand) Run(args []string) int {
 	r.applyConfigOverrides(f, conf)
 	benchmarkLogger.SetLevel(hclog.LevelFromString(conf.LogLevel))
 
-	// Parse Duration from configuration string
 	parsedDuration, err := time.ParseDuration(conf.Duration)
 	if err != nil {
 		benchmarkLogger.Error("error parsing test duration from configuration", "error", hclog.Fmt("%v", err))
 	}
 
-	// Parse pprof Interval from configuration string
 	var parsedPPROFinterval time.Duration
 	if conf.PPROFInterval != "" {
 		parsedPPROFinterval, err = time.ParseDuration(conf.PPROFInterval)
@@ -319,7 +313,6 @@ func (r *RunCommand) Run(args []string) int {
 		return 1
 	}
 
-	// Setup annotations and testRunning metric
 	var annoLabels []string
 	var annoValues []string
 	if conf.Annotate != "" {
@@ -341,13 +334,11 @@ func (r *RunCommand) Run(args []string) int {
 	prometheus.MustRegister(testRunning)
 	testRunning.WithLabelValues(annoValues...).Set(0)
 
-	// Setup our prometheus listener
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		_ = http.ListenAndServe(":2112", nil)
 	}()
 
-	// Create vault clients
 	var clients []*vaultapi.Client
 	for _, addr := range cluster.VaultAddrs {
 		tlsCfg := &vaultapi.TLSConfig{}
@@ -412,7 +403,6 @@ func (r *RunCommand) Run(args []string) int {
 		}()
 	}
 
-	// Enable file audit device at specified path if flag set
 	if conf.AuditPath != "" {
 		err := clients[0].Sys().EnableAuditWithOptions("bench-audit", &vaultapi.EnableAuditOptions{
 			Type: "file",
@@ -464,7 +454,7 @@ func (r *RunCommand) Run(args []string) int {
 			}
 
 			l.Lock()
-			// TODO rethink how we present results when multiple nodes are attacked
+			// TODO: rethink result presentation when multiple nodes are attacked.
 			results[client.Address()] = rpt
 			l.Unlock()
 
@@ -632,15 +622,11 @@ func (r *RunCommand) setBoolFlag(f *FlagSets, configVal bool, fVar *BoolVar) {
 	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
 	switch {
 	case isFlagSet:
-		// Don't do anything as the flag is already set from the command line
 	case flagEnvSet:
-		// Use value from env var
 		*fVar.Target = flagEnvValue != ""
 	case configVal:
-		// Use value from config
 		*fVar.Target = configVal
 	default:
-		// Use the default value
 		*fVar.Target = fVar.Default
 	}
 }
@@ -656,15 +642,11 @@ func (r *RunCommand) setStringFlag(f *FlagSets, configVal string, fVar *StringVa
 	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
 	switch {
 	case isFlagSet:
-		// Don't do anything as the flag is already set from the command line
 	case flagEnvSet:
-		// Use value from env var
 		*fVar.Target = flagEnvValue
 	case configVal != "":
-		// Use value from config
 		*fVar.Target = configVal
 	default:
-		// Use the default value
 		*fVar.Target = fVar.Default
 	}
 }
@@ -680,9 +662,7 @@ func (r *RunCommand) setIntFlag(f *FlagSets, configVal int, fVar *IntVar) {
 	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
 	switch {
 	case isFlagSet:
-		// Don't do anything as the flag is already set from the command line
 	case flagEnvSet:
-		// Use value from env var
 		tVal, err := strconv.Atoi(flagEnvValue)
 		if err != nil {
 			return
@@ -691,7 +671,6 @@ func (r *RunCommand) setIntFlag(f *FlagSets, configVal int, fVar *IntVar) {
 	case configVal != 0:
 		*fVar.Target = configVal
 	default:
-		// Use the default value
 		*fVar.Target = fVar.Default
 	}
 }
@@ -707,9 +686,7 @@ func (r *RunCommand) setDurationFlag(f *FlagSets, configVal string, fVar *Durati
 	flagEnvValue, flagEnvSet := os.LookupEnv(fVar.EnvVar)
 	switch {
 	case isFlagSet:
-		// Don't do anything as the flag is already set from the command line
 	case flagEnvSet:
-		// Use value from env var
 		tVal, err := time.ParseDuration(flagEnvValue)
 		if err != nil {
 			return
@@ -722,7 +699,6 @@ func (r *RunCommand) setDurationFlag(f *FlagSets, configVal string, fVar *Durati
 		}
 		*fVar.Target = tVal
 	default:
-		// Use the default value
 		*fVar.Target = fVar.Default
 	}
 }

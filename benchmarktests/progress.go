@@ -14,19 +14,20 @@ import (
 )
 
 const (
-	ansiReset  = "\033[0m"
-	ansiGreen  = "\033[32m"
-	ansiYellow = "\033[33m"
-	ansiCyan   = "\033[36m"
-	ansiRed    = "\033[31m"
-	ansiBold   = "\033[1m"
-	ansiEOL    = "\033[K" // erase from cursor to end of line — eliminates stale trailing chars
+	ansiReset       = "\033[0m"
+	ansiYellow      = "\033[33m"
+	ansiCyan        = "\033[36m"
+	ansiRed         = "\033[31m"
+	ansiBold        = "\033[1m"
+	ansiBrightBlack = "\033[90m" // gray — used for setup/cleanup stages (less prominent than attack)
+	ansiEOL         = "\033[K"  // erase from cursor to end of line — eliminates stale trailing chars
 
 	barWidth    = 20
 	labelWidth  = 22
 	flavorWidth = 32 // fixed-width flavor column; truncated to keep line length stable
 
-	tickInterval = 250 * time.Millisecond
+	tickInterval    = 80 * time.Millisecond
+	flavorUpdateRate = 19 // flavor text updates every 19 ticks (~1.5s); spinner animates every tick
 )
 
 var setupPhrases = []string{
@@ -43,7 +44,7 @@ var setupPhrases = []string{
 	"teaching Vault new tricks",
 	"bribing the storage backend",
 	"asking Vault nicely",
-	"negotiating with the identity store",
+	"negotiating with identity store",
 	"counting to a million (slowly)",
 }
 
@@ -81,7 +82,6 @@ func isTTY(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
-// compactCount: 999 → "999", 1500 → "1.5k", 2000000 → "2M".
 func compactCount(n int64) string {
 	switch {
 	case n >= 1_000_000:
@@ -91,11 +91,14 @@ func compactCount(n int64) string {
 		}
 		return fmt.Sprintf("%.1fM", v)
 	case n >= 1_000:
-		v := float64(n) / 1_000
-		if v == float64(int64(v)) {
-			return fmt.Sprintf("%dk", int64(v))
+		// Use integer tenths to avoid float rounding producing "1000.0k".
+		tenths := n / 100 // e.g. 1500 → 15, 999999 → 9999
+		whole := tenths / 10
+		frac := tenths % 10
+		if frac == 0 {
+			return fmt.Sprintf("%dk", whole)
 		}
-		return fmt.Sprintf("%.1fk", v)
+		return fmt.Sprintf("%d.%dk", whole, frac)
 	default:
 		return fmt.Sprintf("%d", n)
 	}
@@ -122,14 +125,25 @@ func truncateFlavor(s string) string {
 	return s + strings.Repeat(" ", flavorWidth-len(runes))
 }
 
+// truncateLabel truncates s to at most labelWidth runes. The %-*s format verb
+// pads but does not truncate, so long target names would overflow the line.
+func truncateLabel(s string) string {
+	runes := []rune(s)
+	if len(runes) > labelWidth {
+		return string(runes[:labelWidth-1]) + "…"
+	}
+	return s
+}
+
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // stageProgress renders a live stderr line for a top-level stage.
 // Call Complete, Fail, or Skip exactly once to stop the background goroutine.
+// Calling more than one of these methods on the same instance is safe — only
+// the first call takes effect; subsequent calls are no-ops.
 type stageProgress struct {
 	mu       sync.Mutex
 	w        *os.File
-	tty      bool
 	label    string
 	started  time.Time
 	phrases  []string
@@ -137,10 +151,10 @@ type stageProgress struct {
 	reqs     atomic.Int64
 	duration time.Duration // non-zero: attack stage uses time-based bar
 
-	// targetsDone drives ETA for the setup stage.
-	targetsDone atomic.Int64
-	stop        chan struct{}
-	stopped     chan struct{}
+	haltOnce      sync.Once
+	stop          chan struct{}
+	stopped       chan struct{}
+	lastFlavorText string
 
 	// tickCount is the monotone tick counter that drives phrase/name rotation.
 	// phraseIdx tracks shuffle-aware phrase position independently because
@@ -151,16 +165,25 @@ type stageProgress struct {
 }
 
 func newStageProgress(w *os.File, label string, phrases []string, names []string, duration time.Duration) *stageProgress {
+	// Copy phrases so in-place shuffles in nextFlavor don't mutate the
+	// package-level phrase slices, which would be a data race if two
+	// stageProgress instances ran concurrently.
+	phrasesCopy := make([]string, len(phrases))
+	copy(phrasesCopy, phrases)
+	initialFlavor := ""
+	if len(phrasesCopy) > 0 {
+		initialFlavor = truncateFlavor(phrasesCopy[0])
+	}
 	p := &stageProgress{
-		w:        w,
-		tty:      isTTY(w),
-		label:    label,
-		started:  time.Now(),
-		phrases:  phrases,
-		names:    names,
-		duration: duration,
-		stop:     make(chan struct{}),
-		stopped:  make(chan struct{}),
+		w:              w,
+		label:          label,
+		started:        time.Now(),
+		phrases:        phrasesCopy,
+		names:          names,
+		duration:       duration,
+		stop:           make(chan struct{}),
+		stopped:        make(chan struct{}),
+		lastFlavorText: initialFlavor,
 	}
 	go p.run()
 	return p
@@ -168,7 +191,7 @@ func newStageProgress(w *os.File, label string, phrases []string, names []string
 
 func (p *stageProgress) run() {
 	defer close(p.stopped)
-	if !p.tty {
+	if !isTTY(p.w) {
 		<-p.stop
 		return
 	}
@@ -184,67 +207,55 @@ func (p *stageProgress) run() {
 	}
 }
 
-// redraw writes a rewriting line. ansiEOL at end of every write erases stale trailing chars.
 func (p *stageProgress) redraw() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	elapsed := time.Since(p.started)
+	label := truncateLabel(p.label)
 
 	if p.duration > 0 {
-		// Flavor column omitted: request numbers are the signal during attack.
+		// Flavor omitted — the numbers are the signal here.
 		done := int(elapsed.Seconds())
 		total := int(p.duration.Seconds())
 		if done > total {
 			done = total
 		}
-		remaining := p.duration - elapsed
-		if remaining < 0 {
-			remaining = 0
-		}
+		est := fmtDuration(p.duration)
 		bar := renderBar(done, total)
 		reqs := p.reqs.Load()
-		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s%s%s  %s elapsed  ~%s left  %s reqs%s",
-			ansiCyan, labelWidth, p.label, ansiReset,
-			ansiYellow, bar, ansiReset,
-			fmtDuration(elapsed),
-			fmtDuration(remaining.Round(time.Second)),
+		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s/~%s  %s reqs%s",
+			ansiCyan, labelWidth, label, ansiReset,
+			bar,
+			fmtDuration(elapsed), est,
 			compactCount(reqs),
 			ansiEOL,
 		)
 	} else {
-		flavor := truncateFlavor(p.nextFlavor())
-		spinner := ansiYellow + spinnerFrames[int(elapsed/tickInterval)%len(spinnerFrames)] + ansiReset
-		eta := p.eta(elapsed)
-		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s elapsed  %s  %s%s",
-			ansiCyan, labelWidth, p.label, ansiReset,
+		flavor := p.nextFlavor()
+		if p.tickCount%flavorUpdateRate == 0 {
+			p.lastFlavorText = truncateFlavor(flavor)
+		}
+		spinner := ansiBrightBlack + spinnerFrames[p.tickCount%len(spinnerFrames)] + ansiReset
+		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s  %s%s",
+			ansiBrightBlack, labelWidth, label, ansiReset,
 			spinner,
 			fmtDuration(elapsed),
-			eta,
-			flavor,
+			p.lastFlavorText,
 			ansiEOL,
 		)
 	}
 }
 
-// eta: not concurrency-safe — caller must hold mu.
-func (p *stageProgress) eta(elapsed time.Duration) string {
-	done := p.targetsDone.Load()
-	total := int64(len(p.names))
-	if done <= 0 || total <= 0 || done >= total {
-		return "~? left     "
-	}
-	remaining := time.Duration(float64(elapsed) / float64(done) * float64(total-done))
-	return "~" + fmtDuration(remaining.Round(time.Second)) + " left"
-}
-
-// fmtDuration: "3s", "1m02s", "1h04m".
 func fmtDuration(d time.Duration) string {
 	d = d.Round(time.Second)
-	h := int(d.Hours())
+	days := int(d.Hours()) / 24
+	h := int(d.Hours()) % 24
 	m := int(d.Minutes()) % 60
 	s := int(d.Seconds()) % 60
 	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd%02dh", days, h)
 	case h > 0:
 		return fmt.Sprintf("%dh%02dm", h, m)
 	case m > 0:
@@ -278,41 +289,46 @@ func (p *stageProgress) AddReqs(n int64) {
 	p.reqs.Add(n)
 }
 
-// TargetComplete improves the ETA estimate; call once per completed setup target.
-func (p *stageProgress) TargetComplete() {
-	p.targetsDone.Add(1)
-}
-
 func (p *stageProgress) halt() {
-	close(p.stop)
-	<-p.stopped
+	p.haltOnce.Do(func() {
+		close(p.stop)
+		<-p.stopped
+	})
 }
 
-// Complete commits the final success line and a trailing blank line to visually
-// separate this stage from whatever follows.
+// The trailing blank line visually separates this stage from whatever follows.
 func (p *stageProgress) Complete() {
 	p.halt()
 
 	elapsed := time.Since(p.started)
 	reqs := p.reqs.Load()
+	label := truncateLabel(p.label)
 
-	if p.tty {
-		suffix := ""
-		if reqs > 0 {
-			suffix = "  " + compactCount(reqs) + " reqs"
+	if isTTY(p.w) {
+		if p.duration > 0 {
+			suffix := ""
+			if reqs > 0 {
+				suffix = "  " + compactCount(reqs) + " reqs"
+			}
+			fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s%s%s\n\n",
+				ansiBold, labelWidth, label, ansiReset,
+				renderBar(1, 1),
+				fmtDuration(elapsed), suffix,
+				ansiEOL,
+			)
+		} else {
+			fmt.Fprintf(p.w, "\r  %s%-*s%s  ✔  %s%s\n\n",
+				ansiBold, labelWidth, label, ansiReset,
+				fmtDuration(elapsed),
+				ansiEOL,
+			)
 		}
-		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s%s%s  %s%s%s\n\n",
-			ansiBold+ansiGreen, labelWidth, p.label, ansiReset,
-			ansiGreen, renderBar(1, 1), ansiReset,
-			fmtDuration(elapsed), suffix,
-			ansiEOL,
-		)
 		return
 	}
 	if reqs > 0 {
-		fmt.Fprintf(p.w, "  %-*s  complete  %s  %s reqs\n\n", labelWidth, p.label, fmtDuration(elapsed), compactCount(reqs))
+		fmt.Fprintf(p.w, "  %-*s  %s  %s reqs\n", labelWidth, label, fmtDuration(elapsed), compactCount(reqs))
 	} else {
-		fmt.Fprintf(p.w, "  %-*s  complete  %s\n\n", labelWidth, p.label, fmtDuration(elapsed))
+		fmt.Fprintf(p.w, "  %-*s  %s\n", labelWidth, label, fmtDuration(elapsed))
 	}
 }
 
@@ -325,21 +341,27 @@ func (p *stageProgress) Fail(err error) {
 	p.halt()
 
 	elapsed := time.Since(p.started)
-	if p.tty {
+	label := truncateLabel(p.label)
+	if isTTY(p.w) {
 		fmt.Fprintf(p.w, "\r  %s%-*s%s  failed  %s  %v%s\n",
-			ansiRed+ansiBold, labelWidth, p.label, ansiReset,
+			ansiRed+ansiBold, labelWidth, label, ansiReset,
 			fmtDuration(elapsed), err,
 			ansiEOL,
 		)
 		return
 	}
-	fmt.Fprintf(p.w, "  %-*s  failed  %s  %v\n", labelWidth, p.label, fmtDuration(elapsed), err)
+	fmt.Fprintf(p.w, "  %-*s  failed  %s  %v\n", labelWidth, label, fmtDuration(elapsed), err)
 }
 
-func targetNames(targets []*BenchmarkTarget) []string {
+func targetNames[T *BenchmarkTarget | BenchmarkTarget](targets []T) []string {
 	names := make([]string, len(targets))
 	for i, t := range targets {
-		names[i] = t.Name
+		switch v := any(t).(type) {
+		case *BenchmarkTarget:
+			names[i] = v.Name
+		case BenchmarkTarget:
+			names[i] = v.Name
+		}
 	}
 	return names
 }
