@@ -263,7 +263,7 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 func (i *Identity) Cleanup(client *api.Client) error {
 	if i.config.Workload == identityWorkloadPopulate {
-		fmt.Fprintf(os.Stderr, "%sWARNING: populate workload leaves seeded identity objects in place; re-run with a different workload or clean up manually%s\n",
+		fmt.Fprintf(os.Stderr, "%sINFO: populate workload left seeded identity objects in place%s\n",
 			ansiYellow, ansiReset)
 		return nil
 	}
