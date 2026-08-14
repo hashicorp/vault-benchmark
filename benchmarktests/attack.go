@@ -4,6 +4,7 @@
 package benchmarktests
 
 import (
+	"os"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -25,11 +26,16 @@ func Attack(tm *TargetMulti, client *api.Client, duration time.Duration, rps int
 	if err != nil {
 		return nil, err
 	}
+
+	prog := newStageProgress(os.Stderr, "benchmarking", attackPhrases, targetNames(tm.targets), duration)
+
 	rpt := newReporter(tm, client)
 	for res := range attacker.Attack(targeter, rate, duration, "Big Bang!") {
 		rpt.Add(res)
+		prog.AddReqs(1)
 	}
 	rpt.Close()
+	prog.Complete()
 
 	return rpt, nil
 }
