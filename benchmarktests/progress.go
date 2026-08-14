@@ -110,14 +110,14 @@ func renderBar(done, total int) string {
 	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled) + "]"
 }
 
-// truncateFlavor pads or truncates s to exactly flavorWidth runes so the
-// line length never grows or shrinks between ticks.
-func truncateFlavor(s string) string {
+// fixedWidth pads or truncates s to exactly n runes so the line length never
+// grows or shrinks between ticks.
+func fixedWidth(s string, n int) string {
 	runes := []rune(s)
-	if len(runes) >= flavorWidth {
-		return string(runes[:flavorWidth])
+	if len(runes) >= n {
+		return string(runes[:n])
 	}
-	return s + strings.Repeat(" ", flavorWidth-len(runes))
+	return s + strings.Repeat(" ", n-len(runes))
 }
 
 // truncateLabel truncates s to at most labelWidth runes. The %-*s format verb
@@ -137,26 +137,27 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 // Calling more than one of these methods on the same instance is safe — only
 // the first call takes effect; subsequent calls are no-ops.
 type stageProgress struct {
-	mu       sync.Mutex
-	w        *os.File
-	label    string
-	started  time.Time
-	phrases  []string
-	names    []string
-	reqs     atomic.Int64
+	mu      sync.Mutex
+	w       *os.File
+	label   string // pre-truncated at construction
+	started time.Time
+	phrases []string
+	names   []string
+	reqs    atomic.Int64
+	tty     bool          // cached once at construction; avoids repeated Stat() calls
 	duration time.Duration // non-zero: attack stage uses time-based bar
 
-	haltOnce       sync.Once
-	stop           chan struct{}
-	stopped        chan struct{}
-	lastFlavorText string
+	haltOnce sync.Once
+	stop     chan struct{}
+	stopped  chan struct{}
 
-	// tickCount is the monotone tick counter that drives phrase/name rotation.
+	// tick is the monotone counter driving spinner and flavor-update cadence.
 	// phraseIdx tracks shuffle-aware phrase position independently because
 	// shuffling the slice in-place means the position can't be derived from
-	// tickCount alone.
-	tickCount int
-	phraseIdx int
+	// tick alone.
+	tick           int
+	phraseIdx      int
+	lastFlavorText string
 }
 
 func newStageProgress(w *os.File, label string, phrases []string, names []string, duration time.Duration) *stageProgress {
@@ -167,14 +168,15 @@ func newStageProgress(w *os.File, label string, phrases []string, names []string
 	copy(phrasesCopy, phrases)
 	initialFlavor := ""
 	if len(phrasesCopy) > 0 {
-		initialFlavor = truncateFlavor(phrasesCopy[0])
+		initialFlavor = fixedWidth(phrasesCopy[0], flavorWidth)
 	}
 	p := &stageProgress{
 		w:              w,
-		label:          label,
+		label:          truncateLabel(label),
 		started:        time.Now(),
 		phrases:        phrasesCopy,
 		names:          names,
+		tty:            isTTY(w),
 		duration:       duration,
 		stop:           make(chan struct{}),
 		stopped:        make(chan struct{}),
@@ -186,7 +188,7 @@ func newStageProgress(w *os.File, label string, phrases []string, names []string
 
 func (p *stageProgress) run() {
 	defer close(p.stopped)
-	if !isTTY(p.w) {
+	if !p.tty {
 		<-p.stop
 		return
 	}
@@ -207,7 +209,7 @@ func (p *stageProgress) redraw() {
 	defer p.mu.Unlock()
 
 	elapsed := time.Since(p.started)
-	label := truncateLabel(p.label)
+	p.tick++
 
 	if p.duration > 0 {
 		// Flavor omitted — the numbers are the signal here.
@@ -216,24 +218,22 @@ func (p *stageProgress) redraw() {
 		if done > total {
 			done = total
 		}
-		est := fmtDuration(p.duration)
-		bar := renderBar(done, total)
 		reqs := p.reqs.Load()
 		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s/~%s  %s reqs%s",
-			ansiCyan, labelWidth, label, ansiReset,
-			bar,
-			fmtDuration(elapsed), est,
+			ansiCyan, labelWidth, p.label, ansiReset,
+			renderBar(done, total),
+			fmtDuration(elapsed), fmtDuration(p.duration),
 			compactCount(reqs),
 			ansiEOL,
 		)
 	} else {
 		flavor := p.nextFlavor()
-		if p.tickCount%flavorUpdateRate == 0 {
-			p.lastFlavorText = truncateFlavor(flavor)
+		if p.tick%flavorUpdateRate == 0 {
+			p.lastFlavorText = fixedWidth(flavor, flavorWidth)
 		}
-		spinner := ansiBrightBlack + spinnerFrames[p.tickCount%len(spinnerFrames)] + ansiReset
+		spinner := ansiBrightBlack + spinnerFrames[p.tick%len(spinnerFrames)] + ansiReset
 		fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s  %s%s",
-			ansiBrightBlack, labelWidth, label, ansiReset,
+			ansiBrightBlack, labelWidth, p.label, ansiReset,
 			spinner,
 			fmtDuration(elapsed),
 			p.lastFlavorText,
@@ -262,10 +262,8 @@ func fmtDuration(d time.Duration) string {
 
 // nextFlavor: not concurrency-safe — caller must hold mu.
 func (p *stageProgress) nextFlavor() string {
-	p.tickCount++
-	if len(p.names) > 0 && p.tickCount%3 == 1 {
-		nameIdx := (p.tickCount / 3) % len(p.names)
-		return p.names[nameIdx]
+	if len(p.names) > 0 && p.tick%3 == 1 {
+		return p.names[(p.tick/3)%len(p.names)]
 	}
 	if len(p.phrases) > 0 {
 		phrase := p.phrases[p.phraseIdx%len(p.phrases)]
@@ -297,23 +295,22 @@ func (p *stageProgress) Complete() {
 
 	elapsed := time.Since(p.started)
 	reqs := p.reqs.Load()
-	label := truncateLabel(p.label)
 
-	if isTTY(p.w) {
+	if p.tty {
 		if p.duration > 0 {
 			suffix := ""
 			if reqs > 0 {
 				suffix = "  " + compactCount(reqs) + " reqs"
 			}
 			fmt.Fprintf(p.w, "\r  %s%-*s%s  %s  %s%s%s\n\n",
-				ansiBold, labelWidth, label, ansiReset,
+				ansiBold, labelWidth, p.label, ansiReset,
 				renderBar(1, 1),
 				fmtDuration(elapsed), suffix,
 				ansiEOL,
 			)
 		} else {
 			fmt.Fprintf(p.w, "\r  %s%-*s%s  ✔  %s%s\n\n",
-				ansiBold, labelWidth, label, ansiReset,
+				ansiBold, labelWidth, p.label, ansiReset,
 				fmtDuration(elapsed),
 				ansiEOL,
 			)
@@ -321,9 +318,9 @@ func (p *stageProgress) Complete() {
 		return
 	}
 	if reqs > 0 {
-		fmt.Fprintf(p.w, "  %-*s  %s  %s reqs\n", labelWidth, label, fmtDuration(elapsed), compactCount(reqs))
+		fmt.Fprintf(p.w, "  %-*s  %s  %s reqs\n", labelWidth, p.label, fmtDuration(elapsed), compactCount(reqs))
 	} else {
-		fmt.Fprintf(p.w, "  %-*s  %s\n", labelWidth, label, fmtDuration(elapsed))
+		fmt.Fprintf(p.w, "  %-*s  %s\n", labelWidth, p.label, fmtDuration(elapsed))
 	}
 }
 
@@ -336,16 +333,15 @@ func (p *stageProgress) Fail(err error) {
 	p.halt()
 
 	elapsed := time.Since(p.started)
-	label := truncateLabel(p.label)
-	if isTTY(p.w) {
+	if p.tty {
 		fmt.Fprintf(p.w, "\r  %s%-*s%s  failed  %s  %v%s\n",
-			ansiRed+ansiBold, labelWidth, label, ansiReset,
+			ansiRed+ansiBold, labelWidth, p.label, ansiReset,
 			fmtDuration(elapsed), err,
 			ansiEOL,
 		)
 		return
 	}
-	fmt.Fprintf(p.w, "  %-*s  failed  %s  %v\n", labelWidth, label, fmtDuration(elapsed), err)
+	fmt.Fprintf(p.w, "  %-*s  failed  %s  %v\n", labelWidth, p.label, fmtDuration(elapsed), err)
 }
 
 func targetNames[T *BenchmarkTarget | BenchmarkTarget](targets []T) []string {
