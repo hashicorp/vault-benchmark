@@ -20,22 +20,21 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[HAStatusTestType] = func() BenchmarkBuilder { return &StatusCheck{pathPrefix: "ha-status"} }
-	TestList[SealStatusTestType] = func() BenchmarkBuilder { return &StatusCheck{pathPrefix: "seal-status"} }
-	TestList[MetricsTestType] = func() BenchmarkBuilder { return &StatusCheck{pathPrefix: "metrics"} }
+	TestList[HAStatusTestType] = func() BenchmarkBuilder { return &SysStatus{pathPrefix: "ha-status"} }
+	TestList[SealStatusTestType] = func() BenchmarkBuilder { return &SysStatus{pathPrefix: "seal-status"} }
+	TestList[MetricsTestType] = func() BenchmarkBuilder { return &SysStatus{pathPrefix: "metrics"} }
 }
 
-type StatusCheck struct {
+type SysStatus struct {
 	pathPrefix string
 	header     http.Header
 }
 
-func (s *StatusCheck) ParseConfig(body hcl.Body) error {
+func (s *SysStatus) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *StatusCheck) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (s *SysStatus) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var h http.Header
 	switch s.pathPrefix {
 	case "metrics":
@@ -43,13 +42,13 @@ func (s *StatusCheck) Setup(client *api.Client, mountName string, topLevelConfig
 	default:
 		h = generateHeader(client)
 	}
-	return &StatusCheck{
+	return &SysStatus{
 		header:     h,
 		pathPrefix: "/v1/sys/" + s.pathPrefix,
 	}, nil
 }
 
-func (s *StatusCheck) Target(client *api.Client) vegeta.Target {
+func (s *SysStatus) Target(client *api.Client) vegeta.Target {
 	return vegeta.Target{
 		Method: StatusTestMethod,
 		URL:    client.Address() + s.pathPrefix,
@@ -57,16 +56,15 @@ func (s *StatusCheck) Target(client *api.Client) vegeta.Target {
 	}
 }
 
-// Cleanup is a no-op for this test
-func (s *StatusCheck) Cleanup(client *api.Client) error {
+func (s *SysStatus) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (s *StatusCheck) GetTargetInfo() TargetInfo {
+func (s *SysStatus) GetTargetInfo() TargetInfo {
 	return TargetInfo{
 		method:     StatusTestMethod,
 		pathPrefix: s.pathPrefix,
 	}
 }
 
-func (s *StatusCheck) Flags(fs *flag.FlagSet) {}
+func (s *SysStatus) Flags(fs *flag.FlagSet) {}

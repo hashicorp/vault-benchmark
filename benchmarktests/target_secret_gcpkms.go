@@ -8,11 +8,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -33,42 +31,51 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[GCPKMSEncryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "encrypt"} }
-	TestList[GCPKMSDecryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "decrypt"} }
-	TestList[GCPKMSSignTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "sign"} }
-	TestList[GCPKMSVerifyTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "verify"} }
-	TestList[GCPKMSReencryptTestType] = func() BenchmarkBuilder { return &GCPKMSTest{action: "reencrypt"} }
+	TestList[GCPKMSEncryptTestType] = func() BenchmarkBuilder {
+		return &GCPKMSSecret{action: "encrypt", typeKey: GCPKMSEncryptTestType}
+	}
+	TestList[GCPKMSDecryptTestType] = func() BenchmarkBuilder {
+		return &GCPKMSSecret{action: "decrypt", typeKey: GCPKMSDecryptTestType}
+	}
+	TestList[GCPKMSSignTestType] = func() BenchmarkBuilder {
+		return &GCPKMSSecret{action: "sign", typeKey: GCPKMSSignTestType}
+	}
+	TestList[GCPKMSVerifyTestType] = func() BenchmarkBuilder {
+		return &GCPKMSSecret{action: "verify", typeKey: GCPKMSVerifyTestType}
+	}
+	TestList[GCPKMSReencryptTestType] = func() BenchmarkBuilder {
+		return &GCPKMSSecret{action: "reencrypt", typeKey: GCPKMSReencryptTestType}
+	}
 }
 
-type GCPKMSTest struct {
-	action     string
+type GCPKMSSecret struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
-	config     *GCPKMSTestConfig
+	body       []byte
+	action     string
+	typeKey    string
+	mountPath  string
+	config     *GCPKMSSecretConfig
 	logger     hclog.Logger
 }
 
-type GCPKMSTestConfig struct {
+type GCPKMSSecretConfig struct {
 	PayloadLen            int                    `hcl:"payload_len,optional"`
-	GCPKMSConfig          *GCPKMSConfig          `hcl:"config,block"`
-	GCPKMSKeyConfig       *GCPKMSKeyConfig       `hcl:"key,block"`
-	GCPKMSEncryptConfig   *GCPKMSEncryptConfig   `hcl:"encrypt,block"`
-	GCPKMSDecryptConfig   *GCPKMSDecryptConfig   `hcl:"decrypt,block"`
-	GCPKMSSignConfig      *GCPKMSSignConfig      `hcl:"sign,block"`
-	GCPKMSVerifyConfig    *GCPKMSVerifyConfig    `hcl:"verify,block"`
-	GCPKMSReencryptConfig *GCPKMSReencryptConfig `hcl:"reencrypt,block"`
+	GCPKMSSecretMountConfig          *GCPKMSSecretMountConfig          `hcl:"config,block"`
+	GCPKMSSecretKeyConfig       *GCPKMSSecretKeyConfig       `hcl:"key,block"`
+	GCPKMSSecretEncryptConfig   *GCPKMSSecretEncryptConfig   `hcl:"encrypt,block"`
+	GCPKMSSecretDecryptConfig   *GCPKMSSecretDecryptConfig   `hcl:"decrypt,block"`
+	GCPKMSSecretSignConfig      *GCPKMSSecretSignConfig      `hcl:"sign,block"`
+	GCPKMSSecretVerifyConfig    *GCPKMSSecretVerifyConfig    `hcl:"verify,block"`
+	GCPKMSSecretReencryptConfig *GCPKMSSecretReencryptConfig `hcl:"reencrypt,block"`
 }
 
-// Configuration for the GCP KMS engine
-type GCPKMSConfig struct {
+type GCPKMSSecretMountConfig struct {
 	Credentials string   `hcl:"credentials,optional"`
 	Scopes      []string `hcl:"scopes,optional"`
 }
 
-// Configuration for creating/managing keys
-type GCPKMSKeyConfig struct {
+type GCPKMSSecretKeyConfig struct {
 	Key             string            `hcl:"key,optional"`
 	KeyRing         string            `hcl:"key_ring"`
 	CryptoKey       string            `hcl:"crypto_key,optional"`
@@ -80,62 +87,57 @@ type GCPKMSKeyConfig struct {
 	Mode            string            `hcl:"mode,optional"` // "create" (default) or "register"
 }
 
-// Configuration for encryption operations
-type GCPKMSEncryptConfig struct {
+type GCPKMSSecretEncryptConfig struct {
 	Plaintext                   string `hcl:"plaintext,optional"`
 	AdditionalAuthenticatedData string `hcl:"additional_authenticated_data,optional"`
 }
 
-// Configuration for decryption operations
-type GCPKMSDecryptConfig struct {
+type GCPKMSSecretDecryptConfig struct {
 	Ciphertext                  string `hcl:"ciphertext,optional"`
 	AdditionalAuthenticatedData string `hcl:"additional_authenticated_data,optional"`
 }
 
-// Configuration for signing operations
-type GCPKMSSignConfig struct {
+type GCPKMSSecretSignConfig struct {
 	KeyVersion int    `hcl:"key_version,optional"`
 	Digest     string `hcl:"digest,optional"`
 }
 
-// Configuration for verification operations
-type GCPKMSVerifyConfig struct {
+type GCPKMSSecretVerifyConfig struct {
 	KeyVersion int    `hcl:"key_version,optional"`
 	Digest     string `hcl:"digest,optional"`
 	Signature  string `hcl:"signature,optional"`
 }
 
-// Configuration for re-encryption operations
-type GCPKMSReencryptConfig struct {
+type GCPKMSSecretReencryptConfig struct {
 	Ciphertext                  string `hcl:"ciphertext,optional"`
 	AdditionalAuthenticatedData string `hcl:"additional_authenticated_data,optional"`
 }
 
-func (g *GCPKMSTest) ParseConfig(body hcl.Body) error {
+func (g *GCPKMSSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *GCPKMSTestConfig `hcl:"config,block"`
+		Config *GCPKMSSecretConfig `hcl:"config,block"`
 	}{
-		Config: &GCPKMSTestConfig{
-			GCPKMSConfig: &GCPKMSConfig{
+		Config: &GCPKMSSecretConfig{
+			GCPKMSSecretMountConfig: &GCPKMSSecretMountConfig{
 				Credentials: os.Getenv(GCPKMSCredentials),
 				Scopes:      []string{"https://www.googleapis.com/auth/cloudkms"},
 			},
-			GCPKMSKeyConfig: &GCPKMSKeyConfig{
+			GCPKMSSecretKeyConfig: &GCPKMSSecretKeyConfig{
 				Key:             "benchmark-key",
 				Purpose:         "encrypt_decrypt",
 				Algorithm:       "symmetric_encryption",
 				ProtectionLevel: "software",
 				Mode:            "create",
 			},
-			GCPKMSEncryptConfig: &GCPKMSEncryptConfig{},
-			GCPKMSDecryptConfig: &GCPKMSDecryptConfig{},
-			GCPKMSSignConfig: &GCPKMSSignConfig{
+			GCPKMSSecretEncryptConfig: &GCPKMSSecretEncryptConfig{},
+			GCPKMSSecretDecryptConfig: &GCPKMSSecretDecryptConfig{},
+			GCPKMSSecretSignConfig: &GCPKMSSecretSignConfig{
 				KeyVersion: 1,
 			},
-			GCPKMSVerifyConfig: &GCPKMSVerifyConfig{
+			GCPKMSSecretVerifyConfig: &GCPKMSSecretVerifyConfig{
 				KeyVersion: 1,
 			},
-			GCPKMSReencryptConfig: &GCPKMSReencryptConfig{},
+			GCPKMSSecretReencryptConfig: &GCPKMSSecretReencryptConfig{},
 			PayloadLen:            128,
 		},
 	}
@@ -146,66 +148,26 @@ func (g *GCPKMSTest) ParseConfig(body hcl.Body) error {
 	}
 	g.config = testConfig.Config
 
-	// Validate required configuration
-	if g.config.GCPKMSConfig.Credentials == "" {
+	if g.config.GCPKMSSecretMountConfig.Credentials == "" {
 		return fmt.Errorf("GCP KMS credentials are required")
 	}
 
-	if g.config.GCPKMSKeyConfig.KeyRing == "" {
+	if g.config.GCPKMSSecretKeyConfig.KeyRing == "" {
 		return fmt.Errorf("GCP KMS key ring is required")
 	}
 
 	return nil
 }
 
-func (g *GCPKMSTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: GCPKMSTestMethod,
-		URL:    client.Address() + g.pathPrefix,
-		Body:   g.body,
-		Header: g.header,
-	}
-}
-
-func (g *GCPKMSTest) Cleanup(client *api.Client) error {
-	parts := strings.Split(g.pathPrefix, "/")
-	g.logger.Trace(cleanupLogMessage(parts[2]))
-	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPKMSTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPKMSTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
-}
-
-func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (g *GCPKMSSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 
-	switch g.action {
-	case "encrypt":
-		g.logger = targetLogger.Named(GCPKMSEncryptTestType)
-	case "decrypt":
-		g.logger = targetLogger.Named(GCPKMSDecryptTestType)
-	case "sign":
-		g.logger = targetLogger.Named(GCPKMSSignTestType)
-	case "verify":
-		g.logger = targetLogger.Named(GCPKMSVerifyTestType)
-	case "reencrypt":
-		g.logger = targetLogger.Named(GCPKMSReencryptTestType)
-	}
+	g.logger = targetLogger.Named(g.typeKey)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	g.logger.Trace(mountLogMessage("secrets", "gcpkms", secretPath))
@@ -218,19 +180,17 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := g.logger.Named(secretPath)
 
-	// Check if the credentials argument should be read from file
-	creds := g.config.GCPKMSConfig.Credentials
+	creds := g.config.GCPKMSSecretMountConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
 		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading credentials file: %w", err)
 		}
-		g.config.GCPKMSConfig.Credentials = string(contents)
+		g.config.GCPKMSSecretMountConfig.Credentials = string(contents)
 	}
 
-	// Configure the GCP KMS backend
 	setupLogger.Trace(parsingConfigLogMessage("gcpkms config"))
-	configData, err := structToMap(g.config.GCPKMSConfig)
+	configData, err := structToMap(g.config.GCPKMSSecretMountConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing gcpkms config from struct: %v", err)
 	}
@@ -241,24 +201,10 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 		return nil, fmt.Errorf("error writing gcpkms config: %v", err)
 	}
 
-	// Create keys for the specific operations
-	switch g.action {
-	case "encrypt", "decrypt", "reencrypt":
-		// Create symmetric encryption key
-		err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger)
-		if err != nil {
-			return nil, err
-		}
-
-	case "sign", "verify":
-		// Create asymmetric signing key
-		err := g.createKey(client, secretPath, g.config.GCPKMSKeyConfig, setupLogger)
-		if err != nil {
-			return nil, err
-		}
+	if err := g.createKey(client, secretPath, g.config.GCPKMSSecretKeyConfig, setupLogger); err != nil {
+		return nil, err
 	}
 
-	// Generate payload for testing
 	setupLogger.Trace("generating test payload")
 	rawPayload, err := uuid.GenerateRandomBytes(g.config.PayloadLen)
 	if err != nil {
@@ -266,187 +212,126 @@ func (g *GCPKMSTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	}
 	base64Payload := base64.StdEncoding.EncodeToString(rawPayload)
 
-	keyName := g.config.GCPKMSKeyConfig.Key
+	keyName := g.config.GCPKMSSecretKeyConfig.Key
 
-	// Now dispatch the operation
 	switch g.action {
 	case "encrypt":
-		g.config.GCPKMSEncryptConfig.Plaintext = base64Payload
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms encrypt"))
-		encryptData, err := structToMap(g.config.GCPKMSEncryptConfig)
+		g.config.GCPKMSSecretEncryptConfig.Plaintext = base64Payload
+		encryptData, err := structToMap(g.config.GCPKMSSecretEncryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms encrypt config from struct: %v", err)
 		}
-
-		encryptDataString, err := json.Marshal(encryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms encrypt data: %v", err)
-		}
-
-		encryptPath := filepath.Join(secretPath, "encrypt", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + encryptPath,
-			header:     generateHeader(client),
-			body:       []byte(encryptDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "encrypt", keyName, encryptData)
 
 	case "decrypt":
-		// First encrypt some data to get ciphertext
-		testEncryptData := map[string]interface{}{
-			"plaintext": base64Payload,
-		}
-
-		setupLogger.Trace("encrypting payload for decrypt test")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), testEncryptData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), map[string]any{"plaintext": base64Payload})
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
-
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt payload: no response or invalid ciphertext: %v", resp)
 		}
-
-		g.config.GCPKMSDecryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms decrypt"))
-		decryptData, err := structToMap(g.config.GCPKMSDecryptConfig)
+		g.config.GCPKMSSecretDecryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
+		decryptData, err := structToMap(g.config.GCPKMSSecretDecryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms decrypt config from struct: %v", err)
 		}
-
-		decryptDataString, err := json.Marshal(decryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms decrypt data: %v", err)
-		}
-
-		decryptPath := filepath.Join(secretPath, "decrypt", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + decryptPath,
-			header:     generateHeader(client),
-			body:       []byte(decryptDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "decrypt", keyName, decryptData)
 
 	case "sign":
-		// Generate a digest for signing
-		digest := base64.StdEncoding.EncodeToString(rawPayload)
-		g.config.GCPKMSSignConfig.Digest = digest
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms sign"))
-		signData, err := structToMap(g.config.GCPKMSSignConfig)
+		g.config.GCPKMSSecretSignConfig.Digest = base64.StdEncoding.EncodeToString(rawPayload)
+		signData, err := structToMap(g.config.GCPKMSSecretSignConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms sign config from struct: %v", err)
 		}
-
-		signDataString, err := json.Marshal(signData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms sign data: %v", err)
-		}
-
-		signPath := filepath.Join(secretPath, "sign", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + signPath,
-			header:     generateHeader(client),
-			body:       []byte(signDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "sign", keyName, signData)
 
 	case "verify":
-		// Generate a digest and sign it first
 		digest := base64.StdEncoding.EncodeToString(rawPayload)
-		g.config.GCPKMSVerifyConfig.Digest = digest
-
-		// Sign the digest
-		signData := map[string]interface{}{
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", keyName), map[string]any{
 			"digest":      digest,
-			"key_version": g.config.GCPKMSVerifyConfig.KeyVersion,
-		}
-
-		setupLogger.Trace("signing digest for verify test")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", keyName), signData)
+			"key_version": g.config.GCPKMSSecretVerifyConfig.KeyVersion,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("error signing digest: %v", err)
 		}
-
 		if resp == nil || resp.Data["signature"] == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign digest: no response or invalid signature: %v", resp)
 		}
-
-		g.config.GCPKMSVerifyConfig.Signature = resp.Data["signature"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms verify"))
-		verifyData, err := structToMap(g.config.GCPKMSVerifyConfig)
+		g.config.GCPKMSSecretVerifyConfig.Digest = digest
+		g.config.GCPKMSSecretVerifyConfig.Signature = resp.Data["signature"].(string)
+		verifyData, err := structToMap(g.config.GCPKMSSecretVerifyConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms verify config from struct: %v", err)
 		}
-
-		verifyDataString, err := json.Marshal(verifyData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms verify data: %v", err)
-		}
-
-		verifyPath := filepath.Join(secretPath, "verify", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + verifyPath,
-			header:     generateHeader(client),
-			body:       []byte(verifyDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "verify", keyName, verifyData)
 
 	case "reencrypt":
-		// First encrypt some data to get ciphertext
-		testEncryptData := map[string]interface{}{
-			"plaintext": base64Payload,
-		}
-
-		setupLogger.Trace("encrypting payload for reencrypt test")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), testEncryptData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", keyName), map[string]any{"plaintext": base64Payload})
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
-
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt payload: no response or invalid ciphertext: %v", resp)
 		}
-
-		g.config.GCPKMSReencryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("gcpkms reencrypt"))
-		reencryptData, err := structToMap(g.config.GCPKMSReencryptConfig)
+		g.config.GCPKMSSecretReencryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
+		reencryptData, err := structToMap(g.config.GCPKMSSecretReencryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing gcpkms reencrypt config from struct: %v", err)
 		}
-
-		reencryptDataString, err := json.Marshal(reencryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling gcpkms reencrypt data: %v", err)
-		}
-
-		reencryptPath := filepath.Join(secretPath, "reencrypt", keyName)
-		return &GCPKMSTest{
-			pathPrefix: "/v1/" + reencryptPath,
-			header:     generateHeader(client),
-			body:       []byte(reencryptDataString),
-			logger:     g.logger,
-		}, nil
+		return g.buildResult(client, secretPath, "reencrypt", keyName, reencryptData)
 
 	default:
 		return nil, fmt.Errorf("unknown or unsupported gcpkms operation: %v", g.action)
 	}
 }
 
+func (g *GCPKMSSecret) buildResult(client *api.Client, secretPath, action, keyName string, configData map[string]any) (BenchmarkBuilder, error) {
+	body, err := json.Marshal(configData)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling gcpkms %s data: %v", action, err)
+	}
+	return &GCPKMSSecret{
+		pathPrefix: "/v1/" + filepath.Join(secretPath, action, keyName),
+		mountPath:  "/v1/" + secretPath,
+		header:     generateHeader(client),
+		body:       body,
+		logger:     g.logger,
+	}, nil
+}
+
 // createKey handles key creation or registration based on the configured mode.
 // In "create" mode (default), it creates new keys with randomized suffixes to prevent collisions.
 // In "register" mode, it registers existing GCP KMS keys without attempting to create them.
 // Note: Keys created in GCP KMS are not automatically cleaned up during benchmark cleanup.
-func (g *GCPKMSTest) createKey(client *api.Client, secretPath string, keyConfig *GCPKMSKeyConfig, logger hclog.Logger) error {
+
+func (g *GCPKMSSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GCPKMSTestMethod,
+		URL:    client.Address() + g.pathPrefix,
+		Body:   g.body,
+		Header: g.header,
+	}
+}
+
+func (g *GCPKMSSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(g.logger, client, g.mountPath)
+}
+
+func (g *GCPKMSSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPKMSTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
+}
+
+func (g *GCPKMSSecret) Flags(fs *flag.FlagSet) {}
+
+func (g *GCPKMSSecret) createKey(client *api.Client, secretPath string, keyConfig *GCPKMSSecretKeyConfig, logger hclog.Logger) error {
 	mode := keyConfig.Mode
 
 	logger.Trace(parsingConfigLogMessage("gcpkms key"), "name", keyConfig.Key, "mode", mode)
 
-	// Handle create vs register mode
 	if mode == "create" {
 		uuid, err := uuid.GenerateUUID()
 		if err != nil {
@@ -465,11 +350,10 @@ func (g *GCPKMSTest) createKey(client *api.Client, secretPath string, keyConfig 
 	return fmt.Errorf("invalid key mode: %s (must be 'create' or 'register')", mode)
 }
 
-func (g *GCPKMSTest) createNewKey(client *api.Client, keyPath string, keyConfig *GCPKMSKeyConfig, logger hclog.Logger) error {
+func (g *GCPKMSSecret) createNewKey(client *api.Client, keyPath string, keyConfig *GCPKMSSecretKeyConfig, logger hclog.Logger) error {
 
 	keyConfig.Mode = "" // Exclude mode from API payload
 
-	// Convert to map
 	keyCreateData, err := structToMap(keyConfig)
 	if err != nil {
 		return fmt.Errorf("error parsing gcpkms key config from struct: %v", err)
@@ -484,15 +368,14 @@ func (g *GCPKMSTest) createNewKey(client *api.Client, keyPath string, keyConfig 
 	return nil
 }
 
-func (g *GCPKMSTest) registerExistingKey(client *api.Client, secretPath string, keyConfig *GCPKMSKeyConfig, logger hclog.Logger) error {
+func (g *GCPKMSSecret) registerExistingKey(client *api.Client, secretPath string, keyConfig *GCPKMSSecretKeyConfig, logger hclog.Logger) error {
 	if keyConfig.CryptoKey == "" {
 		keyConfig.CryptoKey = keyConfig.Key
 	}
 
-	// Build full crypto key resource ID for registration
 	fullCryptoKeyID := fmt.Sprintf("%s/cryptoKeys/%s", keyConfig.KeyRing, keyConfig.CryptoKey)
 
-	registerData := map[string]interface{}{
+	registerData := map[string]any{
 		"crypto_key": fullCryptoKeyID,
 		"verify":     true,
 	}
@@ -506,5 +389,3 @@ func (g *GCPKMSTest) registerExistingKey(client *api.Client, secretPath string, 
 	logger.Trace("successfully registered existing key", "name", keyConfig.CryptoKey)
 	return nil
 }
-
-func (g *GCPKMSTest) Flags(fs *flag.FlagSet) {}

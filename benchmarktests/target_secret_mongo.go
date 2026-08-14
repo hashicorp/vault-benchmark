@@ -6,13 +6,10 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -27,19 +24,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[MongoDBSecretTestType] = func() BenchmarkBuilder { return &MongoDBTest{} }
+	TestList[MongoDBSecretTestType] = func() BenchmarkBuilder { return &MongoDBSecret{} }
 }
 
-type MongoDBTest struct {
+type MongoDBSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *MongoDBSecretTestConfig
+	config     *MongoDBSecretConfig
 	logger     hclog.Logger
 }
 
-type MongoDBSecretTestConfig struct {
+type MongoDBSecretConfig struct {
 	MongoDBConfig     *MongoDBConfig     `hcl:"db_connection,block"`
 	MongoDBRoleConfig *MongoDBRoleConfig `hcl:"role,block"`
 }
@@ -68,11 +64,11 @@ type MongoDBRoleConfig struct {
 	RevocationStatements string `hcl:"revocation_statements,optional"`
 }
 
-func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
+func (m *MongoDBSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *MongoDBSecretTestConfig `hcl:"config,block"`
+		Config *MongoDBSecretConfig `hcl:"config,block"`
 	}{
-		Config: &MongoDBSecretTestConfig{
+		Config: &MongoDBSecretConfig{
 			MongoDBConfig: &MongoDBConfig{
 				Name:         "benchmark-mongo",
 				PluginName:   "mongodb-database-plugin",
@@ -96,7 +92,6 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	}
 	m.config = testConfig.Config
 
-	// Ensure that the username and password are set
 	if m.config.MongoDBConfig.Username == "" {
 		return fmt.Errorf("no mongodb username provided but required")
 	}
@@ -108,40 +103,14 @@ func (m *MongoDBTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *MongoDBTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *MongoDBTest) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *MongoDBTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     MongoDBSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
-}
-
-func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (m *MongoDBSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MongoDBSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -154,35 +123,17 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbConfigData, err := structToMap(m.config.MongoDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding mongodb config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config/"+m.config.MongoDBConfig.Name, m.config.MongoDBConfig); err != nil {
+		return nil, err
 	}
 
-	// Write DB config
-	setupLogger.Trace(writingLogMessage("mongodb config"), "name", m.config.MongoDBConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/config/"+m.config.MongoDBConfig.Name, dbConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing db config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(m.config.MongoDBRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, m.config.MongoDBRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("mongodb role"), "name", m.config.MongoDBRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+m.config.MongoDBRoleConfig.Name, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing mongodb role %q: %v", m.config.MongoDBRoleConfig.Name, err)
-	}
-
-	return &MongoDBTest{
+	return &MongoDBSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   m.config.MongoDBRoleConfig.Name,
@@ -190,4 +141,23 @@ func (m *MongoDBTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}, nil
 }
 
-func (m *MongoDBTest) Flags(fs *flag.FlagSet) {}
+func (m *MongoDBSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: MongoDBSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *MongoDBSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(m.logger, client, m.pathPrefix)
+}
+
+func (m *MongoDBSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     MongoDBSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
+}
+
+func (m *MongoDBSecret) Flags(fs *flag.FlagSet) {}

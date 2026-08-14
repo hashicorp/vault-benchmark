@@ -27,7 +27,6 @@ const (
 )
 
 // Not retried: a write failure during setup indicates a config problem, not a transient condition.
-// When n=1 exactly one worker goroutine is started; only one RPC is in flight at a time (serial).
 func runConcurrent(n, count int, fn func(idx int) error) error {
 	if n <= 0 {
 		return fmt.Errorf("runConcurrent: n must be > 0, got %d", n)

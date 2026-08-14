@@ -6,20 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	LDAPStaticSecretTestType       = "ldap_static_secret"
 	LDAPStaticSecretTestMethod     = "POST"
@@ -27,21 +23,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecretTest{action: "rotate"} }
+	TestList[LDAPStaticSecretTestType] = func() BenchmarkBuilder { return &LDAPStaticSecret{} }
 }
 
-type LDAPStaticSecretTest struct {
+type LDAPStaticSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *LDAPStaticSecretTestConfig
+	config     *LDAPStaticSecretConfig
 	logger     hclog.Logger
-	action     string
 }
 
-// Main Config Struct
-type LDAPStaticSecretTestConfig struct {
+type LDAPStaticSecretConfig struct {
 	LDAPStaticConfig     *LDAPStaticConfig     `hcl:"secret,block"`
 	LDAPStaticRoleConfig *LDAPStaticRoleConfig `hcl:"role,block"`
 }
@@ -70,11 +63,11 @@ type LDAPStaticRoleConfig struct {
 	RotationPeriod string `hcl:"rotation_period"`
 }
 
-func (r *LDAPStaticSecretTest) ParseConfig(body hcl.Body) error {
+func (r *LDAPStaticSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *LDAPStaticSecretTestConfig `hcl:"config,block"`
+		Config *LDAPStaticSecretConfig `hcl:"config,block"`
 	}{
-		Config: &LDAPStaticSecretTestConfig{
+		Config: &LDAPStaticSecretConfig{
 			LDAPStaticConfig: &LDAPStaticConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
 			},
@@ -96,40 +89,14 @@ func (r *LDAPStaticSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *LDAPStaticSecretTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: LDAPStaticSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/rotate-role/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *LDAPStaticSecretTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *LDAPStaticSecretTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     LDAPStaticSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
-func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *LDAPStaticSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPStaticSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "ldap", secretPath))
@@ -142,35 +109,17 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode LDAP Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret"))
-	connectionConfigData, err := structToMap(r.config.LDAPStaticConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing ldap secret config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config", r.config.LDAPStaticConfig); err != nil {
+		return nil, err
 	}
 
-	// Write connection config
-	setupLogger.Trace(writingLogMessage("ldap secret config"))
-	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret role"))
-	roleConfigData, err := structToMap(r.config.LDAPStaticRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, r.config.LDAPStaticRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPStaticRoleConfig.Username)
-	_, err = client.Logical().Write(secretPath+"/static-role/"+r.config.LDAPStaticRoleConfig.Username, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap secret static role: %v", err)
-	}
-
-	return &LDAPStaticSecretTest{
+	return &LDAPStaticSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   r.config.LDAPStaticRoleConfig.Username,
@@ -178,4 +127,23 @@ func (r *LDAPStaticSecretTest) Setup(client *api.Client, mountName string, topLe
 	}, nil
 }
 
-func (m *LDAPStaticSecretTest) Flags(fs *flag.FlagSet) {}
+func (r *LDAPStaticSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: LDAPStaticSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/rotate-role/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *LDAPStaticSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
+}
+
+func (r *LDAPStaticSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     LDAPStaticSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
+}
+
+func (m *LDAPStaticSecret) Flags(fs *flag.FlagSet) {}

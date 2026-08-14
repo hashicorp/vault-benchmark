@@ -6,22 +6,17 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2"
-
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	CassandraSecretTestType   = "cassandra_secret"
 	CassandraSecretTestMethod = "GET"
@@ -30,26 +25,22 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[CassandraSecretTestType] = func() BenchmarkBuilder { return &CassandraSecret{} }
 }
 
-// Cassandra Secret Test Struct
 type CassandraSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
-	config     *CassandraSecretTestConfig
+	roleName   string
+	config     *CassandraSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type CassandraSecretTestConfig struct {
+type CassandraSecretConfig struct {
 	CassandraDBConfig   *CassandraDBConfig   `hcl:"db_connection,block"`
 	CassandraRoleConfig *CassandraRoleConfig `hcl:"role,block"`
 }
 
-// Cassandra DB Config
 type CassandraDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -76,7 +67,6 @@ type CassandraDBConfig struct {
 	UsernameTemplate       string   `hcl:"username_template,optional"`
 }
 
-// Cassandra Role Config
 type CassandraRoleConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	DBName                 string   `hcl:"db_name,optional"`
@@ -88,15 +78,11 @@ type CassandraRoleConfig struct {
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
-		Config *CassandraSecretTestConfig `hcl:"config,block"`
+		Config *CassandraSecretConfig `hcl:"config,block"`
 	}{
-		Config: &CassandraSecretTestConfig{
+		Config: &CassandraSecretConfig{
 			CassandraDBConfig: &CassandraDBConfig{
 				Name:         "benchmark-cassandra",
 				PluginName:   "cassandra-database-plugin",
@@ -129,43 +115,16 @@ func (c *CassandraSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: CassandraSecretTestMethod,
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
-	}
-}
-
-func (c *CassandraSecret) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (c *CassandraSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     CassandraSecretTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
 func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	c.logger = targetLogger.Named(CassandraSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Database Secret Mount
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -176,34 +135,14 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(c.config.CassandraDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name), c.config.CassandraDBConfig); err != nil {
+		return nil, err
 	}
 
-	// Set up db
-	setupLogger.Trace(writingLogMessage("cassandra db config"), "name", c.config.CassandraDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", c.config.CassandraDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing cassandra db config: %v", err)
-	}
-
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(c.config.CassandraRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	// Set Up Role
-	setupLogger.Trace(writingLogMessage("role"), "name", c.config.CassandraRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing cassandra role %q: %v", c.config.CassandraRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", c.config.CassandraRoleConfig.Name), c.config.CassandraRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &CassandraSecret{
@@ -213,6 +152,25 @@ func (c *CassandraSecret) Setup(client *api.Client, mountName string, topLevelCo
 		logger:     c.logger,
 	}, nil
 
+}
+
+func (c *CassandraSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: CassandraSecretTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *CassandraSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(c.logger, client, c.pathPrefix)
+}
+
+func (c *CassandraSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     CassandraSecretTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
 }
 
 func (c *CassandraSecret) Flags(fs *flag.FlagSet) {}

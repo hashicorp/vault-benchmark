@@ -121,7 +121,7 @@ func ParseConfig(hclBuf []byte, pathName string, configStruct *VaultBenchmarkCor
 // specified testType provided. This is to account for scenarios where due to other
 // restrictions only one test type can be run for a given instance of vault-benchmark
 func moreThanOneTest(tests []*benchmarktests.BenchmarkTarget, testType string) bool {
-	targetMap := make(map[string]interface{})
+	targetMap := make(map[string]any)
 	for _, target := range tests {
 		if target.Type == testType {
 			if _, ok := targetMap[target.Type]; !ok {

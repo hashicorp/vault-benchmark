@@ -7,14 +7,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -30,20 +27,20 @@ const (
 
 func init() {
 	TestList[TransformTokenizationTestType] = func() BenchmarkBuilder {
-		return &TransformTokenizationTest{}
+		return &TransformTokenizationSecret{}
 	}
 }
 
-type TransformTokenizationTest struct {
+type TransformTokenizationSecret struct {
 	pathPrefix string
 	header     http.Header
 	body       []byte
 	roleName   string
-	config     *TransformTokenizationTestConfig
+	config     *TransformTokenizationSecretConfig
 	logger     hclog.Logger
 }
 
-type TransformTokenizationTestConfig struct {
+type TransformTokenizationSecretConfig struct {
 	StoreConfig        *TransformStoreConfig        `hcl:"store,block"`
 	StoreSchemaConfig  *TransformStoreSchemaConfig  `hcl:"store_schema,block"`
 	RoleConfig         *TransformRoleConfig         `hcl:"role,block"`
@@ -88,20 +85,20 @@ type TransformTokenizationConfig struct {
 }
 
 type TransformInputConfig struct {
-	Value          string        `hcl:"value,optional"`
-	Transformation string        `hcl:"transformation,optional"`
-	TTL            string        `hcl:"ttl,optional"`
-	Metadata       string        `hcl:"metadata,optional"`
-	Tweak          string        `hcl:"tweak,optional"`
-	Reference      string        `hcl:"reference,optional"`
-	BatchInput     []interface{} `hcl:"batch_input,optional"`
+	Value          string `hcl:"value,optional"`
+	Transformation string `hcl:"transformation,optional"`
+	TTL            string `hcl:"ttl,optional"`
+	Metadata       string `hcl:"metadata,optional"`
+	Tweak          string `hcl:"tweak,optional"`
+	Reference      string `hcl:"reference,optional"`
+	BatchInput     []any  `hcl:"batch_input,optional"`
 }
 
-func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
+func (t *TransformTokenizationSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TransformTokenizationTestConfig `hcl:"config,block"`
+		Config *TransformTokenizationSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TransformTokenizationTestConfig{
+		Config: &TransformTokenizationSecretConfig{
 			RoleConfig: &TransformRoleConfig{
 				Name:            "benchmark-role",
 				Transformations: []string{"benchmarktransformation"},
@@ -130,44 +127,16 @@ func (t *TransformTokenizationTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TransformTokenizationTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: TransformTokenizationTestMethod,
-		URL:    client.Address() + t.pathPrefix + "/encode/" + t.roleName,
-		Body:   t.body,
-		Header: t.header,
-	}
-}
-
-func (t *TransformTokenizationTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     TransformTokenizationTestMethod,
-		pathPrefix: t.pathPrefix,
-	}
-}
-
-func (t *TransformTokenizationTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TransformTokenizationSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	t.logger = targetLogger.Named(TransformTokenizationTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Transform mount
 	t.logger.Trace(mountLogMessage("secrets", "transform", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "transform",
@@ -178,11 +147,9 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 
 	setupLogger := t.logger.Named(secretPath)
 
-	// Create Store config if provided
 	if t.config.StoreConfig.Type != "" {
 		setupLogger.Trace("configuring store")
 
-		// Decode Store config struct to mapstructure to pass with request
 		setupLogger.Trace(parsingConfigLogMessage("store"))
 		storeConfigData, err := structToMap(t.config.StoreConfig)
 		if err != nil {
@@ -200,7 +167,6 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 		if t.config.StoreSchemaConfig != nil {
 			setupLogger.Trace("configuring store schema")
 
-			// Decode Store config struct to mapstructure to pass with request
 			setupLogger.Trace(parsingConfigLogMessage("store schema"))
 			storeSchemaConfigData, err := structToMap(t.config.StoreSchemaConfig)
 			if err != nil {
@@ -217,37 +183,16 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 		}
 	}
 
-	// Decode Role data
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(t.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "role", t.config.RoleConfig.Name), t.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("role"), "name", t.config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "role", t.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing role %q: %v", t.config.RoleConfig.Name, err)
-	}
-
-	// Decode Tokenization Transformation data
 	setupLogger.Trace("decoding tokenization config data")
-	tokenizationConfigData, err := structToMap(t.config.TokenizationConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding tokenization config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "transformations", "tokenization", t.config.TokenizationConfig.Name), t.config.TokenizationConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Transformation
-	setupLogger.Trace(writingLogMessage("tokenization transformation"), "name", t.config.TokenizationConfig.Name)
-	transformationPath := filepath.Join(secretPath, "transformations", "tokenization", t.config.TokenizationConfig.Name)
-	_, err = client.Logical().Write(transformationPath, tokenizationConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing tokenization transformation %q: %v", t.config.TokenizationConfig.Name, err)
-	}
-
-	// Decode test data to be transformed
 	setupLogger.Trace("parsing test transformation input data")
 	testData, err := structToMap(t.config.InputConfig)
 	if err != nil {
@@ -259,7 +204,7 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 		return nil, fmt.Errorf("error marshaling test encode data: %v", err)
 	}
 
-	return &TransformTokenizationTest{
+	return &TransformTokenizationSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		body:       []byte(testDataString),
@@ -268,4 +213,24 @@ func (t *TransformTokenizationTest) Setup(client *api.Client, mountName string, 
 	}, nil
 }
 
-func (t *TransformTokenizationTest) Flags(fs *flag.FlagSet) {}
+func (t *TransformTokenizationSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: TransformTokenizationTestMethod,
+		URL:    client.Address() + t.pathPrefix + "/encode/" + t.roleName,
+		Body:   t.body,
+		Header: t.header,
+	}
+}
+
+func (t *TransformTokenizationSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(t.logger, client, t.pathPrefix)
+}
+
+func (t *TransformTokenizationSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     TransformTokenizationTestMethod,
+		pathPrefix: t.pathPrefix,
+	}
+}
+
+func (t *TransformTokenizationSecret) Flags(fs *flag.FlagSet) {}

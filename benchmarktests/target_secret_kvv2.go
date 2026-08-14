@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -30,33 +28,33 @@ const (
 
 func init() {
 	TestList[KVV2ReadTestType] = func() BenchmarkBuilder {
-		return &KVV2Test{action: "read"}
+		return &KVV2Secret{action: "read"}
 	}
 	TestList[KVV2WriteTestType] = func() BenchmarkBuilder {
-		return &KVV2Test{action: "write"}
+		return &KVV2Secret{action: "write"}
 	}
 }
 
-type KVV2Test struct {
+type KVV2Secret struct {
 	pathPrefix string
 	header     http.Header
 	writeBody  []byte
-	config     *KVV2SecretTestConfig
+	config     *KVV2SecretConfig
 	action     string
 	numKVs     int
 	logger     hclog.Logger
 }
 
-type KVV2SecretTestConfig struct {
+type KVV2SecretConfig struct {
 	KVSize int `hcl:"kvsize,optional"`
 	NumKVs int `hcl:"numkvs,optional"`
 }
 
-func (k *KVV2Test) ParseConfig(body hcl.Body) error {
+func (k *KVV2Secret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *KVV2SecretTestConfig `hcl:"config,block"`
+		Config *KVV2SecretConfig `hcl:"config,block"`
 	}{
-		Config: &KVV2SecretTestConfig{
+		Config: &KVV2SecretConfig{
 			KVSize: 1,
 			NumKVs: 1000,
 		},
@@ -70,58 +68,7 @@ func (k *KVV2Test) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KVV2Test) read(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
-		Header: k.header,
-	}
-}
-
-func (k *KVV2Test) write(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
-		Header: k.header,
-		Body:   k.writeBody,
-	}
-}
-
-func (k *KVV2Test) Target(client *api.Client) vegeta.Target {
-	switch k.action {
-	case "write":
-		return k.write(client)
-	default:
-		return k.read(client)
-	}
-}
-
-func (k *KVV2Test) GetTargetInfo() TargetInfo {
-	var method string
-	switch k.action {
-	case "write":
-		method = KVV2WriteTestMethod
-	default:
-		method = KVV2ReadTestMethod
-	}
-	return TargetInfo{
-		method:     method,
-		pathPrefix: k.pathPrefix,
-	}
-}
-
-func (k *KVV2Test) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KVV2Secret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	switch k.action {
@@ -131,11 +78,9 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		k.logger = targetLogger.Named(KVV2ReadTestType)
 	}
 
-	if topLevelConfig.RandomMounts {
-		mountPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	mountPath, err = resolveMountPath(mountPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	k.logger.Trace(mountLogMessage("secrets", "kvv2", mountPath))
@@ -157,10 +102,8 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		},
 	}
 
-	// Vault v2 KV mount upgrade is asynchronous: the backend briefly rejects
-	// writes with "Upgrading from non-versioned to versioned data". There is
-	// no stable API signal to poll; a fixed sleep is the current workaround.
-	// TODO: replace with a poll-until-ready loop if Vault exposes a readiness endpoint.
+	// KV v2 mount upgrade is asynchronous; writes fail briefly with "Upgrading from non-versioned to versioned data."
+	// TODO: replace sleep with a poll once Vault exposes a readiness signal for KV v2.
 	time.Sleep(2 * time.Second)
 
 	if err := runPhase(setupLogger, "seed secrets", kvSeedConcurrency, k.config.NumKVs, func(idx int) error {
@@ -173,7 +116,7 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 		return nil, err
 	}
 
-	return &KVV2Test{
+	return &KVV2Secret{
 		pathPrefix: "/v1/" + mountPath,
 		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
 		numKVs:     k.config.NumKVs,
@@ -183,4 +126,36 @@ func (k *KVV2Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
-func (k *KVV2Test) Flags(fs *flag.FlagSet) {}
+func (k *KVV2Secret) Target(client *api.Client) vegeta.Target {
+	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
+	t := vegeta.Target{
+		Method: KVV2ReadTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/data/secret-" + strconv.Itoa(secnum),
+		Header: k.header,
+	}
+	if k.action == "write" {
+		t.Method = KVV2WriteTestMethod
+		t.Body = k.writeBody
+	}
+	return t
+}
+
+func (k *KVV2Secret) Cleanup(client *api.Client) error {
+	return cleanupMount(k.logger, client, k.pathPrefix)
+}
+
+func (k *KVV2Secret) GetTargetInfo() TargetInfo {
+	var method string
+	switch k.action {
+	case "write":
+		method = KVV2WriteTestMethod
+	default:
+		method = KVV2ReadTestMethod
+	}
+	return TargetInfo{
+		method:     method,
+		pathPrefix: k.pathPrefix,
+	}
+}
+
+func (k *KVV2Secret) Flags(fs *flag.FlagSet) {}

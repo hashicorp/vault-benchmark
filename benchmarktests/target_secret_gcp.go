@@ -6,20 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	GCPSecretTestType     = "gcp_secret"
 	GCPSecretTestMethod   = "GET"
@@ -30,24 +26,24 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[GCPSecretTestType] = func() BenchmarkBuilder { return &GCPTest{} }
+	TestList[GCPSecretTestType] = func() BenchmarkBuilder { return &GCPSecret{} }
 }
 
-type GCPTest struct {
+type GCPSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *GCPSecretTestConfig
+	targetURL  string
+	config     *GCPSecretConfig
 	logger     hclog.Logger
 }
 
-type GCPSecretTestConfig struct {
-	GCPConfig  *GCPSecretConfig  `hcl:"gcp,block"`
+type GCPSecretConfig struct {
+	GCPConfig  *GCPSecretMountConfig  `hcl:"gcp,block"`
 	GCPRoleset *GCPSecretRoleset `hcl:"roleset,block"`
 }
 
-type GCPSecretConfig struct {
+type GCPSecretMountConfig struct {
 	Credentials string `hcl:"credentials,optional"`
 	TTL         string `hcl:"ttl,optional"`
 	MaxTTL      string `hcl:"max_ttl,optional"`
@@ -61,12 +57,12 @@ type GCPSecretRoleset struct {
 	TokenScopes []string `hcl:"token_scopes,optional"`
 }
 
-func (g *GCPTest) ParseConfig(body hcl.Body) error {
+func (g *GCPSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *GCPSecretTestConfig `hcl:"config,block"`
+		Config *GCPSecretConfig `hcl:"config,block"`
 	}{
-		Config: &GCPSecretTestConfig{
-			GCPConfig:  &GCPSecretConfig{Credentials: os.Getenv(GCPSecretCredentials)},
+		Config: &GCPSecretConfig{
+			GCPConfig:  &GCPSecretMountConfig{Credentials: os.Getenv(GCPSecretCredentials)},
 			GCPRoleset: &GCPSecretRoleset{Name: "benchmark-roleset", SecretType: GCPAccessTokenType, Bindings: os.Getenv(GCPSecretBindings)},
 		},
 	}
@@ -92,48 +88,14 @@ func (g *GCPTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (g *GCPTest) Target(client *api.Client) vegeta.Target {
-	var url string
-
-	if g.config.GCPRoleset.SecretType == GCPAccessTokenType {
-		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/token"
-	} else if g.config.GCPRoleset.SecretType == GCPServiceAccountType {
-		url = client.Address() + g.pathPrefix + "/roleset/" + g.roleName + "/key"
-	}
-
-	return vegeta.Target{
-		Method: "GET",
-		URL:    url,
-		Header: g.header,
-	}
-}
-
-func (g *GCPTest) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPSecretTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
-}
-
-func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (g *GCPSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	g.logger = targetLogger.Named(RedisDynamicSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	config := g.config
@@ -169,41 +131,46 @@ func (g *GCPTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 		config.GCPRoleset.Bindings = string(contents)
 	}
 
-	// Encode GCP Config
 	setupLogger.Trace(parsingConfigLogMessage("gcp"))
-	gcpConfigData, err := structToMap(config.GCPConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing gcp config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.GCPConfig); err != nil {
+		return nil, err
 	}
 
-	// Write GCP config
-	setupLogger.Trace(writingLogMessage("gcp config"))
-	_, err = client.Logical().Write(secretPath+"/config", gcpConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	gcpRolesetData, err := structToMap(config.GCPRoleset)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing roleset config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/roleset/"+config.GCPRoleset.Name, config.GCPRoleset); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("gcp roleset"), "name", config.GCPRoleset.Name)
-	_, err = client.Logical().Write(secretPath+"/roleset/"+config.GCPRoleset.Name, gcpRolesetData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp roleset: %v", err)
+	suffix := "/token"
+	if config.GCPRoleset.SecretType == GCPServiceAccountType {
+		suffix = "/key"
 	}
-
-	return &GCPTest{
+	return &GCPSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.GCPRoleset.Name,
+		targetURL:  client.Address() + "/v1/" + secretPath + "/roleset/" + config.GCPRoleset.Name + suffix,
 		logger:     g.logger,
-		config:     g.config,
 	}, nil
 }
 
-func (g *GCPTest) Flags(fs *flag.FlagSet) {}
+func (g *GCPSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GCPSecretTestMethod,
+		URL:    g.targetURL,
+		Header: g.header,
+	}
+}
+
+func (g *GCPSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(g.logger, client, g.pathPrefix)
+}
+
+func (g *GCPSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPSecretTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
+}
+
+func (g *GCPSecret) Flags(fs *flag.FlagSet) {}

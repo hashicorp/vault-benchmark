@@ -7,14 +7,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -27,21 +25,21 @@ const (
 )
 
 func init() {
-	TestList[PKIIssueTestType] = func() BenchmarkBuilder { return &PKIIssueTest{} }
+	TestList[PKIIssueTestType] = func() BenchmarkBuilder { return &PKIIssueSecret{} }
 }
 
-type PKIIssueTest struct {
+type PKIIssueSecret struct {
 	pathPrefix string
-	cn         string
-	intpath    string
-	rootpath   string
-	config     *PKISecretIssueTestConfig
-	body       []byte
 	header     http.Header
+	body       []byte
+	config     *PKIIssueSecretConfig
 	logger     hclog.Logger
+	rootpath   string
+	intpath    string
+	cn         string
 }
 
-type PKISecretIssueTestConfig struct {
+type PKIIssueSecretConfig struct {
 	SetupDelay            string                `hcl:"setup_delay,optional"`
 	RootCAConfig          *PKIIssueRootConfig   `hcl:"root_ca,block"`
 	IntermediateCSRConfig *PKIIssueIntCSRConfig `hcl:"intermediate_csr,block"`
@@ -224,11 +222,11 @@ type PKIIssueRoleConfig struct {
 	AllowedUserIDs               string   `hcl:"allowed_user_ids,optional"`
 }
 
-func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
+func (p *PKIIssueSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *PKISecretIssueTestConfig `hcl:"config,block"`
+		Config *PKIIssueSecretConfig `hcl:"config,block"`
 	}{
-		Config: &PKISecretIssueTestConfig{
+		Config: &PKIIssueSecretConfig{
 			SetupDelay: "1s",
 			RootCAConfig: &PKIIssueRootConfig{
 				Type:       "internal",
@@ -261,65 +259,27 @@ func (p *PKIIssueTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (p *PKIIssueTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: PKIIssueTestMethod,
-		URL:    client.Address() + p.pathPrefix,
-		Body:   p.body,
-		Header: p.header,
-	}
-}
-
-func (p *PKIIssueTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     PKIIssueTestMethod,
-		pathPrefix: p.pathPrefix,
-	}
-}
-
-func (p *PKIIssueTest) Cleanup(client *api.Client) error {
-	// Unmount Root
-	p.logger.Trace(cleanupLogMessage(p.rootpath))
-	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-
-	// Unmount Intermediate
-	p.logger.Trace(cleanupLogMessage(p.intpath))
-	_, err = client.Logical().Delete(filepath.Join("/sys/mounts/", p.intpath))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (p *PKIIssueSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	p.logger = targetLogger.Named(PKIIssueTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 	p.logger = p.logger.Named(secretPath)
 
-	// Create Root CA
 	err = p.createRootCA(client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating root CA: %v", err)
 	}
 
-	// Create and sign Intermediate CA
 	path, err := p.createIntermediateCA(client, secretPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating intermediate CA: %v", err)
 	}
 
-	// Decode Issue Config
 	p.logger.Trace(parsingConfigLogMessage("cert issue"))
 	issueData, err := structToMap(p.config.IssueConfig)
 	if err != nil {
@@ -331,7 +291,7 @@ func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 		return nil, fmt.Errorf("error marshaling issue config data: %v", err)
 	}
 
-	return &PKIIssueTest{
+	return &PKIIssueSecret{
 		pathPrefix: "/v1/" + path,
 		cn:         p.config.IssueConfig.CommonName,
 		header:     generateHeader(client),
@@ -342,10 +302,42 @@ func (p *PKIIssueTest) Setup(client *api.Client, mountName string, topLevelConfi
 	}, nil
 }
 
-func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
+func (p *PKIIssueSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: PKIIssueTestMethod,
+		URL:    client.Address() + p.pathPrefix,
+		Body:   p.body,
+		Header: p.header,
+	}
+}
+
+func (p *PKIIssueSecret) Cleanup(client *api.Client) error {
+	p.logger.Trace(cleanupLogMessage(p.rootpath))
+	_, err := client.Logical().Delete(filepath.Join("/sys/mounts/", p.rootpath))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+
+	p.logger.Trace(cleanupLogMessage(p.intpath))
+	_, err = client.Logical().Delete(filepath.Join("/sys/mounts/", p.intpath))
+	if err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
+}
+
+func (p *PKIIssueSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     PKIIssueTestMethod,
+		pathPrefix: p.pathPrefix,
+	}
+}
+
+func (p *PKIIssueSecret) Flags(fs *flag.FlagSet) {}
+
+func (p *PKIIssueSecret) createRootCA(cli *api.Client, pfx string) error {
 	rootPath := pfx + "-root"
 
-	// Create PKI Root mount
 	p.logger.Trace(mountLogMessage("secrets", "pki", rootPath))
 	err := cli.Sys().Mount(rootPath, &api.MountInput{
 		Type: "pki",
@@ -368,14 +360,12 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	}
 	time.Sleep(delay)
 
-	// Decode Root Config struct into map to pass with request
 	rootSetupLogger.Trace(parsingConfigLogMessage("root"))
 	rootData, err := structToMap(p.config.RootCAConfig)
 	if err != nil {
 		return fmt.Errorf("error parsing root config from struct: %v", err)
 	}
 
-	// Setup Root CA
 	rootSetupLogger.Trace("generating root ca")
 	_, err = cli.Logical().Write(filepath.Join(rootPath, "root", "generate", p.config.RootCAConfig.Type), rootData)
 	if err != nil {
@@ -383,7 +373,7 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	}
 
 	rootSetupLogger.Trace("configuring urls")
-	_, err = cli.Logical().Write(filepath.Join(rootPath, "config", "urls"), map[string]interface{}{
+	_, err = cli.Logical().Write(filepath.Join(rootPath, "config", "urls"), map[string]any{
 		"issuing_certificates":    fmt.Sprintf("%s/v1/%s/ca", cli.Address(), rootPath),
 		"crl_distribution_points": []string{fmt.Sprintf("%s/v1/%s/crl", cli.Address(), rootPath)},
 	})
@@ -394,11 +384,10 @@ func (p *PKIIssueTest) createRootCA(cli *api.Client, pfx string) error {
 	return nil
 }
 
-func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
+func (p *PKIIssueSecret) createIntermediateCA(cli *api.Client, pfx string) (string, error) {
 	rootPath := fmt.Sprintf("%v-root", pfx)
 	intPath := fmt.Sprintf("%v-int", pfx)
 
-	// Create PKI Int Mount
 	p.logger.Trace(mountLogMessage("secrets", "pki", intPath))
 	err := cli.Sys().Mount(intPath, &api.MountInput{
 		Type: "pki",
@@ -421,14 +410,12 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 	}
 	time.Sleep(delay)
 
-	// Decode Intermediate CSR config to map to pass with request
 	intSetupLogger.Trace(parsingConfigLogMessage("intermediate ca csr"))
 	intCSRData, err := structToMap(p.config.IntermediateCSRConfig)
 	if err != nil {
 		return "", fmt.Errorf("error parsing intermediate csr config from struct: %v", err)
 	}
 
-	// Create Intermediate CSR
 	intSetupLogger.Trace("generating intermediate cert csr")
 	resp, err := cli.Logical().Write(filepath.Join(intPath, "intermediate", "generate", p.config.IntermediateCSRConfig.Type), intCSRData)
 	if err != nil {
@@ -436,7 +423,6 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 	}
 	p.config.IntermediateCAConfig.CSR = resp.Data["csr"].(string)
 
-	// Decode Intermediate Signing config to map to pass with request
 	intSetupLogger.Trace(parsingConfigLogMessage("intermediate cert signing"))
 	intSignData, err := structToMap(p.config.IntermediateCAConfig)
 	if err != nil {
@@ -449,23 +435,20 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 		return "", fmt.Errorf("error signing intermediate cert: %v", err)
 	}
 
-	// Set Intermediate signed certificate
 	intSetupLogger.Trace("setting intermediate signed cert")
-	_, err = cli.Logical().Write(filepath.Join(intPath, "intermediate", "set-signed"), map[string]interface{}{
+	_, err = cli.Logical().Write(filepath.Join(intPath, "intermediate", "set-signed"), map[string]any{
 		"certificate": strings.Join([]string{resp.Data["certificate"].(string), resp.Data["issuing_ca"].(string)}, "\n"),
 	})
 	if err != nil {
 		return "", fmt.Errorf("error setting intermediate signed cert: %v", err)
 	}
 
-	// Decode Role config to map to pass with request
 	intSetupLogger.Trace(parsingConfigLogMessage("role"))
 	roleData, err := structToMap(p.config.RoleConfig)
 	if err != nil {
 		return "", fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// Create Role
 	intSetupLogger.Trace(writingLogMessage("pki role"), "name", p.config.RoleConfig.Name)
 	_, err = cli.Logical().Write(filepath.Join(intPath, "roles", p.config.RoleConfig.Name), roleData)
 	if err != nil {
@@ -474,5 +457,3 @@ func (p *PKIIssueTest) createIntermediateCA(cli *api.Client, pfx string) (string
 
 	return filepath.Join(intPath, "issue", p.config.RoleConfig.Name), nil
 }
-
-func (p *PKIIssueTest) Flags(fs *flag.FlagSet) {}

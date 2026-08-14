@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
 	"github.com/mitchellh/mapstructure"
@@ -33,8 +34,30 @@ var (
 	ErrIsDirectory = errors.New("location is a directory, not a file")
 )
 
-// cachedBody holds a precomputed request body that expires and must be periodically refreshed.
-// mu serializes refreshes so concurrent Vegeta workers don't race on body/expiry writes.
+// resolveMountPath returns base unchanged, or a fresh UUID when random is true.
+func resolveMountPath(base string, random bool) (string, error) {
+	if !random {
+		return base, nil
+	}
+	id, err := uuid.GenerateUUID()
+	if err != nil {
+		return "", fmt.Errorf("error generating random mount name: %w", err)
+	}
+	return id, nil
+}
+
+// writeStruct converts in to a map via structToMap and writes it to path.
+func writeStruct(client *api.Client, path string, in any) error {
+	data, err := structToMap(in)
+	if err != nil {
+		return fmt.Errorf("error serializing config for %q: %w", path, err)
+	}
+	if _, err := client.Logical().Write(path, data); err != nil {
+		return fmt.Errorf("error writing %q: %w", path, err)
+	}
+	return nil
+}
+
 // Must not be copied after first use — embed by value only in structs accessed exclusively via pointer.
 type cachedBody struct {
 	mu     sync.Mutex
@@ -42,11 +65,9 @@ type cachedBody struct {
 	expiry time.Time
 }
 
-func omitEmpty(in interface{}) {
+func omitEmpty(in any) {
 	r := reflect.ValueOf(in)
 	for _, e := range r.MapKeys() {
-		// If the value is its zero value, we don't want to add it to
-		// the resulting map.
 		v := r.MapIndex(e)
 		if v.Elem().IsZero() {
 			r.SetMapIndex(e, reflect.Value{})
@@ -54,10 +75,8 @@ func omitEmpty(in interface{}) {
 	}
 }
 
-// structToMap decodes config structs to maps using the hcl tag as the key name,
-// dropping zero-value fields so they don't override Vault server defaults.
-func structToMap(in interface{}) (map[string]interface{}, error) {
-	tMap := make(map[string]interface{})
+func structToMap(in any) (map[string]any, error) {
+	tMap := make(map[string]any)
 	tDecoderConfig := mapstructure.DecoderConfig{
 		Result:  &tMap,
 		TagName: "hcl",
@@ -82,7 +101,6 @@ func GenerateCert(caCertTemplate *x509.Certificate, caSigner crypto.Signer) (str
 		return "", "", fmt.Errorf("error generating private key for server certificate: %v", err)
 	}
 
-	// The serial number for the cert
 	sn, err := serialNumber()
 	if err != nil {
 		return "", "", fmt.Errorf("error generating serial number: %v", err)
@@ -209,7 +227,6 @@ func generateHeader(client *api.Client) http.Header {
 }
 
 func IsFile(path string) (bool, error) {
-	// File Validity checking
 	f, err := os.Stat(path)
 	if err != nil {
 		return false, err
@@ -232,7 +249,6 @@ func natLess(a, b string) bool {
 
 		switch {
 		case aDigit && bDigit:
-			// Consume the full digit run from each string.
 			startA, startB := i, j
 			for i < len(a) && a[i] >= '0' && a[i] <= '9' {
 				i++
@@ -241,7 +257,6 @@ func natLess(a, b string) bool {
 				j++
 			}
 
-			// Compare by numeric value, ignoring leading zeros.
 			numA := strings.TrimLeft(a[startA:i], "0")
 			numB := strings.TrimLeft(b[startB:j], "0")
 			if len(numA) != len(numB) {
@@ -255,7 +270,6 @@ func natLess(a, b string) bool {
 				return (i - startA) < (j - startB)
 			}
 		case aDigit != bDigit:
-			// A numeric segment sorts before a non-numeric one.
 			return aDigit
 		default:
 			if a[i] != b[j] {
@@ -266,7 +280,6 @@ func natLess(a, b string) bool {
 		}
 	}
 
-	// Whichever string has characters remaining is the longer one.
 	return len(a)-i < len(b)-j
 }
 

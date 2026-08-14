@@ -7,21 +7,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	KubernetesSecretTestType          = "kubernetes_secret"
 	KubernetesSecretTestMethod        = "POST"
@@ -30,20 +26,19 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[KubernetesSecretTestType] = func() BenchmarkBuilder { return &KubernetesTest{} }
+	TestList[KubernetesSecretTestType] = func() BenchmarkBuilder { return &KubernetesSecret{} }
 }
 
-type KubernetesTest struct {
+type KubernetesSecret struct {
 	pathPrefix string
 	header     http.Header
-	roleName   string
 	body       []byte
-	config     *KubernetesSecretTestConfig
+	roleName   string
+	config     *KubernetesSecretConfig
 	logger     hclog.Logger
 }
 
-type KubernetesSecretTestConfig struct {
+type KubernetesSecretConfig struct {
 	KubernetesConfig     *KubernetesConfig     `hcl:"kubernetes,block"`
 	KubernetesRoleConfig *KubernetesRoleConfig `hcl:"role,block"`
 }
@@ -72,11 +67,11 @@ type KubernetesRoleConfig struct {
 	ExtraLabels                        map[string]string `hcl:"extra_labels,optional"`
 }
 
-func (k *KubernetesTest) ParseConfig(body hcl.Body) error {
+func (k *KubernetesSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *KubernetesSecretTestConfig `hcl:"config,block"`
+		Config *KubernetesSecretConfig `hcl:"config,block"`
 	}{
-		Config: &KubernetesSecretTestConfig{
+		Config: &KubernetesSecretConfig{
 			KubernetesConfig: &KubernetesConfig{
 				KubernetesHost:    "https://kubernetes.default.svc",
 				ServiceAccountJWT: os.Getenv(KubernetesServiceAccountJWTEnvVar),
@@ -100,42 +95,15 @@ func (k *KubernetesTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KubernetesTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: KubernetesSecretTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/creds/" + k.roleName,
-		Body:   k.body,
-		Header: k.header,
-	}
-}
-
-func (k *KubernetesTest) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (k *KubernetesTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     KubernetesSecretTestMethod,
-		pathPrefix: k.pathPrefix,
-	}
-}
-
-func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KubernetesSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := k.config
 	k.logger = targetLogger.Named(KubernetesSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	k.logger.Trace(mountLogMessage("secrets", "kubernetes", secretPath))
@@ -148,57 +116,34 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 
 	setupLogger := k.logger.Named(secretPath)
 
-	// Decode Kubernetes Config
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes"))
-	kubernetesConfigData, err := structToMap(config.KubernetesConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing kubernetes config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.KubernetesConfig); err != nil {
+		return nil, err
 	}
 
-	// Write Kubernetes config
-	setupLogger.Trace(writingLogMessage("kubernetes config"))
-	_, err = client.Logical().Write(secretPath+"/config", kubernetesConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing kubernetes config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	kubernetesRoleConfigData, err := structToMap(config.KubernetesRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+config.KubernetesRoleConfig.Name, config.KubernetesRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("kubernetes role"), "name", config.KubernetesRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+config.KubernetesRoleConfig.Name, kubernetesRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing kubernetes role: %v", err)
-	}
-
-	// Prepare request body for credential generation
 	// Default namespace to a randomly selected allowed namespace or "default"
 	namespace := "default"
 	if len(config.KubernetesRoleConfig.AllowedKubernetesNamespaces) > 0 {
 		allowedNS := config.KubernetesRoleConfig.AllowedKubernetesNamespaces
-		// If "*" is allowed, any namespace can be used, so use "default"
 		// Otherwise randomly pick from the explicitly allowed namespaces
 		if allowedNS[0] != "*" {
 			namespace = allowedNS[rand.Intn(len(allowedNS))]
 		}
 	}
 
-	// Build request body for credential generation
-	requestBody := map[string]interface{}{
+	requestBody := map[string]any{
 		"kubernetes_namespace": namespace,
 	}
 
-	// Add optional audiences if specified
 	if config.KubernetesRoleConfig.TokenDefaultAudiences != "" {
 		requestBody["audiences"] = config.KubernetesRoleConfig.TokenDefaultAudiences
 	}
 
-	// For ClusterRole types, set cluster_role_binding to true
 	if config.KubernetesRoleConfig.KubernetesRoleType == "ClusterRole" {
 		requestBody["cluster_role_binding"] = true
 	}
@@ -208,7 +153,7 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 		return nil, fmt.Errorf("error marshaling request body: %v", err)
 	}
 
-	return &KubernetesTest{
+	return &KubernetesSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.KubernetesRoleConfig.Name,
@@ -217,4 +162,24 @@ func (k *KubernetesTest) Setup(client *api.Client, mountName string, topLevelCon
 	}, nil
 }
 
-func (k *KubernetesTest) Flags(fs *flag.FlagSet) {}
+func (k *KubernetesSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: KubernetesSecretTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/creds/" + k.roleName,
+		Body:   k.body,
+		Header: k.header,
+	}
+}
+
+func (k *KubernetesSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(k.logger, client, k.pathPrefix)
+}
+
+func (k *KubernetesSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     KubernetesSecretTestMethod,
+		pathPrefix: k.pathPrefix,
+	}
+}
+
+func (k *KubernetesSecret) Flags(fs *flag.FlagSet) {}

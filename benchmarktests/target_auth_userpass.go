@@ -6,13 +6,10 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -31,9 +28,9 @@ func init() {
 
 type UserpassAuth struct {
 	pathPrefix string
-	user       string
-	body       []byte
 	header     http.Header
+	body       []byte
+	user       string
 	config     *UserpassAuthConfig
 	logger     hclog.Logger
 }
@@ -70,41 +67,14 @@ func (u *UserpassAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: UserpassAuthTestMethod,
-		URL:    client.Address() + u.pathPrefix + "/login/" + u.user,
-		Header: u.header,
-		Body:   u.body,
-	}
-}
-
-func (u *UserpassAuth) Cleanup(client *api.Client) error {
-	u.logger.Trace(cleanupLogMessage(u.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(u.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (u *UserpassAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     UserpassAuthTestMethod,
-		pathPrefix: u.pathPrefix,
-	}
-}
-
 func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	u.logger = targetLogger.Named(UserpassTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	u.logger.Trace(mountLogMessage("auth", "userpass", authPath))
@@ -118,16 +88,8 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 	setupLogger := u.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("user"))
-	userData, err := structToMap(u.config)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing user config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("user config"))
-	userPath := filepath.Join("auth", authPath, "users", u.config.Username)
-	_, err = client.Logical().Write(userPath, userData)
-	if err != nil {
-		return nil, fmt.Errorf("error creating userpass user %q: %v", u.config.Username, err)
+	if err := writeStruct(client, filepath.Join("auth", authPath, "users", u.config.Username), u.config); err != nil {
+		return nil, err
 	}
 
 	return &UserpassAuth{
@@ -137,6 +99,26 @@ func (u *UserpassAuth) Setup(client *api.Client, mountName string, topLevelConfi
 		body:       fmt.Appendf(nil, `{"password": "%s"}`, u.config.Password),
 		logger:     u.logger,
 	}, nil
+}
+
+func (u *UserpassAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: UserpassAuthTestMethod,
+		URL:    client.Address() + u.pathPrefix + "/login/" + u.user,
+		Header: u.header,
+		Body:   u.body,
+	}
+}
+
+func (u *UserpassAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(u.logger, client, u.pathPrefix)
+}
+
+func (u *UserpassAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     UserpassAuthTestMethod,
+		pathPrefix: u.pathPrefix,
+	}
 }
 
 func (u *UserpassAuth) Flags(fs *flag.FlagSet) {}

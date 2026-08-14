@@ -6,20 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	AWSSecretTestType   = "aws_secret"
 	AWSSecretTestMethod = "GET"
@@ -28,20 +24,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[AWSSecretTestType] = func() BenchmarkBuilder { return &AWSTest{} }
+	TestList[AWSSecretTestType] = func() BenchmarkBuilder { return &AWSSecret{} }
 }
 
-type AWSTest struct {
+type AWSSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *AWSSecretTestConfig
+	config     *AWSSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type AWSSecretTestConfig struct {
+type AWSSecretConfig struct {
 	AWSConnectionConfig *AWSConnectionConfig `hcl:"connection,block"`
 	AWSRoleConfig       *AWSRoleConfig       `hcl:"role,block"`
 }
@@ -70,11 +64,11 @@ type AWSRoleConfig struct {
 	PermissionsBoundaryARN string `hcl:"permissions_boundary_arn,optional"`
 }
 
-func (a *AWSTest) ParseConfig(body hcl.Body) error {
+func (a *AWSSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AWSSecretTestConfig `hcl:"config,block"`
+		Config *AWSSecretConfig `hcl:"config,block"`
 	}{
-		Config: &AWSSecretTestConfig{
+		Config: &AWSSecretConfig{
 			AWSConnectionConfig: &AWSConnectionConfig{
 				AccessKey: os.Getenv(AWSSecretAccessKey),
 				SecretKey: os.Getenv(AWSSecretSecretKey),
@@ -103,40 +97,14 @@ func (a *AWSTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *AWSTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: AWSSecretTestMethod,
-		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
-		Header: a.header,
-	}
-}
-
-func (a *AWSTest) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *AWSTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     AWSSecretTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
-}
-
-func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (a *AWSSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	a.logger = targetLogger.Named(AWSSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("secrets", "aws", secretPath))
@@ -149,35 +117,17 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 
 	setupLogger := a.logger.Named(secretPath)
 
-	// Decode AWS Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("aws connection"))
-	connectionConfigData, err := structToMap(a.config.AWSConnectionConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing aws connection config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config/root", a.config.AWSConnectionConfig); err != nil {
+		return nil, err
 	}
 
-	// Write connection config
-	setupLogger.Trace(writingLogMessage("aws connection config"))
-	_, err = client.Logical().Write(secretPath+"/config/root", connectionConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws connection config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(a.config.AWSRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+a.config.AWSRoleConfig.Name, a.config.AWSRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("aws role"), "name", a.config.AWSRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+a.config.AWSRoleConfig.Name, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws role: %v", err)
-	}
-
-	return &AWSTest{
+	return &AWSSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   a.config.AWSRoleConfig.Name,
@@ -185,4 +135,23 @@ func (a *AWSTest) Setup(client *api.Client, mountName string, topLevelConfig *To
 	}, nil
 }
 
-func (a *AWSTest) Flags(fs *flag.FlagSet) {}
+func (a *AWSSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: AWSSecretTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/creds/" + a.roleName,
+		Header: a.header,
+	}
+}
+
+func (a *AWSSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(a.logger, client, a.pathPrefix)
+}
+
+func (a *AWSSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     AWSSecretTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
+}
+
+func (a *AWSSecret) Flags(fs *flag.FlagSet) {}

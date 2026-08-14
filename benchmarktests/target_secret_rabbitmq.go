@@ -6,20 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	RabbitMQSecretTestType   = "rabbitmq_secret"
 	RabbitMQSecretTestMethod = "GET"
@@ -28,20 +24,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[RabbitMQSecretTestType] = func() BenchmarkBuilder { return &RabbitMQTest{} }
+	TestList[RabbitMQSecretTestType] = func() BenchmarkBuilder { return &RabbitMQSecret{} }
 }
 
-type RabbitMQTest struct {
+type RabbitMQSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *RabbitMQSecretTestConfig
+	config     *RabbitMQSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type RabbitMQSecretTestConfig struct {
+type RabbitMQSecretConfig struct {
 	RabbitMQConnectionConfig *RabbitMQConnectionConfig `hcl:"connection,block"`
 	RabbitMQRoleConfig       *RabbitMQRoleConfig       `hcl:"role,block"`
 }
@@ -62,11 +56,11 @@ type RabbitMQRoleConfig struct {
 	VhostTopics string `hcl:"vhost_topics,optional"`
 }
 
-func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
+func (r *RabbitMQSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RabbitMQSecretTestConfig `hcl:"config,block"`
+		Config *RabbitMQSecretConfig `hcl:"config,block"`
 	}{
-		Config: &RabbitMQSecretTestConfig{
+		Config: &RabbitMQSecretConfig{
 			RabbitMQConnectionConfig: &RabbitMQConnectionConfig{
 				Username: os.Getenv(RabbitMQUsernameEnvVar),
 				Password: os.Getenv(RabbitMQPasswordEnvVar),
@@ -95,40 +89,14 @@ func (r *RabbitMQTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *RabbitMQTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RabbitMQSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *RabbitMQTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RabbitMQTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RabbitMQSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
-func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *RabbitMQSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(RabbitMQSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "rabbitmq", secretPath))
@@ -141,35 +109,17 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode RabbitMQ Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("rabbitmq connection"))
-	connectionConfigData, err := structToMap(r.config.RabbitMQConnectionConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing rabbitmq connection config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config/connection", r.config.RabbitMQConnectionConfig); err != nil {
+		return nil, err
 	}
 
-	// Write connection config
-	setupLogger.Trace(writingLogMessage("rabbitmq connection config"))
-	_, err = client.Logical().Write(secretPath+"/config/connection", connectionConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing rabbitmq connection config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleConfigData, err := structToMap(r.config.RabbitMQRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, r.config.RabbitMQRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("rabbitmq role"), "name", r.config.RabbitMQRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/roles/"+r.config.RabbitMQRoleConfig.Name, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing rabbitmq role: %v", err)
-	}
-
-	return &RabbitMQTest{
+	return &RabbitMQSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   r.config.RabbitMQRoleConfig.Name,
@@ -177,4 +127,23 @@ func (r *RabbitMQTest) Setup(client *api.Client, mountName string, topLevelConfi
 	}, nil
 }
 
-func (m *RabbitMQTest) Flags(fs *flag.FlagSet) {}
+func (r *RabbitMQSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RabbitMQSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *RabbitMQSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
+}
+
+func (r *RabbitMQSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RabbitMQSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
+}
+
+func (m *RabbitMQSecret) Flags(fs *flag.FlagSet) {}

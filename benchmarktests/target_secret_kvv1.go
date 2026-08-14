@@ -6,14 +6,12 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -29,33 +27,33 @@ const (
 
 func init() {
 	TestList[KVV1ReadTestType] = func() BenchmarkBuilder {
-		return &KVV1Test{action: "read"}
+		return &KVV1Secret{action: "read"}
 	}
 	TestList[KVV1WriteTestType] = func() BenchmarkBuilder {
-		return &KVV1Test{action: "write"}
+		return &KVV1Secret{action: "write"}
 	}
 }
 
-type KVV1Test struct {
+type KVV1Secret struct {
 	pathPrefix string
 	header     http.Header
 	writeBody  []byte
-	config     *KVV1SecretTestConfig
+	config     *KVV1SecretConfig
 	action     string
 	numKVs     int
 	logger     hclog.Logger
 }
 
-type KVV1SecretTestConfig struct {
+type KVV1SecretConfig struct {
 	KVSize int `hcl:"kvsize,optional"`
 	NumKVs int `hcl:"numkvs,optional"`
 }
 
-func (k *KVV1Test) ParseConfig(body hcl.Body) error {
+func (k *KVV1Secret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *KVV1SecretTestConfig `hcl:"config,block"`
+		Config *KVV1SecretConfig `hcl:"config,block"`
 	}{
-		Config: &KVV1SecretTestConfig{
+		Config: &KVV1SecretConfig{
 			KVSize: 1,
 			NumKVs: 1000,
 		},
@@ -69,67 +67,14 @@ func (k *KVV1Test) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KVV1Test) read(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: KVV1ReadTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
-		Header: k.header,
-	}
-}
-
-func (k *KVV1Test) write(client *api.Client) vegeta.Target {
-	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
-	return vegeta.Target{
-		Method: KVV1WriteTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
-		Body:   k.writeBody,
-		Header: k.header,
-	}
-}
-
-func (k *KVV1Test) Target(client *api.Client) vegeta.Target {
-	switch k.action {
-	case "write":
-		return k.write(client)
-	default:
-		return k.read(client)
-	}
-}
-
-func (k *KVV1Test) GetTargetInfo() TargetInfo {
-	var method string
-	switch k.action {
-	case "write":
-		method = KVV1WriteTestMethod
-	default:
-		method = KVV1ReadTestMethod
-	}
-	return TargetInfo{
-		method:     method,
-		pathPrefix: k.pathPrefix,
-	}
-}
-
-func (k *KVV1Test) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KVV1Secret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	mountPath := mountName
 	k.logger = targetLogger.Named("kvv1")
 
-	if topLevelConfig.RandomMounts {
-		mountPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	mountPath, err = resolveMountPath(mountPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	var setupIndex string
@@ -173,7 +118,7 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	if lastIndex != "" {
 		headers["X-Vault-Index"] = []string{lastIndex}
 	}
-	return &KVV1Test{
+	return &KVV1Secret{
 		pathPrefix: "/v1/" + mountPath,
 		action:     k.action,
 		header:     headers,
@@ -183,4 +128,36 @@ func (k *KVV1Test) Setup(client *api.Client, mountName string, topLevelConfig *T
 	}, nil
 }
 
-func (k *KVV1Test) Flags(fs *flag.FlagSet) {}
+func (k *KVV1Secret) Target(client *api.Client) vegeta.Target {
+	secnum := int(1 + rand.Int31n(int32(k.numKVs)))
+	t := vegeta.Target{
+		Method: KVV1ReadTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/secret-" + strconv.Itoa(secnum),
+		Header: k.header,
+	}
+	if k.action == "write" {
+		t.Method = KVV1WriteTestMethod
+		t.Body = k.writeBody
+	}
+	return t
+}
+
+func (k *KVV1Secret) Cleanup(client *api.Client) error {
+	return cleanupMount(k.logger, client, k.pathPrefix)
+}
+
+func (k *KVV1Secret) GetTargetInfo() TargetInfo {
+	var method string
+	switch k.action {
+	case "write":
+		method = KVV1WriteTestMethod
+	default:
+		method = KVV1ReadTestMethod
+	}
+	return TargetInfo{
+		method:     method,
+		pathPrefix: k.pathPrefix,
+	}
+}
+
+func (k *KVV1Secret) Flags(fs *flag.FlagSet) {}

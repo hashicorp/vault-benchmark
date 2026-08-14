@@ -6,21 +6,17 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	ElasticSearchSecretTestType   = "elasticsearch_secret"
 	ElasticSearchSecretTestMethod = "GET"
@@ -29,19 +25,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[ElasticSearchSecretTestType] = func() BenchmarkBuilder { return &ElasticSearchTest{} }
+	TestList[ElasticSearchSecretTestType] = func() BenchmarkBuilder { return &ElasticSearchSecret{} }
 }
 
-type ElasticSearchTest struct {
+type ElasticSearchSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ElasticSearchSecretTestConfig
+	config     *ElasticSearchSecretConfig
 	logger     hclog.Logger
 }
 
-type ElasticSearchSecretTestConfig struct {
+type ElasticSearchSecretConfig struct {
 	ElasticSearchConfig     *ElasticSearchConfig     `hcl:"db_connection,block"`
 	ElasticSearchRoleConfig *ElasticSearchRoleConfig `hcl:"role,block"`
 }
@@ -50,7 +45,7 @@ type ElasticSearchConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
 	PluginVersion          string   `hcl:"plugin_version,optional"`
-	VerifyConnectioon      *bool    `hcl:"verify_connection,optional"`
+	VerifyConnection       *bool    `hcl:"verify_connection,optional"`
 	AllowedRoles           []string `hcl:"allowed_roles,optional"`
 	RootRotationStatements []string `hcl:"root_rotation_statements,optional"`
 	PasswordPolicy         string   `hcl:"password_policy,optional"`
@@ -75,11 +70,11 @@ type ElasticSearchRoleConfig struct {
 	CreationStatements []string `hcl:"creation_statements,optional"`
 }
 
-func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
+func (e *ElasticSearchSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *ElasticSearchSecretTestConfig `hcl:"config,block"`
+		Config *ElasticSearchSecretConfig `hcl:"config,block"`
 	}{
-		Config: &ElasticSearchSecretTestConfig{
+		Config: &ElasticSearchSecretConfig{
 			ElasticSearchConfig: &ElasticSearchConfig{
 				PluginName:   "elasticsearch-database-plugin",
 				Name:         "benchmark-elasticsearch",
@@ -115,40 +110,14 @@ func (e *ElasticSearchTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (e *ElasticSearchTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: ElasticSearchSecretTestMethod,
-		URL:    client.Address() + e.pathPrefix + "/creds/" + e.roleName,
-		Header: e.header,
-	}
-}
-
-func (e *ElasticSearchTest) Cleanup(client *api.Client) error {
-	e.logger.Trace(cleanupLogMessage(e.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(e.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (e *ElasticSearchTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     ElasticSearchSecretTestMethod,
-		pathPrefix: e.pathPrefix,
-	}
-}
-
-func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (e *ElasticSearchSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	e.logger = targetLogger.Named(ElasticSearchSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	e.logger.Trace(mountLogMessage("secrets", "database", secretPath))
@@ -161,37 +130,17 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 
 	setupLogger := e.logger.Named(secretPath)
 
-	// Decode DB Config
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	elasticSearchConfigData, err := structToMap(e.config.ElasticSearchConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing elasticsearch config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", e.config.ElasticSearchConfig.Name), e.config.ElasticSearchConfig); err != nil {
+		return nil, err
 	}
 
-	// Write DB config
-	setupLogger.Trace(writingLogMessage("elasticsearch db config"), "name", e.config.ElasticSearchConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", e.config.ElasticSearchConfig.Name)
-	_, err = client.Logical().Write(dbPath, elasticSearchConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing Elasticsearch db config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	elasticSearchRoleConfigData, err := structToMap(e.config.ElasticSearchRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", e.config.ElasticSearchRoleConfig.RoleName), e.config.ElasticSearchRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("elasticsearc role"), "name", e.config.ElasticSearchRoleConfig.RoleName)
-	rolePath := filepath.Join(secretPath, "roles", e.config.ElasticSearchRoleConfig.RoleName)
-	_, err = client.Logical().Write(rolePath, elasticSearchRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing elasticsearch role %q: %v", e.config.ElasticSearchRoleConfig.RoleName, err)
-	}
-
-	return &ElasticSearchTest{
+	return &ElasticSearchSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   e.config.ElasticSearchRoleConfig.RoleName,
@@ -199,4 +148,23 @@ func (e *ElasticSearchTest) Setup(client *api.Client, mountName string, topLevel
 	}, nil
 }
 
-func (e *ElasticSearchTest) Flags(fs *flag.FlagSet) {}
+func (e *ElasticSearchSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: ElasticSearchSecretTestMethod,
+		URL:    client.Address() + e.pathPrefix + "/creds/" + e.roleName,
+		Header: e.header,
+	}
+}
+
+func (e *ElasticSearchSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(e.logger, client, e.pathPrefix)
+}
+
+func (e *ElasticSearchSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     ElasticSearchSecretTestMethod,
+		pathPrefix: e.pathPrefix,
+	}
+}
+
+func (e *ElasticSearchSecret) Flags(fs *flag.FlagSet) {}

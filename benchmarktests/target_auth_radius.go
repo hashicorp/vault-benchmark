@@ -6,14 +6,12 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -34,19 +32,19 @@ func init() {
 
 type RADIUSAuth struct {
 	pathPrefix string
-	authUser   string
-	body       []byte
 	header     http.Header
-	config     *RADIUSAuthTestConfig
+	body       []byte
+	authUser   string
+	config     *RADIUSAuthConfig
 	logger     hclog.Logger
 }
 
-type RADIUSAuthTestConfig struct {
-	RADIUSAuthConfig     *RADIUSAuthConfig     `hcl:"auth,block"`
-	RADIUSTestUserConfig *RADIUSTestUserConfig `hcl:"test_user,block"`
+type RADIUSAuthConfig struct {
+	RADIUSAuthMountConfig *RADIUSAuthMountConfig `hcl:"auth,block"`
+	RADIUSAuthUserConfig *RADIUSAuthUserConfig `hcl:"test_user,block"`
 }
 
-type RADIUSAuthConfig struct {
+type RADIUSAuthMountConfig struct {
 	Host                     string   `hcl:"host,optional"`
 	Port                     int      `hcl:"port,optional"`
 	Secret                   string   `hcl:"secret,optional"`
@@ -64,7 +62,7 @@ type RADIUSAuthConfig struct {
 	TokenType                string   `hcl:"token_type,optional"`
 }
 
-type RADIUSTestUserConfig struct {
+type RADIUSAuthUserConfig struct {
 	Username string   `hcl:"username,optional"`
 	Password string   `hcl:"password,optional"`
 	Policies []string `hcl:"policies,optional"`
@@ -72,15 +70,15 @@ type RADIUSTestUserConfig struct {
 
 func (r *RADIUSAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *RADIUSAuthTestConfig `hcl:"config,block"`
+		Config *RADIUSAuthConfig `hcl:"config,block"`
 	}{
-		Config: &RADIUSAuthTestConfig{
-			RADIUSAuthConfig: &RADIUSAuthConfig{
+		Config: &RADIUSAuthConfig{
+			RADIUSAuthMountConfig: &RADIUSAuthMountConfig{
 				Secret:      os.Getenv(RADIUSSecretEnvVar),
 				DialTimeout: 10,
 				NASPort:     10,
 			},
-			RADIUSTestUserConfig: &RADIUSTestUserConfig{
+			RADIUSAuthUserConfig: &RADIUSAuthUserConfig{
 				Username: os.Getenv(RADIUSTestUsernameEnvVar),
 				Password: os.Getenv(RADIUSTestPasswordEnvVar),
 				Policies: []string{"default"},
@@ -94,48 +92,23 @@ func (r *RADIUSAuth) ParseConfig(body hcl.Body) error {
 	}
 	r.config = testConfig.Config
 
-	if r.config.RADIUSAuthConfig.Host == "" {
+	if r.config.RADIUSAuthMountConfig.Host == "" {
 		return fmt.Errorf("no RADIUS host provided but required")
 	}
 
-	if r.config.RADIUSAuthConfig.Secret == "" {
+	if r.config.RADIUSAuthMountConfig.Secret == "" {
 		return fmt.Errorf("no RADIUS secret provided but required")
 	}
 
-	if r.config.RADIUSTestUserConfig.Username == "" {
+	if r.config.RADIUSAuthUserConfig.Username == "" {
 		return fmt.Errorf("no RADIUS username provided but required")
 	}
 
-	if r.config.RADIUSTestUserConfig.Password == "" {
+	if r.config.RADIUSAuthUserConfig.Password == "" {
 		return fmt.Errorf("no RADIUS password provided but required")
 	}
 
 	return nil
-}
-
-func (r *RADIUSAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: RADIUSAuthTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/login/" + r.authUser,
-		Header: r.header,
-		Body:   r.body,
-	}
-}
-
-func (r *RADIUSAuth) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *RADIUSAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     RADIUSAuthTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
 }
 
 func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -143,11 +116,9 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	authPath := mountName
 	r.logger = targetLogger.Named(RADIUSAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	r.logger.Trace(mountLogMessage("auth", "radius", authPath))
@@ -161,23 +132,16 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	setupLogger := r.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("radius auth"))
-	radiusAuthConfig, err := structToMap(r.config.RADIUSAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding radius auth config from struct: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", r.config.RADIUSAuthMountConfig); err != nil {
+		return nil, err
 	}
 
-	setupLogger.Trace(writingLogMessage("radius auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", radiusAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing radius auth config: %v", err)
-	}
-
-	if len(r.config.RADIUSTestUserConfig.Policies) > 0 {
-		setupLogger.Trace(writingLogMessage("radius user config"), "username", r.config.RADIUSTestUserConfig.Username)
+	if len(r.config.RADIUSAuthUserConfig.Policies) > 0 {
+		setupLogger.Trace(writingLogMessage("radius user config"), "username", r.config.RADIUSAuthUserConfig.Username)
 		userConfig := map[string]any{
-			"policies": strings.Join(r.config.RADIUSTestUserConfig.Policies, ","),
+			"policies": strings.Join(r.config.RADIUSAuthUserConfig.Policies, ","),
 		}
-		userPath := "auth/" + authPath + "/users/" + r.config.RADIUSTestUserConfig.Username
+		userPath := "auth/" + authPath + "/users/" + r.config.RADIUSAuthUserConfig.Username
 		_, err = client.Logical().Write(userPath, userConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error writing radius user config: %v", err)
@@ -187,10 +151,30 @@ func (r *RADIUSAuth) Setup(client *api.Client, mountName string, topLevelConfig 
 	return &RADIUSAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		authUser:   r.config.RADIUSTestUserConfig.Username,
-		body:       fmt.Appendf(nil, `{"password": "%s"}`, r.config.RADIUSTestUserConfig.Password),
+		authUser:   r.config.RADIUSAuthUserConfig.Username,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, r.config.RADIUSAuthUserConfig.Password),
 		logger:     r.logger,
 	}, nil
+}
+
+func (r *RADIUSAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: RADIUSAuthTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/login/" + r.authUser,
+		Header: r.header,
+		Body:   r.body,
+	}
+}
+
+func (r *RADIUSAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
+}
+
+func (r *RADIUSAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     RADIUSAuthTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
 }
 
 func (r *RADIUSAuth) Flags(fs *flag.FlagSet) {}

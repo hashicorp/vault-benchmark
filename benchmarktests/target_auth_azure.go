@@ -7,14 +7,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -35,19 +32,19 @@ func init() {
 
 type AzureAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
-	config     *AzureAuthTestConfig
+	body       []byte
+	config     *AzureAuthConfig
 	logger     hclog.Logger
 }
 
-type AzureAuthTestConfig struct {
-	AzureAuthConfig *AzureAuthConfig `hcl:"config,block"`
-	AzureAuthRole   *AzureAuthRole   `hcl:"role,block"`
-	AzureAuthUser   *AzureAuthUser   `hcl:"user,block"`
+type AzureAuthConfig struct {
+	AzureAuthMountConfig *AzureAuthMountConfig `hcl:"config,block"`
+	AzureAuthRoleConfig   *AzureAuthRoleConfig   `hcl:"role,block"`
+	AzureAuthUserConfig   *AzureAuthUserConfig   `hcl:"user,block"`
 }
 
-type AzureAuthConfig struct {
+type AzureAuthMountConfig struct {
 	TenantID     string `hcl:"tenant_id"`
 	Resource     string `hcl:"resource"`
 	Environment  string `hcl:"environment,optional"`
@@ -55,7 +52,7 @@ type AzureAuthConfig struct {
 	ClientSecret string `hcl:"client_secret,optional"`
 }
 
-type AzureAuthRole struct {
+type AzureAuthRoleConfig struct {
 	Name                     string   `hcl:"name,optional"`
 	BoundServicePrincipalIDs []string `hcl:"bound_service_principal_ids,optional"`
 	BoundGroupIDs            []string `hcl:"bound_group_ids,optional"`
@@ -75,7 +72,7 @@ type AzureAuthRole struct {
 	TokenType                string   `hcl:"token_type,optional"`
 }
 
-type AzureAuthUser struct {
+type AzureAuthUserConfig struct {
 	Role              string `hcl:"role,optional"`
 	JWT               string `hcl:"jwt,optional"`
 	SubscriptionID    string `hcl:"subscription_id"`
@@ -87,15 +84,15 @@ type AzureAuthUser struct {
 
 func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AzureAuthTestConfig `hcl:"config,block"`
+		Config *AzureAuthConfig `hcl:"config,block"`
 	}{
-		Config: &AzureAuthTestConfig{
-			AzureAuthConfig: &AzureAuthConfig{
+		Config: &AzureAuthConfig{
+			AzureAuthMountConfig: &AzureAuthMountConfig{
 				ClientID:     os.Getenv(AzureAuthClientID),
 				ClientSecret: os.Getenv(AzureAuthClientSecret),
 			},
-			AzureAuthRole: &AzureAuthRole{Name: "benchmark-role"},
-			AzureAuthUser: &AzureAuthUser{Role: "benchmark-role",
+			AzureAuthRoleConfig: &AzureAuthRoleConfig{Name: "benchmark-role"},
+			AzureAuthUserConfig: &AzureAuthUserConfig{Role: "benchmark-role",
 				JWT: os.Getenv(AzureAuthJWT)},
 		},
 	}
@@ -106,36 +103,11 @@ func (a *AzureAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	if a.config.AzureAuthUser.JWT == "" {
+	if a.config.AzureAuthUserConfig.JWT == "" {
 		return fmt.Errorf("azure JWT required")
 	}
 
 	return nil
-}
-
-func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + a.pathPrefix + "/login",
-		Header: a.header,
-		Body:   a.body,
-	}
-}
-
-func (a *AzureAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *AzureAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     AzureAuthTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
 }
 
 func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -143,11 +115,9 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 	authPath := mountName
 	a.logger = targetLogger.Named(AzureAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("auth", "azure", authPath))
@@ -161,50 +131,53 @@ func (a *AzureAuth) Setup(client *api.Client, mountName string, topLevelConfig *
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth"))
-	azureAuthConfig, err := structToMap(a.config.AzureAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding azure auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("azure auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", azureAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing azure auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", a.config.AzureAuthMountConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
-	azureAuthRole, err := structToMap(a.config.AzureAuthRole)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding azure auth role from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("azure auth user config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AzureAuthRole.Name, azureAuthRole)
-	if err != nil {
-		return nil, fmt.Errorf("error writing azure auth user: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AzureAuthRoleConfig.Name, a.config.AzureAuthRoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("azure auth user"))
-	azureAuthUser, err := structToMap(a.config.AzureAuthUser)
+	azureAuthUser, err := structToMap(a.config.AzureAuthUserConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding azure auth user from struct: %v", err)
 	}
 
 	azureBody, err := json.Marshal(azureAuthUser)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling Azure login data: %w", err)
+		return nil, fmt.Errorf("error marshaling azure login body: %w", err)
 	}
 
-	// TODO: the Azure JWT in azureBody (from AzureAuthUser.JWT) typically expires in 1h.
-	// Benchmarks longer than 1h will silently accumulate 401s. Apply the cachedBody refresh
-	// pattern from target_auth_aws.go; the refresh call would re-marshal azureAuthUser with
-	// a new JWT obtained from the operator's token source.
+	// TODO: Azure JWT expires ~1h; long benchmarks accumulate 401s. Apply cachedBody refresh (see target_auth_aws.go).
 	return &AzureAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		logger:     a.logger,
 		body:       azureBody,
+		logger:     a.logger,
 	}, nil
+}
+
+func (a *AzureAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: AzureAuthTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/login",
+		Header: a.header,
+		Body:   a.body,
+	}
+}
+
+func (a *AzureAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(a.logger, client, a.pathPrefix)
+}
+
+func (a *AzureAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     AzureAuthTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
 }
 
 func (a *AzureAuth) Flags(fs *flag.FlagSet) {}

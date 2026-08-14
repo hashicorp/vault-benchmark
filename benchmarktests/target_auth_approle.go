@@ -6,13 +6,10 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -30,13 +27,13 @@ func init() {
 
 type ApproleAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
-	config     *ApproleAuthTestConfig
+	body       []byte
+	config     *ApproleAuthConfig
 	logger     hclog.Logger
 }
 
-type ApproleAuthTestConfig struct {
+type ApproleAuthConfig struct {
 	RoleConfig     *RoleConfig     `hcl:"role,block"`
 	SecretIDConfig *SecretIDConfig `hcl:"secret_id,block"`
 }
@@ -45,7 +42,7 @@ type RoleConfig struct {
 	Name                 string   `hcl:"role_name,optional"`
 	BindSecretID         *bool    `hcl:"bind_secret_id,optional"`
 	SecretIDBoundCIDRS   []string `hcl:"secret_id_bound_cidrs,optional"`
-	SecredIDNumUses      int      `hcl:"secret_id_num_uses,optional"`
+	SecretIDNumUses      int      `hcl:"secret_id_num_uses,optional"`
 	SecretIDTTL          string   `hcl:"secret_id_ttl,optional"`
 	LocalSecretIDs       bool     `hcl:"local_secret_ids,optional"`
 	TokenTTL             string   `hcl:"token_ttl,optional"`
@@ -70,9 +67,9 @@ type SecretIDConfig struct {
 
 func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *ApproleAuthTestConfig `hcl:"config,block"`
+		Config *ApproleAuthConfig `hcl:"config,block"`
 	}{
-		Config: &ApproleAuthTestConfig{
+		Config: &ApproleAuthConfig{
 			RoleConfig: &RoleConfig{
 				Name: "benchmark-role",
 			},
@@ -88,41 +85,14 @@ func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: ApproleAuthTestMethod,
-		URL:    client.Address() + a.pathPrefix + "/login",
-		Header: a.header,
-		Body:   a.body,
-	}
-}
-
-func (a *ApproleAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (a *ApproleAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     ApproleAuthTestMethod,
-		pathPrefix: a.pathPrefix,
-	}
-}
-
 func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	a.logger = targetLogger.Named(ApproleAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	a.logger.Trace(mountLogMessage("auth", "approle", authPath))
@@ -135,16 +105,9 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 	setupLogger := a.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(a.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", a.config.RoleConfig.Name)
 	rolePath := filepath.Join("auth", authPath, "role", a.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error creating approle role %q: %v", a.config.RoleConfig.Name, err)
+	if err := writeStruct(client, rolePath, a.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("getting role-id")
@@ -165,12 +128,35 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error reading approle secret-id: %v", err)
 	}
 
+	roleID := roleIDSecret.Data["role_id"].(string)
+	secretID := secretId.Data["secret_id"].(string)
+
 	return &ApproleAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		body:       fmt.Appendf(nil, `{"role_id": "%s", "secret_id": "%s"}`, roleIDSecret.Data["role_id"].(string), secretId.Data["secret_id"].(string)),
+		body:       fmt.Appendf(nil, `{"role_id": "%s", "secret_id": "%s"}`, roleID, secretID),
 		logger:     a.logger,
 	}, nil
 }
 
-func (l *ApproleAuth) Flags(fs *flag.FlagSet) {}
+func (a *ApproleAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: ApproleAuthTestMethod,
+		URL:    client.Address() + a.pathPrefix + "/login",
+		Header: a.header,
+		Body:   a.body,
+	}
+}
+
+func (a *ApproleAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(a.logger, client, a.pathPrefix)
+}
+
+func (a *ApproleAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     ApproleAuthTestMethod,
+		pathPrefix: a.pathPrefix,
+	}
+}
+
+func (a *ApproleAuth) Flags(fs *flag.FlagSet) {}

@@ -8,17 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	TerraformSecretTestType   = "terraform_secret"
 	TerraformSecretTestMethod = "GET"
@@ -26,19 +23,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[TerraformSecretTestType] = func() BenchmarkBuilder { return &TerraformTest{} }
+	TestList[TerraformSecretTestType] = func() BenchmarkBuilder { return &TerraformSecret{} }
 }
 
-type TerraformTest struct {
+type TerraformSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *TerraformSecretTestConfig
+	config     *TerraformSecretConfig
 	logger     hclog.Logger
 }
 
-type TerraformSecretTestConfig struct {
+type TerraformSecretConfig struct {
 	TerraformConfig     *TerraformConfig     `hcl:"terraform,block"`
 	TerraformRoleConfig *TerraformRoleConfig `hcl:"role,block"`
 }
@@ -59,11 +55,11 @@ type TerraformRoleConfig struct {
 	MaxTTL         string `hcl:"max_ttl,optional"`
 }
 
-func (t *TerraformTest) ParseConfig(body hcl.Body) error {
+func (t *TerraformSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TerraformSecretTestConfig `hcl:"config,block"`
+		Config *TerraformSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TerraformSecretTestConfig{
+		Config: &TerraformSecretConfig{
 			TerraformConfig: &TerraformConfig{
 				Address: "https://app.terraform.io",
 				Token:   os.Getenv(TerraformTokenEnvVar),
@@ -87,41 +83,15 @@ func (t *TerraformTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TerraformTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: TerraformSecretTestMethod,
-		URL:    client.Address() + t.pathPrefix + "/creds/" + t.roleName,
-		Header: t.header,
-	}
-}
-
-func (t *TerraformTest) Cleanup(client *api.Client) error {
-	t.logger.Trace(cleanupLogMessage(t.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(t.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (t *TerraformTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     TerraformSecretTestMethod,
-		pathPrefix: t.pathPrefix,
-	}
-}
-
-func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TerraformSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := t.config
 	t.logger = targetLogger.Named(TerraformSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("error generating UUID: %v", err)
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	t.logger.Trace(mountLogMessage("secrets", "terraform", secretPath))
@@ -134,35 +104,17 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 
 	setupLogger := t.logger.Named(secretPath)
 
-	// Decode Terraform Config
 	setupLogger.Trace(parsingConfigLogMessage("terraform"))
-	terraformConfigData, err := structToMap(config.TerraformConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing terraform config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.TerraformConfig); err != nil {
+		return nil, err
 	}
 
-	// Write Terraform config
-	setupLogger.Trace(writingLogMessage("terraform config"))
-	_, err = client.Logical().Write(secretPath+"/config", terraformConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing terraform config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	terraformRoleConfigData, err := structToMap(config.TerraformRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/role/"+config.TerraformRoleConfig.Name, config.TerraformRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("terraform role"), "name", config.TerraformRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.TerraformRoleConfig.Name, terraformRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing terraform role: %v", err)
-	}
-
-	return &TerraformTest{
+	return &TerraformSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.TerraformRoleConfig.Name,
@@ -170,4 +122,23 @@ func (t *TerraformTest) Setup(client *api.Client, mountName string, topLevelConf
 	}, nil
 }
 
-func (t *TerraformTest) Flags(fs *flag.FlagSet) {}
+func (t *TerraformSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: TerraformSecretTestMethod,
+		URL:    client.Address() + t.pathPrefix + "/creds/" + t.roleName,
+		Header: t.header,
+	}
+}
+
+func (t *TerraformSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(t.logger, client, t.pathPrefix)
+}
+
+func (t *TerraformSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     TerraformSecretTestMethod,
+		pathPrefix: t.pathPrefix,
+	}
+}
+
+func (t *TerraformSecret) Flags(fs *flag.FlagSet) {}

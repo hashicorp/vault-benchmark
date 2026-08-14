@@ -6,14 +6,11 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -28,24 +25,23 @@ const (
 )
 
 func init() {
-	TestList[CouchbaseSecretTestType] = func() BenchmarkBuilder { return &CouchbaseSecretTest{} }
+	TestList[CouchbaseSecretTestType] = func() BenchmarkBuilder { return &CouchbaseSecret{} }
 }
 
-type CouchbaseSecretTest struct {
+type CouchbaseSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *CouchbaseSecretTestConfig
+	config     *CouchbaseSecretConfig
 	logger     hclog.Logger
 }
 
-type CouchbaseSecretTestConfig struct {
+type CouchbaseSecretConfig struct {
 	DBConfig   *CouchbaseConfig     `hcl:"db_connection,block"`
 	RoleConfig *CouchbaseRoleConfig `hcl:"role,block"`
 }
 
 type CouchbaseConfig struct {
-	// Common
 	Name             string   `hcl:"name,optional"`
 	PluginName       string   `hcl:"plugin_name,optional"`
 	PluginVersion    string   `hcl:"plugin_version,optional"`
@@ -56,7 +52,6 @@ type CouchbaseConfig struct {
 	Password         string   `hcl:"password,optional"`
 	DisableEscaping  bool     `hcl:"disable_escaping,optional"`
 
-	// Couchbase Specific
 	Hosts            string `hcl:"hosts"`
 	TLS              bool   `hcl:"tls,optional"`
 	InsecureTLS      bool   `hcl:"insecure_tls,optional"`
@@ -73,11 +68,11 @@ type CouchbaseRoleConfig struct {
 	CreationStatements []string `hcl:"creation_statements,optional"`
 }
 
-func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
+func (c *CouchbaseSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *CouchbaseSecretTestConfig `hcl:"config,block"`
+		Config *CouchbaseSecretConfig `hcl:"config,block"`
 	}{
-		Config: &CouchbaseSecretTestConfig{
+		Config: &CouchbaseSecretConfig{
 			DBConfig: &CouchbaseConfig{
 				Name:       "benchmark-database",
 				PluginName: "couchbase-database-plugin",
@@ -112,43 +107,16 @@ func (c *CouchbaseSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (c *CouchbaseSecretTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: CouchbaseSecretTestMethod,
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
-	}
-}
-
-func (c *CouchbaseSecretTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (c *CouchbaseSecretTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     CouchbaseSecretTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
-func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *CouchbaseSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	c.logger = targetLogger.Named(CouchbaseSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Database Secret Mount
 	c.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -159,37 +127,17 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(c.config.DBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", c.config.DBConfig.Name), c.config.DBConfig); err != nil {
+		return nil, err
 	}
 
-	// Write Config
-	setupLogger.Trace(writingLogMessage("couchbase db config"), "name", c.config.DBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", c.config.DBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing couchbase db config: %v", err)
-	}
-
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(c.config.RoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", c.config.RoleConfig.Name), c.config.RoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("couchbase role"), "name", c.config.RoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", c.config.RoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing couchbase role %q: %v", c.config.RoleConfig.Name, err)
-	}
-
-	return &CouchbaseSecretTest{
+	return &CouchbaseSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   c.config.RoleConfig.Name,
@@ -197,4 +145,23 @@ func (c *CouchbaseSecretTest) Setup(client *api.Client, mountName string, topLev
 	}, nil
 }
 
-func (c *CouchbaseSecretTest) Flags(fs *flag.FlagSet) {}
+func (c *CouchbaseSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: CouchbaseSecretTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *CouchbaseSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(c.logger, client, c.pathPrefix)
+}
+
+func (c *CouchbaseSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     CouchbaseSecretTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
+}
+
+func (c *CouchbaseSecret) Flags(fs *flag.FlagSet) {}

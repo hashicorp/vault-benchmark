@@ -7,16 +7,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-secure-stdlib/awsutil"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -28,32 +25,31 @@ const (
 	AWSAuthTestMethod = "POST"
 	AWSAuthAccessKey  = VaultBenchmarkEnvVarPrefix + "AWS_ACCESS_KEY"
 	AWSAuthSecretKey  = VaultBenchmarkEnvVarPrefix + "AWS_SECRET_KEY"
+
+	// awsSigV4TTL is hardcoded by the AWS spec; awsBodyRefreshMargin ensures we
+	// refresh before the signature window closes rather than after.
+	awsSigV4TTL          = 15 * time.Minute
+	awsBodyRefreshMargin = 1 * time.Minute
 )
 
 func init() {
 	TestList[AWSAuthTestType] = func() BenchmarkBuilder { return &AWSAuth{} }
 }
 
-// awsSigV4TTL is the AWS SigV4 signature validity window; hardcoded by the AWS spec.
-const (
-	awsSigV4TTL          = 15 * time.Minute
-	awsBodyRefreshMargin = 1 * time.Minute
-)
-
 type AWSAuth struct {
 	pathPrefix string
-	login      cachedBody
 	header     http.Header
-	config     *AWSAuthTestConfig
+	login      cachedBody
+	config     *AWSAuthConfig
 	logger     hclog.Logger
 }
 
-type AWSAuthTestConfig struct {
-	AWSAuthConfig     *AWSAuthConfig     `hcl:"auth,block"`
-	AWSTestUserConfig *AWSTestUserConfig `hcl:"test_user,block"`
+type AWSAuthConfig struct {
+	AWSAuthMountConfig *AWSAuthMountConfig `hcl:"auth,block"`
+	AWSAuthUserConfig *AWSAuthUserConfig `hcl:"test_user,block"`
 }
 
-type AWSAuthConfig struct {
+type AWSAuthMountConfig struct {
 	MaxRetries             int      `hcl:"max_retries,optional"`
 	AccessKey              string   `hcl:"access_key,optional"`
 	SecretKey              string   `hcl:"secret_key,optional"`
@@ -65,7 +61,7 @@ type AWSAuthConfig struct {
 	AllowedSTSHeaderValues []string `hcl:"allowed_sts_header_values,optional"`
 }
 
-type AWSTestUserConfig struct {
+type AWSAuthUserConfig struct {
 	Role                       string `hcl:"role"`
 	AuthType                   string `hcl:"auth_type,optional"`
 	BoundAMIID                 string `hcl:"bound_ami_id,optional"`
@@ -97,14 +93,14 @@ type AWSTestUserConfig struct {
 
 func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *AWSAuthTestConfig `hcl:"config,block"`
+		Config *AWSAuthConfig `hcl:"config,block"`
 	}{
-		Config: &AWSAuthTestConfig{
-			AWSAuthConfig: &AWSAuthConfig{
+		Config: &AWSAuthConfig{
+			AWSAuthMountConfig: &AWSAuthMountConfig{
 				AccessKey: os.Getenv(AWSAuthAccessKey),
 				SecretKey: os.Getenv(AWSAuthSecretKey),
 			},
-			AWSTestUserConfig: &AWSTestUserConfig{},
+			AWSAuthUserConfig: &AWSAuthUserConfig{},
 		},
 	}
 
@@ -114,15 +110,62 @@ func (a *AWSAuth) ParseConfig(body hcl.Body) error {
 	}
 	a.config = testConfig.Config
 
-	if a.config.AWSAuthConfig.AccessKey == "" {
+	if a.config.AWSAuthMountConfig.AccessKey == "" {
 		return fmt.Errorf("no aws access_key provided but required")
 	}
 
-	if a.config.AWSAuthConfig.SecretKey == "" {
+	if a.config.AWSAuthMountConfig.SecretKey == "" {
 		return fmt.Errorf("no aws secret_key provided but required")
 	}
 
 	return nil
+}
+
+func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+	var err error
+	authPath := mountName
+	a.logger = targetLogger.Named(AWSAuthTestType)
+
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
+	}
+
+	a.logger.Trace(mountLogMessage("auth", "aws", authPath))
+	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
+		Type: "aws",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error enabling aws: %v", err)
+	}
+
+	setupLogger := a.logger.Named(authPath)
+
+	setupLogger.Trace(parsingConfigLogMessage("aws auth"))
+	if err := writeStruct(client, "auth/"+authPath+"/config/client", a.config.AWSAuthMountConfig); err != nil {
+		return nil, err
+	}
+
+	setupLogger.Trace(parsingConfigLogMessage("aws auth user"))
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+a.config.AWSAuthUserConfig.Role, a.config.AWSAuthUserConfig); err != nil {
+		return nil, err
+	}
+
+	result := &AWSAuth{
+		header:     generateHeader(client),
+		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
+		config:     a.config,
+		logger:     a.logger,
+	}
+
+	body, err := result.buildLoginBody()
+	if err != nil {
+		return nil, fmt.Errorf("error generating initial AWS login body: %w", err)
+	}
+	result.login.body = body
+	result.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
+
+	return result, nil
 }
 
 func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
@@ -147,12 +190,7 @@ func (a *AWSAuth) Target(client *api.Client) vegeta.Target {
 }
 
 func (a *AWSAuth) Cleanup(client *api.Client) error {
-	a.logger.Trace(cleanupLogMessage(a.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(a.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
+	return cleanupMount(a.logger, client, a.pathPrefix)
 }
 
 func (a *AWSAuth) GetTargetInfo() TargetInfo {
@@ -162,78 +200,15 @@ func (a *AWSAuth) GetTargetInfo() TargetInfo {
 	}
 }
 
-func (a *AWSAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
-	var err error
-	authPath := mountName
-	a.logger = targetLogger.Named(AWSAuthTestType)
-
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
-	}
-
-	a.logger.Trace(mountLogMessage("auth", "aws", authPath))
-	err = client.Sys().EnableAuthWithOptions(authPath, &api.EnableAuthOptions{
-		Type: "aws",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error enabling aws: %v", err)
-	}
-
-	setupLogger := a.logger.Named(authPath)
-
-	setupLogger.Trace(parsingConfigLogMessage("aws auth"))
-	awsAuthConfig, err := structToMap(a.config.AWSAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding aws auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("aws auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config/client", awsAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws auth config: %v", err)
-	}
-
-	setupLogger.Trace(parsingConfigLogMessage("aws auth user"))
-	awsAuthUser, err := structToMap(a.config.AWSTestUserConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding aws auth user from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("aws auth user config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+a.config.AWSTestUserConfig.Role, awsAuthUser)
-	if err != nil {
-		return nil, fmt.Errorf("error writing aws auth user: %v", err)
-	}
-
-	result := &AWSAuth{
-		header:     generateHeader(client),
-		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		config:     a.config,
-		logger:     a.logger,
-	}
-
-	body, err := result.buildLoginBody()
-	if err != nil {
-		return nil, fmt.Errorf("error generating initial AWS login body: %w", err)
-	}
-	result.login.body = body
-	result.login.expiry = time.Now().Add(awsSigV4TTL - awsBodyRefreshMargin)
-
-	return result, nil
-}
-
 func (a *AWSAuth) Flags(fs *flag.FlagSet) {}
 
 func (a *AWSAuth) buildLoginBody() ([]byte, error) {
-	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthConfig.AccessKey, a.config.AWSAuthConfig.SecretKey, "", a.logger)
+	creds, err := awsutil.RetrieveCreds(a.config.AWSAuthMountConfig.AccessKey, a.config.AWSAuthMountConfig.SecretKey, "", a.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	region := a.config.AWSAuthConfig.STSRegion
+	region := a.config.AWSAuthMountConfig.STSRegion
 	switch region {
 	case "":
 		region = awsutil.DefaultRegion
@@ -241,13 +216,13 @@ func (a *AWSAuth) buildLoginBody() ([]byte, error) {
 		region = ""
 	}
 
-	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthConfig.IAMServerIDHeaderValue, region, a.logger)
+	loginData, err := awsutil.GenerateLoginData(creds, a.config.AWSAuthMountConfig.IAMServerIDHeaderValue, region, a.logger)
 	if err != nil {
 		return nil, err
 	}
 	if loginData == nil {
 		return nil, fmt.Errorf("got nil response from GenerateLoginData")
 	}
-	loginData["role"] = a.config.AWSTestUserConfig.Role
+	loginData["role"] = a.config.AWSAuthUserConfig.Role
 	return json.Marshal(loginData)
 }

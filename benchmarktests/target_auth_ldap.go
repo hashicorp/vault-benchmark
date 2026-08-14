@@ -6,14 +6,11 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -34,19 +31,19 @@ func init() {
 
 type LDAPAuth struct {
 	pathPrefix string
-	authUser   string
-	body       []byte
 	header     http.Header
-	config     *LDAPAuthTestConfig
+	body       []byte
+	authUser   string
+	config     *LDAPAuthConfig
 	logger     hclog.Logger
 }
 
-type LDAPAuthTestConfig struct {
-	LDAPAuthConfig     *LDAPAuthConfig     `hcl:"auth,block"`
-	LDAPTestUserConfig *LDAPTestUserConfig `hcl:"test_user,block"`
+type LDAPAuthConfig struct {
+	LDAPAuthMountConfig *LDAPAuthMountConfig `hcl:"auth,block"`
+	LDAPAuthUserConfig *LDAPAuthUserConfig `hcl:"test_user,block"`
 }
 
-type LDAPAuthConfig struct {
+type LDAPAuthMountConfig struct {
 	URL                  string   `hcl:"url"`
 	CaseSensitiveNames   bool     `hcl:"case_sensitive_names,optional"`
 	RequestTimeout       int      `hcl:"request_timeout,optional"`
@@ -82,20 +79,20 @@ type LDAPAuthConfig struct {
 	MaxPageSize          string   `hcl:"max_page_size,optional"`
 }
 
-type LDAPTestUserConfig struct {
+type LDAPAuthUserConfig struct {
 	Username string `hcl:"username,optional"`
 	Password string `hcl:"password,optional"`
 }
 
 func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *LDAPAuthTestConfig `hcl:"config,block"`
+		Config *LDAPAuthConfig `hcl:"config,block"`
 	}{
-		Config: &LDAPAuthTestConfig{
-			LDAPAuthConfig: &LDAPAuthConfig{
+		Config: &LDAPAuthConfig{
+			LDAPAuthMountConfig: &LDAPAuthMountConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
 			},
-			LDAPTestUserConfig: &LDAPTestUserConfig{
+			LDAPAuthUserConfig: &LDAPAuthUserConfig{
 				Username: os.Getenv(LDAPAuthTestUserNameEnvVar),
 				Password: os.Getenv(LDAPAuthTestUserPasswordEnvVar),
 			},
@@ -108,44 +105,19 @@ func (l *LDAPAuth) ParseConfig(body hcl.Body) error {
 	}
 	l.config = testConfig.Config
 
-	if l.config.LDAPAuthConfig.BindPass == "" {
+	if l.config.LDAPAuthMountConfig.BindPass == "" {
 		return fmt.Errorf("no bindpass provided for vault to use")
 	}
 
-	if l.config.LDAPTestUserConfig.Username == "" {
+	if l.config.LDAPAuthUserConfig.Username == "" {
 		return fmt.Errorf("no ldap test user username provided but required")
 	}
 
-	if l.config.LDAPTestUserConfig.Password == "" {
-		return fmt.Errorf("no password provided for ldap test user %v but required", l.config.LDAPTestUserConfig.Username)
+	if l.config.LDAPAuthUserConfig.Password == "" {
+		return fmt.Errorf("no password provided for ldap test user %v but required", l.config.LDAPAuthUserConfig.Username)
 	}
 
 	return nil
-}
-
-func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "POST",
-		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
-		Header: l.header,
-		Body:   l.body,
-	}
-}
-
-func (l *LDAPAuth) Cleanup(client *api.Client) error {
-	l.logger.Trace(cleanupLogMessage(l.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(l.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (l *LDAPAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     LDAPAuthTestMethod,
-		pathPrefix: l.pathPrefix,
-	}
 }
 
 func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
@@ -153,11 +125,9 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	authPath := mountName
 	l.logger = targetLogger.Named(LDAPAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	l.logger.Trace(mountLogMessage("auth", "ldap", authPath))
@@ -171,24 +141,37 @@ func (l *LDAPAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := l.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("ldap auth"))
-	ldapAuthConfig, err := structToMap(l.config.LDAPAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding ldap auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("ldap auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", ldapAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap auth config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", l.config.LDAPAuthMountConfig); err != nil {
+		return nil, err
 	}
 
 	return &LDAPAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		authUser:   l.config.LDAPTestUserConfig.Username,
-		body:       fmt.Appendf(nil, `{"password": "%s"}`, l.config.LDAPTestUserConfig.Password),
+		authUser:   l.config.LDAPAuthUserConfig.Username,
+		body:       fmt.Appendf(nil, `{"password": "%s"}`, l.config.LDAPAuthUserConfig.Password),
 		logger:     l.logger,
 	}, nil
+}
+
+func (l *LDAPAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: LDAPAuthTestMethod,
+		URL:    client.Address() + l.pathPrefix + "/login/" + l.authUser,
+		Header: l.header,
+		Body:   l.body,
+	}
+}
+
+func (l *LDAPAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(l.logger, client, l.pathPrefix)
+}
+
+func (l *LDAPAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     LDAPAuthTestMethod,
+		pathPrefix: l.pathPrefix,
+	}
 }
 
 func (l *LDAPAuth) Flags(fs *flag.FlagSet) {}

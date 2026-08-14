@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
@@ -26,23 +24,23 @@ const (
 )
 
 func init() {
-	TestList[KubeAuthTestType] = func() BenchmarkBuilder { return &KubeAuth{} }
+	TestList[KubeAuthTestType] = func() BenchmarkBuilder { return &KubernetesAuth{} }
 }
 
-type KubeAuth struct {
+type KubernetesAuth struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
-	config     *KubeAuthTestConfig
+	body       []byte
+	config     *KubernetesAuthConfig
 	logger     hclog.Logger
 }
 
-type KubeAuthTestConfig struct {
-	KubeAuthConfig     *KubeAuthConfig     `hcl:"auth,block"`
-	KubeTestRoleConfig *KubeTestRoleConfig `hcl:"role,block"`
+type KubernetesAuthConfig struct {
+	KubernetesAuthMountConfig     *KubernetesAuthMountConfig     `hcl:"auth,block"`
+	KubernetesAuthRoleConfig *KubernetesAuthRoleConfig `hcl:"role,block"`
 }
 
-type KubeAuthConfig struct {
+type KubernetesAuthMountConfig struct {
 	KubernetesHost    string   `hcl:"kubernetes_host"`
 	KubernetesCACert  string   `hcl:"kubernetes_ca_cert,optional"`
 	TokenReviewerJWT  string   `hcl:"token_reviewer_jwt,optional"`
@@ -54,7 +52,7 @@ type KubeAuthConfig struct {
 	Issuer               string `hcl:"issuer,optional"`
 }
 
-type KubeTestRoleConfig struct {
+type KubernetesAuthRoleConfig struct {
 	Name                          string   `hcl:"name"`
 	BoundServiceAccountNames      []string `hcl:"bound_service_account_names"`
 	BoundServiceAccountNamespaces []string `hcl:"bound_service_account_namespaces"`
@@ -71,13 +69,13 @@ type KubeTestRoleConfig struct {
 	TokenType                     string   `hcl:"token_type,optional"`
 }
 
-func (k *KubeAuth) ParseConfig(body hcl.Body) error {
+func (k *KubernetesAuth) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *KubeAuthTestConfig `hcl:"config,block"`
+		Config *KubernetesAuthConfig `hcl:"config,block"`
 	}{
-		Config: &KubeAuthTestConfig{
-			KubeAuthConfig:     &KubeAuthConfig{},
-			KubeTestRoleConfig: &KubeTestRoleConfig{},
+		Config: &KubernetesAuthConfig{
+			KubernetesAuthMountConfig:     &KubernetesAuthMountConfig{},
+			KubernetesAuthRoleConfig: &KubernetesAuthRoleConfig{},
 		},
 	}
 
@@ -89,49 +87,14 @@ func (k *KubeAuth) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (k *KubeAuth) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: KubeAuthTestMethod,
-		URL:    client.Address() + k.pathPrefix + "/login",
-		Header: k.header,
-		Body:   k.body,
-	}
-}
-
-func (k *KubeAuth) Cleanup(client *api.Client) error {
-	k.logger.Trace(cleanupLogMessage(k.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(k.pathPrefix, "/v1/", "/sys/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (k *KubeAuth) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     KubeAuthTestMethod,
-		pathPrefix: k.pathPrefix,
-	}
-}
-
-func readTokenFromFile(filepath string) (string, error) {
-	jwt, err := os.ReadFile(filepath)
-	if err != nil {
-		return "", fmt.Errorf("unable to read file containing service account token: %w", err)
-	}
-	return string(jwt), nil
-}
-
-func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (k *KubernetesAuth) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	authPath := mountName
 	k.logger = targetLogger.Named(KubeAuthTestType)
 
-	if topLevelConfig.RandomMounts {
-		authPath, err = uuid.GenerateUUID()
-		if err != nil {
-			return nil, fmt.Errorf("can't generate UUID for mount name: %v", err)
-		}
+	authPath, err = resolveMountPath(authPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	k.logger.Trace(mountLogMessage("auth", "kubernetes", authPath))
@@ -144,27 +107,13 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 	setupLogger := k.logger.Named(authPath)
 
 	setupLogger.Trace(parsingConfigLogMessage("kubernetes auth"))
-	kubeAuthConfig, err := structToMap(k.config.KubeAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing kubernetes auth config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("kubernetes auth config"))
-	_, err = client.Logical().Write("auth/"+authPath+"/config", kubeAuthConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing Kubernetes config: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/config", k.config.KubernetesAuthMountConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	kubeRoleConfig, err := structToMap(k.config.KubeTestRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	setupLogger.Trace(writingLogMessage("role"), "name", k.config.KubeTestRoleConfig.Name)
-	_, err = client.Logical().Write("auth/"+authPath+"/role/"+k.config.KubeTestRoleConfig.Name, kubeRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error writing Kubernetes role: %v", err)
+	if err := writeStruct(client, "auth/"+authPath+"/role/"+k.config.KubernetesAuthRoleConfig.Name, k.config.KubernetesAuthRoleConfig); err != nil {
+		return nil, err
 	}
 
 	setupLogger.Trace("reading default service account token from file")
@@ -173,16 +122,41 @@ func (k *KubeAuth) Setup(client *api.Client, mountName string, topLevelConfig *T
 		return nil, err
 	}
 
-	return &KubeAuth{
+	return &KubernetesAuth{
 		header:     generateHeader(client),
 		pathPrefix: "/v1/" + filepath.Join("auth", authPath),
-		// TODO: projected service account tokens rotate (default 1h in most clusters).
-		// Benchmarks longer than the token TTL will silently accumulate 401s. Apply the
-		// cachedBody refresh pattern from target_auth_aws.go; refresh would re-read from
-		// DefaultServiceAccountTokenPath (kubelet rotates the file in place).
-		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubeTestRoleConfig.Name, jwt),
+		// TODO: service account tokens rotate (~1h); long benchmarks accumulate 401s. Apply cachedBody refresh, re-reading DefaultServiceAccountTokenPath.
+		body:       fmt.Appendf(nil, `{"role": "%s", "jwt": "%s"}`, k.config.KubernetesAuthRoleConfig.Name, jwt),
 		logger:     k.logger,
 	}, nil
 }
 
-func (k *KubeAuth) Flags(fs *flag.FlagSet) {}
+func (k *KubernetesAuth) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: KubeAuthTestMethod,
+		URL:    client.Address() + k.pathPrefix + "/login",
+		Header: k.header,
+		Body:   k.body,
+	}
+}
+
+func (k *KubernetesAuth) Cleanup(client *api.Client) error {
+	return cleanupMount(k.logger, client, k.pathPrefix)
+}
+
+func (k *KubernetesAuth) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     KubeAuthTestMethod,
+		pathPrefix: k.pathPrefix,
+	}
+}
+
+func (k *KubernetesAuth) Flags(fs *flag.FlagSet) {}
+
+func readTokenFromFile(filepath string) (string, error) {
+	jwt, err := os.ReadFile(filepath)
+	if err != nil {
+		return "", fmt.Errorf("unable to read file containing service account token: %w", err)
+	}
+	return string(jwt), nil
+}

@@ -6,20 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	NomadSecretTestType   = "nomad_secret"
 	NomadSecretTestMethod = "GET"
@@ -27,19 +23,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[NomadSecretTestType] = func() BenchmarkBuilder { return &NomadTest{} }
+	TestList[NomadSecretTestType] = func() BenchmarkBuilder { return &NomadSecret{} }
 }
 
-type NomadTest struct {
+type NomadSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *NomadSecretTestConfig
+	config     *NomadSecretConfig
 	logger     hclog.Logger
 }
 
-type NomadSecretTestConfig struct {
+type NomadSecretConfig struct {
 	NomadConfig     *NomadConfig     `hcl:"nomad,block"`
 	NomadRoleConfig *NomadRoleConfig `hcl:"role,block"`
 }
@@ -60,11 +55,11 @@ type NomadRoleConfig struct {
 	Type     string   `hcl:"type,optional"`
 }
 
-func (c *NomadTest) ParseConfig(body hcl.Body) error {
+func (c *NomadSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *NomadSecretTestConfig `hcl:"config,block"`
+		Config *NomadSecretConfig `hcl:"config,block"`
 	}{
-		Config: &NomadSecretTestConfig{
+		Config: &NomadSecretConfig{
 			NomadConfig: &NomadConfig{
 				Token: os.Getenv(NomadTokenEnvVar),
 			},
@@ -80,48 +75,21 @@ func (c *NomadTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 
-	// Ensure that the token has been set by either the environment variable or the config
 	if c.config.NomadConfig.Token == "" {
 		return fmt.Errorf("nomad token must be set")
 	}
 	return nil
 }
 
-func (c *NomadTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
-	}
-}
-
-func (c *NomadTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (c *NomadTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     NomadSecretTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
-func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *NomadSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	config := c.config
 	c.logger = targetLogger.Named(NomadSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "nomad", secretPath))
@@ -134,35 +102,17 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode Nomad Config
 	setupLogger.Trace(parsingConfigLogMessage("nomad"))
-	nomadConfigData, err := structToMap(config.NomadConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing nomad config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config/access", config.NomadConfig); err != nil {
+		return nil, err
 	}
 
-	// Write Nomad config
-	setupLogger.Trace(writingLogMessage("nomad config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", nomadConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing nomad config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	nomadRoleConfigData, err := structToMap(config.NomadRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/role/"+config.NomadRoleConfig.Name, config.NomadRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("nomad role"), "name", config.NomadRoleConfig.Name)
-	_, err = client.Logical().Write(secretPath+"/role/"+config.NomadRoleConfig.Name, nomadRoleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing nomad role: %v", err)
-	}
-
-	return &NomadTest{
+	return &NomadSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   config.NomadRoleConfig.Name,
@@ -170,4 +120,23 @@ func (c *NomadTest) Setup(client *api.Client, mountName string, topLevelConfig *
 	}, nil
 }
 
-func (c *NomadTest) Flags(fs *flag.FlagSet) {}
+func (c *NomadSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: NomadSecretTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *NomadSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(c.logger, client, c.pathPrefix)
+}
+
+func (c *NomadSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     NomadSecretTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
+}
+
+func (c *NomadSecret) Flags(fs *flag.FlagSet) {}

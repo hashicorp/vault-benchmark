@@ -8,10 +8,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-uuid"
@@ -30,34 +28,43 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "sign"} }
-	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "verify"} }
-	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "encrypt"} }
-	TestList[TransitDecryptSecretTestType] = func() BenchmarkBuilder { return &TransitTest{action: "decrypt"} }
+	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder {
+		return &TransitSecret{action: "sign", typeKey: TransitSignSecretTestType}
+	}
+	TestList[TransitVerifySecretTestType] = func() BenchmarkBuilder {
+		return &TransitSecret{action: "verify", typeKey: TransitVerifySecretTestType}
+	}
+	TestList[TransitEncryptSecretTestType] = func() BenchmarkBuilder {
+		return &TransitSecret{action: "encrypt", typeKey: TransitEncryptSecretTestType}
+	}
+	TestList[TransitDecryptSecretTestType] = func() BenchmarkBuilder {
+		return &TransitSecret{action: "decrypt", typeKey: TransitDecryptSecretTestType}
+	}
 }
 
-type TransitTest struct {
-	action     string
+type TransitSecret struct {
 	pathPrefix string
-	body       []byte
 	header     http.Header
-	config     *TransitTestConfig
+	body       []byte
+	action     string
+	typeKey    string
+	mountPath  string
+	config     *TransitSecretConfig
 	logger     hclog.Logger
 }
 
-type TransitTestConfig struct {
+type TransitSecretConfig struct {
 	PayloadLen           int                   `hcl:"payload_len,optional"`
 	ContextLen           int                   `hcl:"context_len,optional"`
-	TransitConfigKeys    *TransitConfigKeys    `hcl:"keys,block"`
-	TransitConfigSign    *TransitConfigSign    `hcl:"sign,block"`
-	TransitConfigVerify  *TransitConfigVerify  `hcl:"verify,block"`
-	TransitConfigEncrypt *TransitConfigEncrypt `hcl:"encrypt,block"`
-	TransitConfigDecrypt *TransitConfigDecrypt `hcl:"decrypt,block"`
+	TransitKeysConfig    *TransitKeysConfig    `hcl:"keys,block"`
+	TransitSignConfig    *TransitSignConfig    `hcl:"sign,block"`
+	TransitVerifyConfig  *TransitVerifyConfig  `hcl:"verify,block"`
+	TransitEncryptConfig *TransitEncryptConfig `hcl:"encrypt,block"`
+	TransitDecryptConfig *TransitDecryptConfig `hcl:"decrypt,block"`
 }
 
 // /transit/keys/:name
-type TransitConfigKeys struct {
+type TransitKeysConfig struct {
 	Name                 string `hcl:"name,optional"`
 	ConvergentEncryption bool   `hcl:"convergent_encryption,optional"`
 	Derived              bool   `hcl:"derived,optional"`
@@ -69,95 +76,95 @@ type TransitConfigKeys struct {
 	ManagedKeyName       string `hcl:"managed_key_name,optional"`
 	ManagedKeyID         string `hcl:"managed_key_id,optional"`
 	ParameterSet         string `hcl:"parameter_set,optional"`
-    HybridKeyTypeEC      string `hcl:"hybrid_key_type_ec,optional"`
-    HybridKeyTypePQC     string `hcl:"hybrid_key_type_pqc,optional"`
+	HybridKeyTypeEC      string `hcl:"hybrid_key_type_ec,optional"`
+	HybridKeyTypePQC     string `hcl:"hybrid_key_type_pqc,optional"`
 }
 
 // /transit/sign/:name
-type TransitConfigSign struct {
-	Name                string        `hcl:"name,optional"`
-	KeyVersion          int           `hcl:"key_version,optional"`
-	HashAlgorithm       string        `hcl:"hash_algorithm,optional"`
-	Input               string        `hcl:"input,optional"`
-	Reference           string        `hcl:"reference,optional"`
-	BatchInput          []interface{} `hcl:"batch_input,optional"`
-	Context             string        `hcl:"context,optional"`
-	Prehashed           bool          `hcl:"prehashed,optional"`
-	SignatureAlgorithm  string        `hcl:"signature_algorithm,optional"`
-	MarshalingAlgorithm string        `hcl:"marshaling_algorithm,optional"`
-	SaltLength          string        `hcl:"salt_length,optional"`
+type TransitSignConfig struct {
+	Name                string `hcl:"name,optional"`
+	KeyVersion          int    `hcl:"key_version,optional"`
+	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
+	Input               string `hcl:"input,optional"`
+	Reference           string `hcl:"reference,optional"`
+	BatchInput          []any  `hcl:"batch_input,optional"`
+	Context             string `hcl:"context,optional"`
+	Prehashed           bool   `hcl:"prehashed,optional"`
+	SignatureAlgorithm  string `hcl:"signature_algorithm,optional"`
+	MarshalingAlgorithm string `hcl:"marshaling_algorithm,optional"`
+	SaltLength          string `hcl:"salt_length,optional"`
 }
 
 // /transit/verify/:name(/:hash_algorithm)
-type TransitConfigVerify struct {
-	Name                string        `hcl:"name,optional"`
-	HashAlgorithm       string        `hcl:"hash_algorithm,optional"`
-	Input               string        `hcl:"input,optional"`
-	Signature           string        `hcl:"signature,optional"`
-	HMAC                string        `hcl:"hmac,optional"`
-	Reference           string        `hcl:"reference,optional"`
-	BatchInput          []interface{} `hcl:"batch_input,optional"`
-	Context             string        `hcl:"context,optional"`
-	Prehashed           bool          `hcl:"prehashed,optional"`
-	SignatureAlgorithm  string        `hcl:"signature_algorithm,optional"`
-	MarshalingAlgorithm string        `hcl:"marshaling_algorithm,optional"`
-	SaltLength          string        `hcl:"salt_length,optional"`
+type TransitVerifyConfig struct {
+	Name                string `hcl:"name,optional"`
+	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
+	Input               string `hcl:"input,optional"`
+	Signature           string `hcl:"signature,optional"`
+	HMAC                string `hcl:"hmac,optional"`
+	Reference           string `hcl:"reference,optional"`
+	BatchInput          []any  `hcl:"batch_input,optional"`
+	Context             string `hcl:"context,optional"`
+	Prehashed           bool   `hcl:"prehashed,optional"`
+	SignatureAlgorithm  string `hcl:"signature_algorithm,optional"`
+	MarshalingAlgorithm string `hcl:"marshaling_algorithm,optional"`
+	SaltLength          string `hcl:"salt_length,optional"`
 }
 
 // /transit/encrypt/:name
-type TransitConfigEncrypt struct {
-	Name                       string        `hcl:"name,optional"`
-	Plaintext                  string        `hcl:"plaintext,optional"`
-	AssociatedData             string        `hcl:"associated_data,optional"`
-	Context                    string        `hcl:"context,optional"`
-	KeyVersion                 int           `hcl:"key_version,optional"`
-	Nonce                      string        `hcl:"nonce,optional"`
-	Reference                  string        `hcl:"reference,optional"`
-	BatchInput                 []interface{} `hcl:"batch_input,optional"`
-	Type                       string        `hcl:"type,optional"`
-	ConvergentEncryption       bool          `hcl:"convergent_encryption,optional"`
-	PartialFailureResponseCode int           `hcl:"partial_failure_response_code,optional"`
+type TransitEncryptConfig struct {
+	Name                       string `hcl:"name,optional"`
+	Plaintext                  string `hcl:"plaintext,optional"`
+	AssociatedData             string `hcl:"associated_data,optional"`
+	Context                    string `hcl:"context,optional"`
+	KeyVersion                 int    `hcl:"key_version,optional"`
+	Nonce                      string `hcl:"nonce,optional"`
+	Reference                  string `hcl:"reference,optional"`
+	BatchInput                 []any  `hcl:"batch_input,optional"`
+	Type                       string `hcl:"type,optional"`
+	ConvergentEncryption       bool   `hcl:"convergent_encryption,optional"`
+	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
 }
 
 // /transit/decrypt/:name
-type TransitConfigDecrypt struct {
-	Name                       string        `hcl:"name,optional"`
-	Ciphertext                 string        `hcl:"ciphertext,optional"`
-	AssociatedData             string        `hcl:"associated_data,optional"`
-	Context                    string        `hcl:"context,optional"`
-	Nonce                      string        `hcl:"nonce,optional"`
-	Reference                  string        `hcl:"reference,optional"`
-	BatchInput                 []interface{} `hcl:"batch_input,optional"`
-	PartialFailureResponseCode int           `hcl:"partial_failure_response_code,optional"`
+type TransitDecryptConfig struct {
+	Name                       string `hcl:"name,optional"`
+	Ciphertext                 string `hcl:"ciphertext,optional"`
+	AssociatedData             string `hcl:"associated_data,optional"`
+	Context                    string `hcl:"context,optional"`
+	Nonce                      string `hcl:"nonce,optional"`
+	Reference                  string `hcl:"reference,optional"`
+	BatchInput                 []any  `hcl:"batch_input,optional"`
+	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
 }
 
-func (t *TransitTest) ParseConfig(body hcl.Body) error {
+func (t *TransitSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *TransitTestConfig `hcl:"config,block"`
+		Config *TransitSecretConfig `hcl:"config,block"`
 	}{
-		Config: &TransitTestConfig{
-			TransitConfigKeys: &TransitConfigKeys{
+		Config: &TransitSecretConfig{
+			TransitKeysConfig: &TransitKeysConfig{
 				Name:                 "test",
 				ConvergentEncryption: false,
 				Derived:              false,
 				Type:                 "rsa-2048",
 			},
-			TransitConfigSign: &TransitConfigSign{
+			TransitSignConfig: &TransitSignConfig{
 				Name:                "test",
 				HashAlgorithm:       "sha2-256",
 				SignatureAlgorithm:  "pss",
 				MarshalingAlgorithm: "asn1",
 			},
-			TransitConfigVerify: &TransitConfigVerify{
+			TransitVerifyConfig: &TransitVerifyConfig{
 				Name:                "test",
 				HashAlgorithm:       "sha2-256",
 				SignatureAlgorithm:  "pss",
 				MarshalingAlgorithm: "asn1",
 			},
-			TransitConfigEncrypt: &TransitConfigEncrypt{
+			TransitEncryptConfig: &TransitEncryptConfig{
 				Name: "test",
 			},
-			TransitConfigDecrypt: &TransitConfigDecrypt{
+			TransitDecryptConfig: &TransitDecryptConfig{
 				Name: "test",
 			},
 			PayloadLen: 128,
@@ -174,50 +181,14 @@ func (t *TransitTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *TransitTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: TransitSecretTestMethod,
-		URL:    client.Address() + t.pathPrefix,
-		Body:   t.body,
-		Header: t.header,
-	}
-}
-
-func (t *TransitTest) Cleanup(client *api.Client) error {
-	parts := strings.Split(t.pathPrefix, "/")
-	t.logger.Trace(cleanupLogMessage(parts[2]))
-	_, err := client.Logical().Delete(fmt.Sprintf("/sys/mounts/%s", parts[2]))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (t *TransitTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     TransitSecretTestMethod,
-		pathPrefix: t.pathPrefix,
-	}
-}
-func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *TransitSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
-	switch t.action {
-	case "sign":
-		t.logger = targetLogger.Named(TransitSignSecretTestType)
-	case "verify":
-		t.logger = targetLogger.Named(TransitVerifySecretTestType)
-	case "encrypt":
-		t.logger = targetLogger.Named(TransitEncryptSecretTestType)
-	case "decrypt":
-		t.logger = targetLogger.Named(TransitDecryptSecretTestType)
-	}
+	t.logger = targetLogger.Named(t.typeKey)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	t.logger.Trace(mountLogMessage("secrets", "transit", secretPath))
@@ -232,20 +203,18 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}
 
 	setupLogger := t.logger.Named(secretPath)
-	// Generate Keys for testing
 	setupLogger.Trace(parsingConfigLogMessage("transit key"))
-	keysConfigData, err := structToMap(t.config.TransitConfigKeys)
+	keysConfigData, err := structToMap(t.config.TransitKeysConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing transit key config from struct: %v", err)
 	}
 
-	setupLogger.Trace(writingLogMessage("key config"), "name", t.config.TransitConfigKeys.Name)
-	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", t.config.TransitConfigKeys.Name), keysConfigData)
+	setupLogger.Trace(writingLogMessage("key config"), "name", t.config.TransitKeysConfig.Name)
+	_, err = client.Logical().Write(filepath.Join(secretPath, "keys", t.config.TransitKeysConfig.Name), keysConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing transit key config: %v", err)
 	}
 
-	// Generate our payload and context
 	setupLogger.Trace("generating test payload and context")
 	rawPayload, err := uuid.GenerateRandomBytes(t.config.PayloadLen)
 	if err != nil {
@@ -259,139 +228,101 @@ func (t *TransitTest) Setup(client *api.Client, mountName string, topLevelConfig
 	}
 	base64Context := base64.StdEncoding.EncodeToString(rawContext)
 
-	// Now dispatch the operation.
 	switch t.action {
 	case "sign":
-		secretPath = filepath.Join(secretPath, "sign", t.config.TransitConfigSign.Name)
-		setupLogger.Trace(parsingConfigLogMessage("sign"))
-		signConfigData, err := structToMap(t.config.TransitConfigSign)
+		signConfigData, err := structToMap(t.config.TransitSignConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing sign config from struct: %v", err)
 		}
-
-		signingDataString, err := json.Marshal(signConfigData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling signing config data: %v", err)
-		}
-
-		return &TransitTest{
-			pathPrefix: "/v1/" + secretPath,
-			header:     generateHeader(client),
-			body:       []byte(signingDataString),
-			logger:     t.logger,
-		}, nil
+		return t.buildResult(client, secretPath, "sign", t.config.TransitSignConfig.Name, signConfigData)
 
 	case "verify":
-		setupLogger.Trace(parsingConfigLogMessage("transit verify"))
-		signData, err := structToMap(t.config.TransitConfigVerify)
+		signData, err := structToMap(t.config.TransitVerifyConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit verify config from struct: %v", err)
 		}
-		verifyPath := filepath.Join(secretPath, "verify", t.config.TransitConfigVerify.Name)
-
-		// Sign the payload first
-		setupLogger.Trace("signing payload")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitConfigVerify.Name), signData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "sign", t.config.TransitVerifyConfig.Name), signData)
 		if err != nil {
 			return nil, fmt.Errorf("error signing payload: %v", err)
 		}
-
 		if resp == nil || len(resp.Data["signature"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to sign payload: no response or invalid signature: %v", resp)
 		}
-		t.config.TransitConfigVerify.Signature = resp.Data["signature"].(string)
-
-		setupLogger.Trace(parsingConfigLogMessage("transit verify"))
-		verifyData, err := structToMap(t.config.TransitConfigVerify)
+		t.config.TransitVerifyConfig.Signature = resp.Data["signature"].(string)
+		verifyData, err := structToMap(t.config.TransitVerifyConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit verify config from struct: %v", err)
 		}
-
-		verifyDataString, err := json.Marshal(verifyData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling transit verify data: %v", err)
-		}
-
-		return &TransitTest{
-			pathPrefix: "/v1/" + verifyPath,
-			header:     generateHeader(client),
-			body:       []byte(verifyDataString),
-			logger:     t.logger,
-		}, nil
+		return t.buildResult(client, secretPath, "verify", t.config.TransitVerifyConfig.Name, verifyData)
 
 	case "encrypt":
-		if t.config.TransitConfigKeys.Derived {
-			t.config.TransitConfigEncrypt.Context = base64Context
+		if t.config.TransitKeysConfig.Derived {
+			t.config.TransitEncryptConfig.Context = base64Context
 		}
-		t.config.TransitConfigEncrypt.Plaintext = base64Payload
-
-		setupLogger.Trace(parsingConfigLogMessage("transit encrypt"))
-		encryptData, err := structToMap(t.config.TransitConfigEncrypt)
+		t.config.TransitEncryptConfig.Plaintext = base64Payload
+		encryptData, err := structToMap(t.config.TransitEncryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit encrypt config from struct: %v", err)
 		}
-
-		encryptDataString, err := json.Marshal(encryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling transit encrypt data: %v", err)
-		}
-
-		encryptPath := filepath.Join(secretPath, "encrypt", t.config.TransitConfigEncrypt.Name)
-		return &TransitTest{
-			pathPrefix: "/v1/" + encryptPath,
-			header:     generateHeader(client),
-			body:       []byte(encryptDataString),
-			logger:     t.logger,
-		}, nil
+		return t.buildResult(client, secretPath, "encrypt", t.config.TransitEncryptConfig.Name, encryptData)
 
 	case "decrypt":
-		// Encrypt test payload
-		testEncryptData := map[string]interface{}{
-			"plaintext": base64Payload,
+		seedData := map[string]any{"plaintext": base64Payload}
+		if t.config.TransitKeysConfig.Derived {
+			t.config.TransitDecryptConfig.Context = base64Context
+			seedData["context"] = base64Context
 		}
-
-		if t.config.TransitConfigKeys.Derived {
-			t.config.TransitConfigDecrypt.Context = base64Context
-			testEncryptData["context"] = base64Context
-		}
-
-		setupLogger.Trace("encrypting payload")
-		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", t.config.TransitConfigDecrypt.Name), testEncryptData)
+		resp, err := client.Logical().Write(filepath.Join(secretPath, "encrypt", t.config.TransitDecryptConfig.Name), seedData)
 		if err != nil {
 			return nil, fmt.Errorf("error encrypting payload: %v", err)
 		}
-
 		if resp == nil || resp.Data["ciphertext"] == nil || len(resp.Data["ciphertext"].(string)) == 0 {
 			return nil, fmt.Errorf("unable to encrypt payload: no response or invalid ciphertext: %v", resp)
 		}
-
-		t.config.TransitConfigDecrypt.Ciphertext = resp.Data["ciphertext"].(string)
-
-		// Prepare for decryption
-		decryptPath := filepath.Join(secretPath, "decrypt", t.config.TransitConfigDecrypt.Name)
-
-		setupLogger.Trace(parsingConfigLogMessage("transit decrypt"))
-		decryptData, err := structToMap(t.config.TransitConfigDecrypt)
+		t.config.TransitDecryptConfig.Ciphertext = resp.Data["ciphertext"].(string)
+		decryptData, err := structToMap(t.config.TransitDecryptConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing transit decrypt config: %v", err)
 		}
-
-		decryptDataString, err := json.Marshal(decryptData)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling transit decrypt data: %v", err)
-		}
-
-		// Now decrypt it
-		return &TransitTest{
-			pathPrefix: "/v1/" + decryptPath,
-			header:     generateHeader(client),
-			body:       []byte(decryptDataString),
-			logger:     t.logger,
-		}, nil
+		return t.buildResult(client, secretPath, "decrypt", t.config.TransitDecryptConfig.Name, decryptData)
 
 	default:
 		return nil, fmt.Errorf("unknown or unsupported transit operation: %v", t.action)
 	}
 }
 
-func (t *TransitTest) Flags(fs *flag.FlagSet) {}
+func (t *TransitSecret) buildResult(client *api.Client, secretPath, action, keyName string, configData map[string]any) (BenchmarkBuilder, error) {
+	body, err := json.Marshal(configData)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling transit %s data: %v", action, err)
+	}
+	return &TransitSecret{
+		pathPrefix: "/v1/" + filepath.Join(secretPath, action, keyName),
+		mountPath:  "/v1/" + secretPath,
+		header:     generateHeader(client),
+		body:       body,
+		logger:     t.logger,
+	}, nil
+}
+
+func (t *TransitSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: TransitSecretTestMethod,
+		URL:    client.Address() + t.pathPrefix,
+		Body:   t.body,
+		Header: t.header,
+	}
+}
+
+func (t *TransitSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(t.logger, client, t.mountPath)
+}
+
+func (t *TransitSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     TransitSecretTestMethod,
+		pathPrefix: t.pathPrefix,
+	}
+}
+
+func (t *TransitSecret) Flags(fs *flag.FlagSet) {}

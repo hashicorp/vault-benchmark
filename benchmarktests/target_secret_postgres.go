@@ -6,21 +6,17 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	PostgreSQLSecretTestType   = "postgresql_secret"
 	PostgreSQLSecretTestMethod = "GET"
@@ -29,26 +25,22 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[PostgreSQLSecretTestType] = func() BenchmarkBuilder { return &PostgreSQLSecret{} }
 }
 
-// Postgres Secret Test Struct
 type PostgreSQLSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
-	config     *PostgreSQLSecretTestConfig
+	roleName   string
+	config     *PostgreSQLSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type PostgreSQLSecretTestConfig struct {
+type PostgreSQLSecretConfig struct {
 	PostgreSQLDBConfig   *PostgreSQLDBConfig   `hcl:"db_connection,block"`
 	PostgreSQLRoleConfig *PostgreSQLRoleConfig `hcl:"role,block"`
 }
 
-// PostgreSQL DB Config
 type PostgreSQLDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -67,7 +59,6 @@ type PostgreSQLDBConfig struct {
 	DisableEscaping        bool     `hcl:"disable_escaping,optional"`
 }
 
-// PostgreSQL Role Config
 type PostgreSQLRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -80,15 +71,12 @@ type PostgreSQLRoleConfig struct {
 	RotationStatements   string `hcl:"rotation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
+
 func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
-		Config *PostgreSQLSecretTestConfig `hcl:"config,block"`
+		Config *PostgreSQLSecretConfig `hcl:"config,block"`
 	}{
-		Config: &PostgreSQLSecretTestConfig{
+		Config: &PostgreSQLSecretConfig{
 			PostgreSQLDBConfig: &PostgreSQLDBConfig{
 				Name:         "benchmark-postgres",
 				AllowedRoles: []string{"benchmark-role"},
@@ -120,43 +108,16 @@ func (s *PostgreSQLSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: PostgreSQLSecretTestMethod,
-		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
-		Header: s.header,
-	}
-}
-
-func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
-	s.logger.Trace(cleanupLogMessage(s.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(s.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     PostgreSQLSecretTestMethod,
-		pathPrefix: s.pathPrefix,
-	}
-}
-
 func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	s.logger = targetLogger.Named(PostgreSQLSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Database Secret Mount
 	s.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -167,34 +128,14 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 
 	setupLogger := s.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(s.config.PostgreSQLDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", s.config.PostgreSQLDBConfig.Name), s.config.PostgreSQLDBConfig); err != nil {
+		return nil, err
 	}
 
-	// Set up db
-	setupLogger.Trace(writingLogMessage("postgres db config"), "name", s.config.PostgreSQLDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", s.config.PostgreSQLDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing postgresql db config: %v", err)
-	}
-
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(s.config.PostgreSQLRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	// Create Role
-	setupLogger.Trace(writingLogMessage("postgres role"), "name", s.config.PostgreSQLRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", s.config.PostgreSQLRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing postgresql role %q: %v", s.config.PostgreSQLRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", s.config.PostgreSQLRoleConfig.Name), s.config.PostgreSQLRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &PostgreSQLSecret{
@@ -204,6 +145,25 @@ func (s *PostgreSQLSecret) Setup(client *api.Client, mountName string, topLevelC
 		logger:     s.logger,
 	}, nil
 
+}
+
+func (s *PostgreSQLSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: PostgreSQLSecretTestMethod,
+		URL:    client.Address() + s.pathPrefix + "/creds/" + s.roleName,
+		Header: s.header,
+	}
+}
+
+func (s *PostgreSQLSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(s.logger, client, s.pathPrefix)
+}
+
+func (s *PostgreSQLSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     PostgreSQLSecretTestMethod,
+		pathPrefix: s.pathPrefix,
+	}
 }
 
 func (l *PostgreSQLSecret) Flags(fs *flag.FlagSet) {}

@@ -22,7 +22,6 @@ func objectName(mountName, typ, runID string, idx int) string {
 	return mountName + "-" + typ + "-" + runID + "-" + strconv.Itoa(idx)
 }
 
-// userpassSlotMountPath returns the mount path for alias slot a.
 // Slot 0 is the login mount (username == alias name); slots 1..N are bloat-only.
 func userpassSlotMountPath(runID string, slot int) string {
 	if slot == 0 {
@@ -31,8 +30,6 @@ func userpassSlotMountPath(runID string, slot int) string {
 	return userpassMountBase + "-" + runID + "-" + strconv.Itoa(slot)
 }
 
-// enableUserpassMounts enables `count` userpass mounts (one per alias slot) and
-// returns their accessors in slot order.  Slot 0 is always the login mount.
 func enableUserpassMounts(client *api.Client, runID string, count int) ([]string, error) {
 	accessors := make([]string, count)
 	for slot := range count {
@@ -42,7 +39,6 @@ func enableUserpassMounts(client *api.Client, runID string, count int) ([]string
 		}
 	}
 
-	// One ListAuth call to resolve all accessors at once.
 	mounts, err := client.Sys().ListAuth()
 	if err != nil {
 		return nil, fmt.Errorf("error listing auth mounts: %w", err)
@@ -122,10 +118,8 @@ func idFromResponse(resp *api.Secret) (string, error) {
 	return id, nil
 }
 
-// selectGroupMembers returns groupSize entity ids for groupIndex using
-// wraparound so membership is deterministic across any entity count.
-// Returns a sub-slice when the window fits without wrapping (zero copy);
-// allocates only when the window wraps past the end of entityIDs.
+// Wraparound so membership is deterministic across any entity count.
+// Returns a sub-slice when the window fits without wrapping (zero copy).
 func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string {
 	n := len(entityIDs)
 	start := (groupIndex * groupSize) % n
@@ -139,10 +133,8 @@ func selectGroupMembers(entityIDs []string, groupIndex, groupSize int) []string 
 	return members
 }
 
-// selectPolicyNames returns polSize policy names for entityIndex using
-// wraparound so assignment is deterministic across any policy count.
-// Returns a sub-slice when the window fits without wrapping (zero copy);
-// allocates only when the window wraps past the end of policyNames.
+// Wraparound so assignment is deterministic across any policy count.
+// Returns a sub-slice when the window fits without wrapping (zero copy).
 func selectPolicyNames(policyNames []string, entityIndex, polSize int) []string {
 	n := len(policyNames)
 	start := (entityIndex * polSize) % n
@@ -156,7 +148,7 @@ func selectPolicyNames(policyNames []string, entityIndex, polSize int) []string 
 	return selected
 }
 
-// parseGroups resolves the group allocation into (filled, size):
+// parseGroups preset semantics:
 //
 //	balanced (default): ~entity_count/group_count members per group
 //	empty             : no members
@@ -195,7 +187,7 @@ func parseGroups(g *GroupConfig, groupCount, entityCount int) (filled, size int,
 	}
 }
 
-// parseAliases resolves the alias allocation into (filled, size):
+// parseAliases preset semantics:
 //
 //	balanced (default): ~alias_count/entity_count aliases per entity
 //	empty             : no aliases
@@ -234,7 +226,7 @@ func parseAliases(a *AliasesConfig, aliasCount, entityCount int) (filled, size i
 	}
 }
 
-// parsePolicies resolves the policy allocation into (filled, size):
+// parsePolicies preset semantics:
 //
 //	balanced (default): ~policy_count/entity_count policies per entity
 //	empty             : no policies
@@ -283,3 +275,4 @@ func configureAttack(cfg *IdentityConfig, runID string) (method, pathPrefix stri
 		return http.MethodGet, identityNoWorkloadPath
 	}
 }
+

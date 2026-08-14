@@ -6,21 +6,17 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	HanaDBSecretTestType   = "hanadb_secret"
 	HanaDBSecretTestMethod = "GET"
@@ -29,26 +25,22 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[HanaDBSecretTestType] = func() BenchmarkBuilder { return &HanaDBSecret{} }
 }
 
-// HanaDB Secret Test Struct
 type HanaDBSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
-	config     *HanaDBSecretTestConfig
+	roleName   string
+	config     *HanaDBSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type HanaDBSecretTestConfig struct {
+type HanaDBSecretConfig struct {
 	HanaDBDBConfig   *HanaDBDBConfig   `hcl:"db_connection,block"`
 	HanaDBRoleConfig *HanaDBRoleConfig `hcl:"role,block"`
 }
 
-// HanaDB DB Config
 type HanaDBDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -71,7 +63,6 @@ type HanaDBDBConfig struct {
 	TLSSkipVerify          bool     `hcl:"tls_skip_verify,optional"`
 }
 
-// HanaDB Role Config
 type HanaDBRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -81,15 +72,11 @@ type HanaDBRoleConfig struct {
 	RevocationStatements string `hcl:"revocation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (m *HanaDBSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
-		Config *HanaDBSecretTestConfig `hcl:"config,block"`
+		Config *HanaDBSecretConfig `hcl:"config,block"`
 	}{
-		Config: &HanaDBSecretTestConfig{
+		Config: &HanaDBSecretConfig{
 			HanaDBDBConfig: &HanaDBDBConfig{
 				Name:         "benchmark-hanadb",
 				AllowedRoles: []string{"benchmark-role"},
@@ -122,43 +109,16 @@ func (m *HanaDBSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *HanaDBSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: HanaDBSecretTestMethod,
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *HanaDBSecret) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *HanaDBSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     HanaDBSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
-}
-
 func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(HanaDBSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Database Secret Mount
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -169,34 +129,14 @@ func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfi
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(m.config.HanaDBDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", m.config.HanaDBDBConfig.Name), m.config.HanaDBDBConfig); err != nil {
+		return nil, err
 	}
 
-	// Set up db
-	setupLogger.Trace(writingLogMessage("hanadb config"), "name", m.config.HanaDBDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", m.config.HanaDBDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing hanadb config: %v", err)
-	}
-
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(m.config.HanaDBRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	// Create Role
-	setupLogger.Trace(writingLogMessage("hanadb role"), "name", m.config.HanaDBRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", m.config.HanaDBRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing hanadb role %q: %v", m.config.HanaDBRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", m.config.HanaDBRoleConfig.Name), m.config.HanaDBRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &HanaDBSecret{
@@ -205,6 +145,25 @@ func (m *HanaDBSecret) Setup(client *api.Client, mountName string, topLevelConfi
 		roleName:   m.config.HanaDBRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
+}
+
+func (m *HanaDBSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: HanaDBSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *HanaDBSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(m.logger, client, m.pathPrefix)
+}
+
+func (m *HanaDBSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     HanaDBSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
 }
 
 func (m *HanaDBSecret) Flags(fs *flag.FlagSet) {}

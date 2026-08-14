@@ -3,10 +3,14 @@
 
 package benchmarktests
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
 
-// mountLogMessage returns a common formatted log message to be emitted
-// when creating a new Auth method or Secret Engine mount
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/vault/api"
+)
+
 func mountLogMessage(mountType string, methodOrEngineType string, path string) string {
 	switch mountType {
 	case "auth":
@@ -20,22 +24,31 @@ func mountLogMessage(mountType string, methodOrEngineType string, path string) s
 	}
 }
 
-// cleanupLogMessage provides a common formatted log message to be
-// emitted when running a cleanup for a benchmark test
 func cleanupLogMessage(pathPrefix string) string {
 	return fmt.Sprintf("unmounting: path=%v", pathPrefix)
 }
 
-// parsingConfigLogMessage provides a common formatted log message to
-// be emitted when parsing configuration from a struct to a map for use
-// in an API request
 func parsingConfigLogMessage(configType string) string {
 	return fmt.Sprintf("parsing %v config data", configType)
 }
 
-// writingLogMessage provides a common formatted log message to be
-// emitted when issuing a logical write API call to a specific kind
-// of resource
 func writingLogMessage(kind string) string {
 	return fmt.Sprintf("writing %v", kind)
+}
+
+// cleanupMount deletes the Vault mount backing pathPrefix.
+// Auth mounts ("/v1/auth/<name>") map to "/sys/auth/<name>";
+// all other mounts ("/v1/<name>") map to "/sys/mounts/<name>".
+func cleanupMount(logger hclog.Logger, client *api.Client, pathPrefix string) error {
+	logger.Trace(cleanupLogMessage(pathPrefix))
+	var sysPath string
+	if strings.HasPrefix(pathPrefix, "/v1/auth/") {
+		sysPath = strings.Replace(pathPrefix, "/v1/", "/sys/", 1)
+	} else {
+		sysPath = strings.Replace(pathPrefix, "/v1/", "/sys/mounts/", 1)
+	}
+	if _, err := client.Logical().Delete(sysPath); err != nil {
+		return fmt.Errorf("error cleaning up mount: %v", err)
+	}
+	return nil
 }

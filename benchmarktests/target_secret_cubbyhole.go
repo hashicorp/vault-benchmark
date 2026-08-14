@@ -6,7 +6,6 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/hashicorp/go-hclog"
@@ -27,36 +26,35 @@ const (
 )
 
 func init() {
-	// "Register" these tests to the main test registry
 	TestList[CubbyholeSecretReadTestType] = func() BenchmarkBuilder {
-		return &CubbyholeTest{action: "read"}
+		return &CubbyholeSecret{action: "read"}
 	}
 	TestList[CubbyholeSecretWriteTestType] = func() BenchmarkBuilder {
-		return &CubbyholeTest{action: "write"}
+		return &CubbyholeSecret{action: "write"}
 	}
 }
 
-type CubbyholeTest struct {
+type CubbyholeSecret struct {
 	pathPrefix string
-	secretPath string
 	header     http.Header
-	config     *CubbyholeSecretTestConfig
+	body       []byte
+	method     string
+	targetURL  string
 	action     string
+	config     *CubbyholeSecretConfig
 	logger     hclog.Logger
-	baseURL    string
+	secretPath string
 }
 
-type CubbyholeSecretTestConfig struct {
+type CubbyholeSecretConfig struct {
 	Path string `hcl:"path"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
-	// provide defaults
+func (c *CubbyholeSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *CubbyholeSecretTestConfig `hcl:"config,block"`
+		Config *CubbyholeSecretConfig `hcl:"config,block"`
 	}{
-		Config: &CubbyholeSecretTestConfig{
+		Config: &CubbyholeSecretConfig{
 			Path: DefaultSecretPath,
 		},
 	}
@@ -67,109 +65,79 @@ func (c *CubbyholeTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 	if c.config.Path == "" {
-		c.config.Path = DefaultSecretPath // Set default if empty instead of error
+		c.config.Path = DefaultSecretPath
 	}
 	return nil
 }
 
-func (c *CubbyholeTest) read() vegeta.Target {
-	return vegeta.Target{
-		Method: CubbyholeSecretReadTestMethod,
-		URL:    c.baseURL,
-		Header: c.header,
-	}
-}
-
-func (c *CubbyholeTest) write() vegeta.Target {
-	return vegeta.Target{
-		Method: CubbyholeSecretWriteTestMethod,
-		URL:    c.baseURL,
-		Body:   []byte(`{"foo": "bar"}`),
-		Header: c.header,
-	}
-}
-
-func (c *CubbyholeTest) Target(client *api.Client) vegeta.Target {
-	switch c.action {
-	case "write":
-		return c.write()
-	default:
-		return c.read()
-	}
-}
-
-func (c *CubbyholeTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	// Cubbyhole secrets are automatically cleaned up when token is revoked
-	// But we can explicitly delete the secret if needed
-	_, err := client.Logical().Delete(fmt.Sprintf("cubbyhole/%s", c.config.Path))
-	if err != nil {
-		return fmt.Errorf("error cleaning up cubbyhole secret: %v", err)
-	}
-	return nil
-}
-
-func (c *CubbyholeTest) GetTargetInfo() TargetInfo {
-	var method string
-	switch c.action {
-	case "write":
-		method = CubbyholeSecretWriteTestMethod
-	default:
-		method = CubbyholeSecretReadTestMethod
-	}
-	return TargetInfo{
-		method:     method,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
-func (c *CubbyholeTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *CubbyholeSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	switch c.action {
 	case "write":
 		c.logger = targetLogger.Named(CubbyholeSecretWriteTestType)
 	default:
 		c.logger = targetLogger.Named(CubbyholeSecretReadTestType)
 	}
-	// Generate a unique secret key if randomization is requested
+
 	secretPath := c.config.Path
 	if topLevelConfig.RandomMounts {
 		randomSuffix, err := uuid.GenerateUUID()
 		if err != nil {
-			log.Fatalf("can't create UUID")
+			return nil, fmt.Errorf("error generating random mount name: %w", err)
 		}
-		secretPath = fmt.Sprintf("%s-%s", c.config.Path, randomSuffix)
+		secretPath = c.config.Path + "-" + randomSuffix
 	}
+
 	setupLogger := c.logger.Named("cubbyhole")
-
-	// Cubbyhole is built-in at /cubbyhole/, no mounting required
-	setupLogger.Trace("Setting up cubbyhole secret")
-
-	// Write secret data to cubbyhole
 	setupLogger.Trace(writingLogMessage("cubbyhole secret"), "key", secretPath)
-	secretDataPath := fmt.Sprintf("cubbyhole/%s", secretPath)
-
-	secretData := map[string]interface{}{
-		"foo": "bar",
-	}
-	_, err := client.Logical().Write(secretDataPath, secretData)
+	_, err := client.Logical().Write("cubbyhole/"+secretPath, map[string]any{"foo": "bar"})
 	if err != nil {
 		return nil, fmt.Errorf("error writing cubbyhole secret: %v", err)
 	}
 
-	// Update the config with the potentially randomized secret key
-	configCopy := *c.config
-	configCopy.Path = secretPath
-	baseURL := fmt.Sprintf("%s%s/%s", client.Address(), CubbyholePathPrefix, secretPath)
+	method := CubbyholeSecretReadTestMethod
+	var body []byte
+	if c.action == "write" {
+		method = CubbyholeSecretWriteTestMethod
+		body = []byte(`{"foo": "bar"}`)
+	}
 
-	return &CubbyholeTest{
+	return &CubbyholeSecret{
 		pathPrefix: CubbyholePathPrefix,
-		header:     http.Header{"X-Vault-Token": []string{client.Token()}, "X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")}},
-		secretPath: "cubbyhole",
-		action:     c.action,
-		config:     &configCopy,
+		header: http.Header{
+			"X-Vault-Token":     []string{client.Token()},
+			"X-Vault-Namespace": []string{client.Headers().Get("X-Vault-Namespace")},
+		},
+		body:       body,
+		method:     method,
+		targetURL:  client.Address() + CubbyholePathPrefix + "/" + secretPath,
 		logger:     c.logger,
-		baseURL:    baseURL,
+		secretPath: secretPath,
 	}, nil
 }
 
-func (c *CubbyholeTest) Flags(fs *flag.FlagSet) {}
+func (c *CubbyholeSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: c.method,
+		URL:    c.targetURL,
+		Body:   c.body,
+		Header: c.header,
+	}
+}
+
+func (c *CubbyholeSecret) Cleanup(client *api.Client) error {
+	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
+	_, err := client.Logical().Delete("cubbyhole/" + c.secretPath)
+	if err != nil {
+		return fmt.Errorf("error cleaning up cubbyhole secret: %v", err)
+	}
+	return nil
+}
+
+func (c *CubbyholeSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     c.method,
+		pathPrefix: c.pathPrefix,
+	}
+}
+
+func (c *CubbyholeSecret) Flags(fs *flag.FlagSet) {}

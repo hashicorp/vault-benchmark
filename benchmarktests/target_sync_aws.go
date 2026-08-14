@@ -32,44 +32,45 @@ const (
 
 func init() {
 	TestList[SyncEvents] = func() BenchmarkBuilder {
-		return &SyncAWSTest{
+		return &AWSSync{
 			target: SyncEvents,
 		}
 	}
 	TestList[SyncAssociationsWrite] = func() BenchmarkBuilder {
-		return &SyncAWSTest{
+		return &AWSSync{
 			target: SyncAssociationsWrite,
 		}
 	}
 	TestList[SyncAssociationsRead] = func() BenchmarkBuilder {
-		return &SyncAWSTest{
+		return &AWSSync{
 			target: SyncAssociationsRead,
 		}
 	}
 }
 
-type SyncAWSTest struct {
-	target string
-	mount  string
+type AWSSync struct {
+	target     string
+	mount      string
+	method     string
+	pathPrefix string
 
-	config *SyncAWSTestConfig
+	config *AWSSyncConfig
 
 	logger hclog.Logger
 }
 
-type SyncAWSTestConfig struct {
+type AWSSyncConfig struct {
 	NumAssociations   int               `hcl:"num_associations,optional"`
 	DestinationType   string            `hcl:"destination_type"`
 	DestinationName   string            `hcl:"destination_name,optional"`
 	DestinationConfig map[string]string `hcl:"destination_config,optional"`
 }
 
-func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
+func (t *AWSSync) ParseConfig(body hcl.Body) error {
 	cfg := &struct {
-		Config *SyncAWSTestConfig `hcl:"config,block"`
+		Config *AWSSyncConfig `hcl:"config,block"`
 	}{
-		// Defaults
-		Config: &SyncAWSTestConfig{
+		Config: &AWSSyncConfig{
 			NumAssociations:   3,
 			DestinationName:   fmt.Sprintf("benchmark-test-%s", uuid.New().String()),
 			DestinationConfig: map[string]string{},
@@ -86,16 +87,13 @@ func (t *SyncAWSTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (t *SyncAWSTest) Flags(_ *flag.FlagSet) {}
-
-func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (t *AWSSync) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	t.logger = targetLogger.Named(t.target)
 
-	// Create test mount
 	if topLevelConfig.RandomMounts {
 		mountName += "-" + uuid.New().String()
 	}
-	
+
 	t.logger.Debug(mountLogMessage("secrets", "kvv2", mountName))
 	err := client.Sys().Mount(mountName, &api.MountInput{
 		Type: "kv",
@@ -107,8 +105,7 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error setupping KVv2 engine: %v", err)
 	}
 
-	// Create 1 secret to sync per association
-	for i := 0; i < t.config.NumAssociations; i++ {
+	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("creating secret on test mount", "mount", mountName, "secret", secretName)
 
@@ -118,7 +115,6 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		}
 	}
 
-	// Create the test destination
 	t.logger.Debug("creating destination", "type", t.config.DestinationType, "name", t.config.DestinationName)
 
 	body := map[string]any{}
@@ -134,9 +130,8 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		return nil, fmt.Errorf("error setupping destination: %w", err)
 	}
 
-	// If test is read or event based, pre-populate the associations
 	if t.target == SyncEvents || t.target == SyncAssociationsRead {
-		for i := 0; i < t.config.NumAssociations; i++ {
+		for i := range t.config.NumAssociations {
 			secretName := fmt.Sprintf(secretNameFormat, i)
 			t.logger.Debug("creating association", "mount", mountName, "secret", secretName)
 
@@ -150,22 +145,52 @@ func (t *SyncAWSTest) Setup(client *api.Client, mountName string, topLevelConfig
 		}
 	}
 
-	return &SyncAWSTest{
-		target: t.target,
-		config: t.config,
-		mount:  mountName,
-		logger: t.logger,
+	method := http.MethodPost
+	if t.target == SyncAssociationsRead {
+		method = http.MethodGet
+	}
+
+	return &AWSSync{
+		target:     t.target,
+		config:     t.config,
+		mount:      mountName,
+		method:     method,
+		pathPrefix: "sys/sync",
+		logger:     t.logger,
 	}, nil
 }
 
-func (t *SyncAWSTest) Cleanup(client *api.Client) error {
+func (t *AWSSync) Target(client *api.Client) vegeta.Target {
+	n := int(rand.Int31n(int32(t.config.NumAssociations)))
+	tgt := vegeta.Target{
+		Method: t.method,
+		URL: fmt.Sprintf("%s/v1/%s/associations/destinations?mount=%s&secret_name=%s",
+			client.Address(), t.pathPrefix, t.mount, fmt.Sprintf(secretNameFormat, n)),
+		Header: http.Header{
+			vaultTokenHeader:     []string{client.Token()},
+			vaultNamespaceHeader: []string{client.Namespace()},
+		},
+	}
+	switch t.target {
+	case SyncEvents:
+		tgt.URL = fmt.Sprintf("%s/v1/%s/data/%s", client.Address(), t.mount, fmt.Sprintf(secretNameFormat, n))
+		tgt.Body = []byte(fmt.Sprintf(`{"data": {"foo": "%s"}}`, time.Now().Format(time.RFC3339)))
+	case SyncAssociationsWrite:
+		tgt.URL = fmt.Sprintf("%s/v1/%s/destinations/%s/%s/associations/set",
+			client.Address(), t.pathPrefix, t.config.DestinationType, t.config.DestinationName)
+		tgt.Body = []byte(fmt.Sprintf(`{"mount": "%s", "secret_name": "%s"}`, t.mount, fmt.Sprintf(secretNameFormat, n)))
+	}
+	return tgt
+}
+
+func (t *AWSSync) Cleanup(client *api.Client) error {
 	// Delete associations
-	for i := 0; i < t.config.NumAssociations; i++ {
+	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("deleting association for test secret", "mount", t.mount, "secret", secretName)
 
 		_, err := client.Logical().Write(
-			fmt.Sprintf("/%s/destinations/%s/%s/associations/remove", t.GetTargetInfo().pathPrefix, t.config.DestinationType, t.config.DestinationName),
+			fmt.Sprintf("/%s/destinations/%s/%s/associations/remove", t.pathPrefix, t.config.DestinationType, t.config.DestinationName),
 			map[string]any{"mount": t.mount, "secret_name": secretName},
 		)
 		if err != nil {
@@ -176,14 +201,14 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 	// Delete destination
 	t.logger.Debug("deleting destination", "type", t.config.DestinationType, "name", t.config.DestinationName)
 	_, err := client.Logical().Delete(
-		fmt.Sprintf("/%s/destinations/%s/%s", t.GetTargetInfo().pathPrefix, t.config.DestinationType, t.config.DestinationName),
+		fmt.Sprintf("/%s/destinations/%s/%s", t.pathPrefix, t.config.DestinationType, t.config.DestinationName),
 	)
 	if err != nil {
 		t.logger.Error("failed to clean destination", "type", t.config.DestinationType, "name", t.config.DestinationName, "error", err)
 	}
 
 	// Delete secrets
-	for i := 0; i < t.config.NumAssociations; i++ {
+	for i := range t.config.NumAssociations {
 		secretName := fmt.Sprintf(secretNameFormat, i)
 		t.logger.Debug("deleting test secret", "mount", t.mount, "secret", secretName)
 
@@ -193,7 +218,6 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 		}
 	}
 
-	// Unmount KVv2 engine
 	t.logger.Debug("deleting test engine", "mount", t.mount)
 	err = client.Sys().Unmount(t.mount)
 	if err != nil {
@@ -203,89 +227,11 @@ func (t *SyncAWSTest) Cleanup(client *api.Client) error {
 	return nil
 }
 
-func (t *SyncAWSTest) GetTargetInfo() TargetInfo {
-	var method string
-	switch t.target {
-	case SyncAssociationsRead:
-		method = http.MethodGet
-	default:
-		method = http.MethodPost
-	}
-
+func (t *AWSSync) GetTargetInfo() TargetInfo {
 	return TargetInfo{
-		method:     method,
-		pathPrefix: "sys/sync",
+		method:     t.method,
+		pathPrefix: t.pathPrefix,
 	}
 }
 
-func (t *SyncAWSTest) Target(client *api.Client) vegeta.Target {
-	switch t.target {
-	case SyncEvents:
-		return t.events(client)
-	case SyncAssociationsWrite:
-		return t.write(client)
-	default:
-		return t.read(client)
-	}
-}
-
-func (t *SyncAWSTest) events(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: t.GetTargetInfo().method,
-		URL: fmt.Sprintf("%s/v1/%s/data/%s",
-			client.Address(),
-			t.mount,
-			fmt.Sprintf(secretNameFormat,
-				int(rand.Int31n(int32(t.config.NumAssociations))),
-			),
-		),
-		Header: http.Header{
-			vaultTokenHeader:     []string{client.Token()},
-			vaultNamespaceHeader: []string{client.Namespace()}},
-		Body: []byte(
-			fmt.Sprintf(`{"data": {"foo": "%s"}}`,
-				time.Now().Format(time.RFC3339),
-			),
-		),
-	}
-}
-
-func (t *SyncAWSTest) write(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: t.GetTargetInfo().method,
-		URL: fmt.Sprintf("%s/v1/%s/destinations/%s/%s/associations/set",
-			client.Address(),
-			t.GetTargetInfo().pathPrefix,
-			t.config.DestinationType,
-			t.config.DestinationName,
-		),
-		Header: http.Header{
-			vaultTokenHeader:     []string{client.Token()},
-			vaultNamespaceHeader: []string{client.Namespace()}},
-		Body: []byte(
-			fmt.Sprintf(`{"mount": "%s", "secret_name": "%s"}`,
-				t.mount,
-				fmt.Sprintf(secretNameFormat,
-					int(rand.Int31n(int32(t.config.NumAssociations))),
-				),
-			),
-		),
-	}
-}
-
-func (t *SyncAWSTest) read(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: t.GetTargetInfo().method,
-		URL: fmt.Sprintf("%s/v1/%s/associations/destinations?mount=%s&secret_name=%s",
-			client.Address(),
-			t.GetTargetInfo().pathPrefix,
-			t.mount,
-			fmt.Sprintf(secretNameFormat,
-				int(rand.Int31n(int32(t.config.NumAssociations))),
-			),
-		),
-		Header: http.Header{
-			vaultTokenHeader:     []string{client.Token()},
-			vaultNamespaceHeader: []string{client.Namespace()}},
-	}
-}
+func (t *AWSSync) Flags(_ *flag.FlagSet) {}

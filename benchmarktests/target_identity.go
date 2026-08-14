@@ -39,42 +39,38 @@ func init() {
 type Identity struct {
 	pathPrefix string
 	header     http.Header
-	config     *IdentityConfig
-	mountName  string
-	runID      string // per-run UUID; seeds every object name so each run is isolated
 
 	method      string
-	loginBody   []byte
-	loginUsers  int      // min(login_users, alias_count, entity_count)
-	loginPrefix string   // precomputed "mountName-entity-runID-"; avoids per-tick string allocs in Target
-	groupIDs    []string // live ids for group_read; removing that workload simplifies this + Cleanup
-	accessors   []string // one userpass mount accessor per alias slot (len == aliasCap)
-	aliasCap    int      // aliases per filled entity; needed by Cleanup to disable all mounts
+	runID       string // per-run UUID; seeds every object name so each run is isolated
+	mountName   string
+	loginPrefix string // mountName + "-entity-" + runID + "-"; precomputed for Target hot path
 
+	loginBody  []byte
+	loginUsers int
+	groupIDs   []string // live ids for group_read; removing that workload simplifies this + Cleanup
+	accessors  []string
+	aliasCap   int // aliases per filled entity; needed by Cleanup to disable all mounts
+
+	config *IdentityConfig
 	logger hclog.Logger
 }
 
 type IdentityConfig struct {
-	Workload    string          `hcl:"workload,optional"`
-	EntityCount int             `hcl:"entity_count,optional"`
-	AliasCount  int             `hcl:"alias_count,optional"`
-	LoginUsers  int             `hcl:"login_users,optional"`
-	GroupCount  int             `hcl:"group_count,optional"`
-	Groups      *GroupConfig    `hcl:"groups,block"`
-	Aliases     *AliasesConfig  `hcl:"aliases,block"`
+	Workload    string `hcl:"workload,optional"`
+	EntityCount int    `hcl:"entity_count,optional"`
+
+	AliasCount int            `hcl:"alias_count,optional"`
+	Aliases    *AliasesConfig `hcl:"aliases,block"`
+
+	GroupCount int          `hcl:"group_count,optional"`
+	Groups     *GroupConfig `hcl:"groups,block"`
+
+	LoginUsers int `hcl:"login_users,optional"`
+
 	PolicyCount int             `hcl:"policy_count,optional"`
 	Policies    *PoliciesConfig `hcl:"policies,block"`
 
-	// TODO: nested groups -- member_group_ids for org-hierarchy shapes (policy resolution walks the tree).
-}
-
-// GroupConfig controls member assignment for the group_count groups:
-// omit or preset="balanced" spreads entities evenly; "empty" fills nothing;
-// "full" puts all entities in every group; count+size fills only count groups.
-type GroupConfig struct {
-	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
-	Count  int    `hcl:"count,optional"`  // partial: groups that get members
-	Size   int    `hcl:"size,optional"`   // partial: members per filled group
+	// TODO: support nested groups (member_group_ids).
 }
 
 // AliasesConfig controls alias distribution across entities for the alias_count budget:
@@ -84,6 +80,15 @@ type AliasesConfig struct {
 	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
 	Count  int    `hcl:"count,optional"`  // partial: entities that get aliases
 	Size   int    `hcl:"size,optional"`   // partial: aliases per filled entity
+}
+
+// GroupConfig controls member assignment for the group_count groups:
+// omit or preset="balanced" spreads entities evenly; "empty" fills nothing;
+// "full" puts all entities in every group; count+size fills only count groups.
+type GroupConfig struct {
+	Preset string `hcl:"preset,optional"` // balanced (default) | empty | full
+	Count  int    `hcl:"count,optional"`  // partial: groups that get members
+	Size   int    `hcl:"size,optional"`   // partial: members per filled group
 }
 
 // PoliciesConfig controls policy distribution across entities for the policy_count budget:
@@ -132,7 +137,7 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	// Capped at alias_count (a user needs an alias) and entity_count (validateLogins indexes by entity).
 	i.loginUsers = min(c.LoginUsers, c.AliasCount, c.EntityCount)
 
-	// TODO: each new workload touches three switches (here, Target, configureAttack); bundle if this grows.
+	// TODO: a fourth workload should use a table/interface instead of adding a fourth switch arm.
 	switch c.Workload {
 	case identityWorkloadPopulate:
 	case identityWorkloadLogin:
@@ -151,70 +156,6 @@ func (i *Identity) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (i *Identity) Target(client *api.Client) vegeta.Target {
-	t := vegeta.Target{
-		Method: i.method,
-		URL:    client.Address() + i.pathPrefix,
-		Header: i.header,
-	}
-
-	switch i.config.Workload {
-	case identityWorkloadLogin:
-		t.URL += "/login/" + i.loginPrefix + strconv.Itoa(rand.Intn(i.loginUsers))
-		t.Body = i.loginBody
-	case identityWorkloadGroupRead:
-		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
-	}
-
-	return t
-}
-
-func (i *Identity) Cleanup(client *api.Client) error {
-	if i.config.Workload == identityWorkloadPopulate {
-		// TODO: no confirmation prompt; objects stay on Vault until manually removed.
-		i.logger.Info("populate workload; leaving seeded identity objects in place")
-		return nil
-	}
-
-	var allErrs []error
-
-	if i.config.PolicyCount > 0 {
-		if err := deletePhase(i.logger, "policy deletion", client, "sys/policies/acl/", identityConcurrency, i.config.PolicyCount, func(idx int) string {
-			return objectName(i.mountName, "policy", i.runID, idx)
-		}); err != nil {
-			allErrs = append(allErrs, err)
-		}
-	}
-
-	if err := deletePhase(i.logger, "group deletion", client, "identity/group/id/", identityConcurrency, len(i.groupIDs), func(idx int) string {
-		return i.groupIDs[idx]
-	}); err != nil {
-		allErrs = append(allErrs, err)
-	}
-
-	if err := deletePhase(i.logger, "entity deletion", client, "identity/entity/name/", identityConcurrency, i.config.EntityCount, func(idx int) string {
-		return objectName(i.mountName, "entity", i.runID, idx)
-	}); err != nil {
-		allErrs = append(allErrs, err)
-	}
-
-	for slot := range i.aliasCap {
-		mountPath := userpassSlotMountPath(i.runID, slot)
-		if err := client.Sys().DisableAuth(mountPath); err != nil {
-			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %w", mountPath, err))
-		}
-	}
-
-	return errors.Join(allErrs...)
-}
-
-func (i *Identity) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     i.method,
-		pathPrefix: i.pathPrefix,
-	}
-}
-
 func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	// identity is a built-in path; RandomMounts is ignored and the runID already isolates each run.
 	i.logger = targetLogger.Named(IdentityTestType)
@@ -229,8 +170,8 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 		logger:      i.logger,
 		mountName:   mountName,
 		runID:       runID,
-		loginUsers:  i.loginUsers,
 		loginPrefix: mountName + "-entity-" + runID + "-",
+		loginUsers:  i.loginUsers,
 	}
 
 	var aliasFill, aliasCap int
@@ -302,6 +243,68 @@ func (i *Identity) Setup(client *api.Client, mountName string, topLevelConfig *T
 	result.header = generateHeader(client)
 
 	return result, nil
+}
+
+func (i *Identity) Target(client *api.Client) vegeta.Target {
+	t := vegeta.Target{
+		Method: i.method,
+		URL:    client.Address() + i.pathPrefix,
+		Header: i.header,
+	}
+	switch i.config.Workload {
+	case identityWorkloadLogin:
+		t.URL += "/login/" + i.loginPrefix + strconv.Itoa(rand.Intn(i.loginUsers))
+		t.Body = i.loginBody
+	case identityWorkloadGroupRead:
+		t.URL += i.groupIDs[rand.Intn(len(i.groupIDs))]
+	}
+	return t
+}
+
+func (i *Identity) Cleanup(client *api.Client) error {
+	if i.config.Workload == identityWorkloadPopulate {
+		// TODO: populate intentionally skips cleanup; seeded objects persist for follow-on inspection.
+		i.logger.Info("populate workload; leaving seeded identity objects in place")
+		return nil
+	}
+
+	var allErrs []error
+
+	if i.config.PolicyCount > 0 {
+		if err := deletePhase(i.logger, "policy deletion", client, "sys/policies/acl/", identityConcurrency, i.config.PolicyCount, func(idx int) string {
+			return objectName(i.mountName, "policy", i.runID, idx)
+		}); err != nil {
+			allErrs = append(allErrs, err)
+		}
+	}
+
+	if err := deletePhase(i.logger, "group deletion", client, "identity/group/id/", identityConcurrency, len(i.groupIDs), func(idx int) string {
+		return i.groupIDs[idx]
+	}); err != nil {
+		allErrs = append(allErrs, err)
+	}
+
+	if err := deletePhase(i.logger, "entity deletion", client, "identity/entity/name/", identityConcurrency, i.config.EntityCount, func(idx int) string {
+		return objectName(i.mountName, "entity", i.runID, idx)
+	}); err != nil {
+		allErrs = append(allErrs, err)
+	}
+
+	for slot := range i.aliasCap {
+		mountPath := userpassSlotMountPath(i.runID, slot)
+		if err := client.Sys().DisableAuth(mountPath); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("error disabling userpass mount %q: %w", mountPath, err))
+		}
+	}
+
+	return errors.Join(allErrs...)
+}
+
+func (i *Identity) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     i.method,
+		pathPrefix: i.pathPrefix,
+	}
 }
 
 func (i *Identity) Flags(fs *flag.FlagSet) {}
@@ -416,7 +419,7 @@ func (i *Identity) createGroups(client *api.Client, entityIDs []string, groupFil
 			body["policies"] = selectPolicyNames(policyNames, idx, polSize)
 		}
 
-		// TODO: member_group_ids not written; no nested-group hierarchy support yet.
+		// TODO: member_group_ids not written; nested groups require a second pass after group IDs are known.
 		resp, err := client.Logical().Write("identity/group", body)
 		if err != nil {
 			return fmt.Errorf("error creating identity group %q: %w", groupName, err)

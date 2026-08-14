@@ -6,21 +6,17 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	MySQLSecretTestType   = "mysql_secret"
 	MySQLSecretTestMethod = "GET"
@@ -29,26 +25,22 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
 	TestList[MySQLSecretTestType] = func() BenchmarkBuilder { return &MySQLSecret{} }
 }
 
-// Postgres Secret Test Struct
 type MySQLSecret struct {
 	pathPrefix string
-	roleName   string
 	header     http.Header
-	config     *MySQLSecretTestConfig
+	roleName   string
+	config     *MySQLSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type MySQLSecretTestConfig struct {
+type MySQLSecretConfig struct {
 	MySQLDBConfig   *MySQLDBConfig   `hcl:"db_connection,block"`
 	MySQLRoleConfig *MySQLRoleConfig `hcl:"role,block"`
 }
 
-// MySQL DB Config
 type MySQLDBConfig struct {
 	Name                   string   `hcl:"name,optional"`
 	PluginName             string   `hcl:"plugin_name,optional"`
@@ -71,7 +63,6 @@ type MySQLDBConfig struct {
 	TLSSkipVerify          bool     `hcl:"tls_skip_verify,optional"`
 }
 
-// MySQL Role Config
 type MySQLRoleConfig struct {
 	Name                 string `hcl:"name,optional"`
 	DBName               string `hcl:"db_name,optional"`
@@ -81,15 +72,11 @@ type MySQLRoleConfig struct {
 	RevocationStatements string `hcl:"revocation_statements,optional"`
 }
 
-// ParseConfig parses the passed in hcl.Body into Configuration structs for use during
-// test configuration in Vault. Any default configuration definitions for required
-// parameters will be set here.
 func (m *MySQLSecret) ParseConfig(body hcl.Body) error {
-	// provide defaults
 	testConfig := &struct {
-		Config *MySQLSecretTestConfig `hcl:"config,block"`
+		Config *MySQLSecretConfig `hcl:"config,block"`
 	}{
-		Config: &MySQLSecretTestConfig{
+		Config: &MySQLSecretConfig{
 			MySQLDBConfig: &MySQLDBConfig{
 				Name:         "benchmark-mysql",
 				AllowedRoles: []string{"benchmark-role"},
@@ -122,43 +109,16 @@ func (m *MySQLSecret) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (m *MySQLSecret) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: MySQLSecretTestMethod,
-		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
-		Header: m.header,
-	}
-}
-
-func (m *MySQLSecret) Cleanup(client *api.Client) error {
-	m.logger.Trace(cleanupLogMessage(m.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(m.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (m *MySQLSecret) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     MySQLSecretTestMethod,
-		pathPrefix: m.pathPrefix,
-	}
-}
-
 func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	m.logger = targetLogger.Named(MySQLSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create Database Secret Mount
 	m.logger.Trace(mountLogMessage("secrets", "database", secretPath))
 	err = client.Sys().Mount(secretPath, &api.MountInput{
 		Type: "database",
@@ -169,34 +129,14 @@ func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig
 
 	setupLogger := m.logger.Named(secretPath)
 
-	// Decode DB Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("db"))
-	dbData, err := structToMap(m.config.MySQLDBConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing db config from struct: %v", err)
+	if err := writeStruct(client, filepath.Join(secretPath, "config", m.config.MySQLDBConfig.Name), m.config.MySQLDBConfig); err != nil {
+		return nil, err
 	}
 
-	// Set up db
-	setupLogger.Trace(writingLogMessage("mysql db config"), "name", m.config.MySQLDBConfig.Name)
-	dbPath := filepath.Join(secretPath, "config", m.config.MySQLDBConfig.Name)
-	_, err = client.Logical().Write(dbPath, dbData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing mysql db config: %v", err)
-	}
-
-	// Decode Role Config struct into mapstructure to pass with request
 	setupLogger.Trace(parsingConfigLogMessage("role"))
-	roleData, err := structToMap(m.config.MySQLRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
-	}
-
-	// Create Role
-	setupLogger.Trace(writingLogMessage("mysql role"), "name", m.config.MySQLRoleConfig.Name)
-	rolePath := filepath.Join(secretPath, "roles", m.config.MySQLRoleConfig.Name)
-	_, err = client.Logical().Write(rolePath, roleData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing mysql role %q: %v", m.config.MySQLRoleConfig.Name, err)
+	if err := writeStruct(client, filepath.Join(secretPath, "roles", m.config.MySQLRoleConfig.Name), m.config.MySQLRoleConfig); err != nil {
+		return nil, err
 	}
 
 	return &MySQLSecret{
@@ -205,6 +145,25 @@ func (m *MySQLSecret) Setup(client *api.Client, mountName string, topLevelConfig
 		roleName:   m.config.MySQLRoleConfig.Name,
 		logger:     m.logger,
 	}, nil
+}
+
+func (m *MySQLSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: MySQLSecretTestMethod,
+		URL:    client.Address() + m.pathPrefix + "/creds/" + m.roleName,
+		Header: m.header,
+	}
+}
+
+func (m *MySQLSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(m.logger, client, m.pathPrefix)
+}
+
+func (m *MySQLSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     MySQLSecretTestMethod,
+		pathPrefix: m.pathPrefix,
+	}
 }
 
 func (m *MySQLSecret) Flags(fs *flag.FlagSet) {}

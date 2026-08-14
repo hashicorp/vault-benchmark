@@ -6,20 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	LDAPDynamicSecretTestType   = "ldap_dynamic_secret"
 	LDAPDynamicSecretTestMethod = "GET"
@@ -27,20 +23,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[LDAPDynamicSecretTestType] = func() BenchmarkBuilder { return &LDAPDynamicSecretTest{} }
+	TestList[LDAPDynamicSecretTestType] = func() BenchmarkBuilder { return &LDAPDynamicSecret{} }
 }
 
-type LDAPDynamicSecretTest struct {
+type LDAPDynamicSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *LDAPDynamicSecretTestConfig
+	config     *LDAPDynamicSecretConfig
 	logger     hclog.Logger
 }
 
-// Main Config Struct
-type LDAPDynamicSecretTestConfig struct {
+type LDAPDynamicSecretConfig struct {
 	LDAPDynamicConfig     *LDAPDynamicConfig     `hcl:"secret,block"`
 	LDAPDynamicRoleConfig *LDAPDynamicRoleConfig `hcl:"role,block"`
 }
@@ -73,11 +67,11 @@ type LDAPDynamicRoleConfig struct {
 	MaxTTL           int    `hcl:"max_ttl,optional"`
 }
 
-func (r *LDAPDynamicSecretTest) ParseConfig(body hcl.Body) error {
+func (r *LDAPDynamicSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *LDAPDynamicSecretTestConfig `hcl:"config,block"`
+		Config *LDAPDynamicSecretConfig `hcl:"config,block"`
 	}{
-		Config: &LDAPDynamicSecretTestConfig{
+		Config: &LDAPDynamicSecretConfig{
 			LDAPDynamicConfig: &LDAPDynamicConfig{
 				BindPass: os.Getenv(LDAPAuthBindPassEnvVar),
 			},
@@ -101,40 +95,14 @@ func (r *LDAPDynamicSecretTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (r *LDAPDynamicSecretTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: LDAPDynamicSecretTestMethod,
-		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
-		Header: r.header,
-	}
-}
-
-func (r *LDAPDynamicSecretTest) Cleanup(client *api.Client) error {
-	r.logger.Trace(cleanupLogMessage(r.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(r.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (r *LDAPDynamicSecretTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     LDAPDynamicSecretTestMethod,
-		pathPrefix: r.pathPrefix,
-	}
-}
-
-func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (r *LDAPDynamicSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	r.logger = targetLogger.Named(LDAPDynamicSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	r.logger.Trace(mountLogMessage("secrets", "ldap", secretPath))
@@ -147,35 +115,17 @@ func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topL
 
 	setupLogger := r.logger.Named(secretPath)
 
-	// Decode LDAP Connection Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret"))
-	connectionConfigData, err := structToMap(r.config.LDAPDynamicConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing ldap secret config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config", r.config.LDAPDynamicConfig); err != nil {
+		return nil, err
 	}
 
-	// Write connection config
-	setupLogger.Trace(writingLogMessage("ldap secret config"))
-	_, err = client.Logical().Write(secretPath+"/config", connectionConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap secret config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("ldap secret role"))
-	roleConfigData, err := structToMap(r.config.LDAPDynamicRoleConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/role/"+r.config.LDAPDynamicRoleConfig.RoleName, r.config.LDAPDynamicRoleConfig); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("ldap secret role"), "name", r.config.LDAPDynamicRoleConfig.RoleName)
-	_, err = client.Logical().Write(secretPath+"/role/"+r.config.LDAPDynamicRoleConfig.RoleName, roleConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing ldap secret role: %v", err)
-	}
-
-	return &LDAPDynamicSecretTest{
+	return &LDAPDynamicSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   r.config.LDAPDynamicRoleConfig.RoleName,
@@ -183,4 +133,23 @@ func (r *LDAPDynamicSecretTest) Setup(client *api.Client, mountName string, topL
 	}, nil
 }
 
-func (m *LDAPDynamicSecretTest) Flags(fs *flag.FlagSet) {}
+func (r *LDAPDynamicSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: LDAPDynamicSecretTestMethod,
+		URL:    client.Address() + r.pathPrefix + "/creds/" + r.roleName,
+		Header: r.header,
+	}
+}
+
+func (r *LDAPDynamicSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(r.logger, client, r.pathPrefix)
+}
+
+func (r *LDAPDynamicSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     LDAPDynamicSecretTestMethod,
+		pathPrefix: r.pathPrefix,
+	}
+}
+
+func (m *LDAPDynamicSecret) Flags(fs *flag.FlagSet) {}

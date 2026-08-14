@@ -6,13 +6,10 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -20,7 +17,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	ConsulSecretTestType   = "consul_secret"
 	ConsulSecretTestMethod = "GET"
@@ -28,19 +24,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[ConsulSecretTestType] = func() BenchmarkBuilder { return &ConsulTest{} }
+	TestList[ConsulSecretTestType] = func() BenchmarkBuilder { return &ConsulSecret{} }
 }
 
-type ConsulTest struct {
+type ConsulSecret struct {
 	pathPrefix string
 	header     http.Header
 	roleName   string
-	config     *ConsulSecretTestConfig
+	config     *ConsulSecretConfig
 	logger     hclog.Logger
 }
 
-type ConsulSecretTestConfig struct {
+type ConsulSecretConfig struct {
 	Version          string            `hcl:"version,optional"`
 	ConsulConfig     *ConsulConfig     `hcl:"consul,block"`
 	ConsulRoleConfig *ConsulRoleConfig `hcl:"role,block"`
@@ -72,11 +67,11 @@ type ConsulRoleConfig struct {
 	Lease             string   `hcl:"lease,optional"`
 }
 
-func (c *ConsulTest) ParseConfig(body hcl.Body) error {
+func (c *ConsulSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *ConsulSecretTestConfig `hcl:"config,block"`
+		Config *ConsulSecretConfig `hcl:"config,block"`
 	}{
-		Config: &ConsulSecretTestConfig{
+		Config: &ConsulSecretConfig{
 			Version: "1.14.0",
 			ConsulConfig: &ConsulConfig{
 				Token: os.Getenv(ConsulTokenEnvVar),
@@ -93,47 +88,20 @@ func (c *ConsulTest) ParseConfig(body hcl.Body) error {
 	}
 	c.config = testConfig.Config
 
-	// Ensure that the token has been set by either the environment variable or the config
 	if c.config.ConsulConfig.Token == "" {
 		return fmt.Errorf("consul token must be set")
 	}
 	return nil
 }
 
-func (c *ConsulTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
-		Header: c.header,
-	}
-}
-
-func (c *ConsulTest) Cleanup(client *api.Client) error {
-	c.logger.Trace(cleanupLogMessage(c.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(c.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up mount: %v", err)
-	}
-	return nil
-}
-
-func (c *ConsulTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     ConsulSecretTestMethod,
-		pathPrefix: c.pathPrefix,
-	}
-}
-
-func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (c *ConsulSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	c.logger = targetLogger.Named(ConsulSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	c.logger.Trace(mountLogMessage("secrets", "consul", secretPath))
@@ -146,56 +114,42 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	setupLogger := c.logger.Named(secretPath)
 
-	// Decode Consul Config
 	setupLogger.Trace(parsingConfigLogMessage("consul"))
-	consulConfigData, err := structToMap(c.config.ConsulConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing consul config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config/access", c.config.ConsulConfig); err != nil {
+		return nil, err
 	}
 
-	// Write Consul config
-	setupLogger.Trace(writingLogMessage("consul config"))
-	_, err = client.Logical().Write(secretPath+"/config/access", consulConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing consul config: %v", err)
-	}
-
-	// Get consul version
 	setupLogger.Trace("parsing consul version from config")
 	v, err := version.NewVersion(c.config.Version)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing consul version: %v", err)
 	}
 
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("role"))
 	consulRoleConfigData, err := structToMap(c.config.ConsulRoleConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing role config from struct: %v", err)
 	}
 
-	// For Consul < 1.8, we need to unset node_identities and consul_namespace
 	if v.LessThan(version.Must(version.NewVersion("1.8"))) {
 		delete(consulRoleConfigData, "node_identities")
 		delete(consulRoleConfigData, "consul_namespace")
 		setupLogger.Warn("node_identities and consul_namespace are not supported in Consul < 1.8.  These fields will be ignored.")
 	}
 
-	// For Consul < 1.5, we need to unset service_identities and consul_roles
 	if v.LessThan(version.Must(version.NewVersion("1.5"))) {
 		delete(consulRoleConfigData, "service_identities")
 		delete(consulRoleConfigData, "consul_roles")
 		setupLogger.Warn("service_identities and consul_roles are not supported in Consul < 1.5.  These fields will be ignored.")
 	}
 
-	// Create Role
 	setupLogger.Trace(writingLogMessage("consul role"), "name", c.config.ConsulRoleConfig.Name)
 	_, err = client.Logical().Write(secretPath+"/roles/"+c.config.ConsulRoleConfig.Name, consulRoleConfigData)
 	if err != nil {
 		return nil, fmt.Errorf("error writing consul role: %v", err)
 	}
 
-	return &ConsulTest{
+	return &ConsulSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		roleName:   c.config.ConsulRoleConfig.Name,
@@ -203,4 +157,23 @@ func (c *ConsulTest) Setup(client *api.Client, mountName string, topLevelConfig 
 	}, nil
 }
 
-func (c *ConsulTest) Flags(fs *flag.FlagSet) {}
+func (c *ConsulSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: ConsulSecretTestMethod,
+		URL:    client.Address() + c.pathPrefix + "/creds/" + c.roleName,
+		Header: c.header,
+	}
+}
+
+func (c *ConsulSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(c.logger, client, c.pathPrefix)
+}
+
+func (c *ConsulSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     ConsulSecretTestMethod,
+		pathPrefix: c.pathPrefix,
+	}
+}
+
+func (c *ConsulSecret) Flags(fs *flag.FlagSet) {}

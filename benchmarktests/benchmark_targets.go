@@ -4,10 +4,10 @@
 package benchmarktests
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"sort"
@@ -20,7 +20,6 @@ import (
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Configuration that applies to all individual tests
 type TopLevelTargetConfig struct {
 	Duration     time.Duration
 	RandomMounts bool
@@ -31,28 +30,20 @@ const (
 )
 
 type BenchmarkBuilder interface {
-	// Target generates and returns a vegeta.Target struct which is used for the attack
 	Target(client *api.Client) vegeta.Target
-
-	// Setup uses the passed in client and configuration to create the necessary test resources
-	// in Vault, and retrieve any necessary information needed to perform the test itself. Setup
-	// returns a test struct type which satisfies this BenchmarkBuilder interface.
 	Setup(client *api.Client, mountName string, config *TopLevelTargetConfig) (BenchmarkBuilder, error)
-
-	// Cleanup uses the passed in client to clean up any created resources used as part of the test
 	Cleanup(client *api.Client) error
-
-	// ParseConfig accepts an hcl.Body and parses it into the underlying test struct
 	ParseConfig(body hcl.Body) error
-
-	// GetTargetInfo retrieves specific Target information required to pass on to Attack
 	GetTargetInfo() TargetInfo
-
-	// Flags allows tests to define flags in the passed in command flag set
 	Flags(fs *flag.FlagSet)
 }
 
 var (
+	// TODO: targets with multiple actions (transit, gcpkms, totp) register one TestList entry per action,
+	// mirroring the identity workload pattern incorrectly. The correct fix is a single registration per engine
+	// with an action field in the HCL config block validated in ParseConfig — identical to how identity uses
+	// workload. This is a breaking change to user-facing HCL type keys (e.g. "transit_sign" → "transit") and
+	// requires a docs update and migration note. Defer to a dedicated PR.
 	TestList     = make(map[string]func() BenchmarkBuilder)
 	targetLogger hclog.Logger
 )
@@ -74,6 +65,7 @@ type TargetInfo struct {
 	pathPrefix string
 }
 
+// TODO: collapse GetTargetInfo into ConfigureTarget, removing TargetInfo and the interface method for all 50+ targets
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Target = bt.Builder.Target
 	tInfo := bt.Builder.GetTargetInfo()
@@ -81,15 +73,14 @@ func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Method = tInfo.method
 }
 
-// TargetMulti allows building a vegeta targetter that chooses between various
-// operations randomly following a specified distribution.
+// TargetMulti chooses between various operations randomly following a specified distribution.
 type TargetMulti struct {
 	targets []BenchmarkTarget
 }
 
 func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 	if i > 99 || i < 0 {
-		log.Fatalf("i must be between 0 and 99")
+		panic(fmt.Sprintf("choose: i must be between 0 and 99, got %d", i))
 	}
 
 	total := 0
@@ -100,8 +91,7 @@ func (tm TargetMulti) choose(i int) *BenchmarkTarget {
 		}
 	}
 
-	log.Fatalf("unreachable")
-	return nil
+	panic(fmt.Sprintf("choose: weights do not sum to 100 (got %d), unreachable with i=%d", total, i))
 }
 
 func (tm TargetMulti) Cleanup(client *api.Client) error {
@@ -112,7 +102,7 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 
 	wg := new(sync.WaitGroup)
 	errch := make(chan CleanupMsg)
-	var errCount int
+	var errs []error
 
 	for _, target := range tm.targets {
 		target := target
@@ -127,16 +117,16 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		}()
 	}
 
-	for i := 0; i < len(tm.targets); i++ {
+	for range tm.targets {
 		cleanupMsg := <-errch
 		if cleanupMsg.err != nil {
-			errCount++
+			errs = append(errs, cleanupMsg.err)
 			targetLogger.Error("error cleaning up", "target", cleanupMsg.targetName, "error", cleanupMsg.err.Error())
 		} else {
 			targetLogger.Trace("done cleaning up", "target", cleanupMsg.targetName)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
@@ -192,13 +182,11 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 	var err error
 	targetLogger = *logger
 
-	// Check to make sure all weights add to 100
 	err = percentageValidate(tests)
 	if err != nil {
 		return nil, err
 	}
 
-	// Build tests
 	for _, bvTest := range tests {
 		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name

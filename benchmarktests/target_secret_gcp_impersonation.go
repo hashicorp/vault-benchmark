@@ -6,21 +6,16 @@ package benchmarktests
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/vault/api"
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
-// Constants for test
 const (
 	GCPImpersonationSecretTestType            = "gcp_impersonation_secret"
 	GCPImpersonationSecretTestMethod          = "GET"
@@ -28,19 +23,18 @@ const (
 )
 
 func init() {
-	// "Register" this test to the main test registry
-	TestList[GCPImpersonationSecretTestType] = func() BenchmarkBuilder { return &GCPImpersonationTest{} }
+	TestList[GCPImpersonationSecretTestType] = func() BenchmarkBuilder { return &GCPImpersonationSecret{} }
 }
 
-type GCPImpersonationTest struct {
+type GCPImpersonationSecret struct {
 	pathPrefix string
 	header     http.Header
-	config     *GCPImpersonationSecretTestConfig
+	config     *GCPImpersonationSecretConfig
 	logger     hclog.Logger
 }
 
-type GCPImpersonationSecretTestConfig struct {
-	GCPConfig      *GCPSecretConfig `hcl:"gcp,block"`
+type GCPImpersonationSecretConfig struct {
+	GCPConfig      *GCPSecretMountConfig `hcl:"gcp,block"`
 	GCPImpersonate *GCPImpersonate  `hcl:"impersonate,block"`
 }
 
@@ -51,12 +45,12 @@ type GCPImpersonate struct {
 	TokenScopes         []string `hcl:"token_scopes,optional"`
 }
 
-func (g *GCPImpersonationTest) ParseConfig(body hcl.Body) error {
+func (g *GCPImpersonationSecret) ParseConfig(body hcl.Body) error {
 	testConfig := &struct {
-		Config *GCPImpersonationSecretTestConfig `hcl:"config,block"`
+		Config *GCPImpersonationSecretConfig `hcl:"config,block"`
 	}{
-		Config: &GCPImpersonationSecretTestConfig{
-			GCPConfig:      &GCPSecretConfig{Credentials: os.Getenv(GCPSecretCredentials)},
+		Config: &GCPImpersonationSecretConfig{
+			GCPConfig:      &GCPSecretMountConfig{Credentials: os.Getenv(GCPSecretCredentials)},
 			GCPImpersonate: &GCPImpersonate{Name: "benchmark-gcp-impersonation", ServiceAccountEmail: os.Getenv(GCPImpersonationSecretServiceAccountEmail)},
 		},
 	}
@@ -78,40 +72,14 @@ func (g *GCPImpersonationTest) ParseConfig(body hcl.Body) error {
 	return nil
 }
 
-func (g *GCPImpersonationTest) Target(client *api.Client) vegeta.Target {
-	return vegeta.Target{
-		Method: "GET",
-		URL:    client.Address() + g.pathPrefix + "/impersonated-account/" + g.config.GCPImpersonate.Name,
-		Header: g.header,
-	}
-}
-
-func (g *GCPImpersonationTest) Cleanup(client *api.Client) error {
-	g.logger.Trace(cleanupLogMessage(g.pathPrefix))
-	_, err := client.Logical().Delete(strings.Replace(g.pathPrefix, "/v1/", "/sys/mounts/", 1))
-	if err != nil {
-		return fmt.Errorf("error cleaning up gcp impersonation mount: %v", err)
-	}
-	return nil
-}
-
-func (g *GCPImpersonationTest) GetTargetInfo() TargetInfo {
-	return TargetInfo{
-		method:     GCPImpersonationSecretTestMethod,
-		pathPrefix: g.pathPrefix,
-	}
-}
-
-func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
+func (g *GCPImpersonationSecret) Setup(client *api.Client, mountName string, topLevelConfig *TopLevelTargetConfig) (BenchmarkBuilder, error) {
 	var err error
 	secretPath := mountName
 	g.logger = targetLogger.Named(GCPImpersonationSecretTestType)
 
-	if topLevelConfig.RandomMounts {
-		secretPath, err = uuid.GenerateUUID()
-		if err != nil {
-			log.Fatalf("can't create UUID")
-		}
+	secretPath, err = resolveMountPath(secretPath, topLevelConfig.RandomMounts)
+	if err != nil {
+		return nil, err
 	}
 
 	config := g.config
@@ -128,7 +96,7 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 	// check if the credentials argument should be read from file
 	creds := config.GCPConfig.Credentials
 	if len(creds) > 0 && creds[0] == '@' {
-		contents, err := ioutil.ReadFile(creds[1:])
+		contents, err := os.ReadFile(creds[1:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading credentials file: %w", err)
 		}
@@ -136,35 +104,17 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 		config.GCPConfig.Credentials = string(contents)
 	}
 
-	// Encode GCP Config
 	setupLogger.Trace(parsingConfigLogMessage("gcp impersonation"))
-	gcpImpersonationConfigData, err := structToMap(config.GCPConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing gcp config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/config", config.GCPConfig); err != nil {
+		return nil, err
 	}
 
-	// Write GCP config
-	setupLogger.Trace(writingLogMessage("gcp impersonation config"))
-	_, err = client.Logical().Write(secretPath+"/config", gcpImpersonationConfigData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp config: %v", err)
-	}
-
-	// Decode Role Config
 	setupLogger.Trace(parsingConfigLogMessage("gcp impersonation"))
-	gcpImpersonationData, err := structToMap(config.GCPImpersonate)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing gcp impersonation config from struct: %v", err)
+	if err := writeStruct(client, secretPath+"/impersonated-account/"+config.GCPImpersonate.Name, config.GCPImpersonate); err != nil {
+		return nil, err
 	}
 
-	// Create Role
-	setupLogger.Trace(writingLogMessage("gcp impersonation"), "name", config.GCPImpersonate.Name)
-	_, err = client.Logical().Write(secretPath+"/impersonated-account/"+config.GCPImpersonate.Name, gcpImpersonationData)
-	if err != nil {
-		return nil, fmt.Errorf("error writing gcp impersonation: %v", err)
-	}
-
-	return &GCPImpersonationTest{
+	return &GCPImpersonationSecret{
 		pathPrefix: "/v1/" + secretPath,
 		header:     generateHeader(client),
 		logger:     g.logger,
@@ -172,4 +122,23 @@ func (g *GCPImpersonationTest) Setup(client *api.Client, mountName string, topLe
 	}, nil
 }
 
-func (a *GCPImpersonationTest) Flags(fs *flag.FlagSet) {}
+func (g *GCPImpersonationSecret) Target(client *api.Client) vegeta.Target {
+	return vegeta.Target{
+		Method: GCPImpersonationSecretTestMethod,
+		URL:    client.Address() + g.pathPrefix + "/impersonated-account/" + g.config.GCPImpersonate.Name,
+		Header: g.header,
+	}
+}
+
+func (g *GCPImpersonationSecret) Cleanup(client *api.Client) error {
+	return cleanupMount(g.logger, client, g.pathPrefix)
+}
+
+func (g *GCPImpersonationSecret) GetTargetInfo() TargetInfo {
+	return TargetInfo{
+		method:     GCPImpersonationSecretTestMethod,
+		pathPrefix: g.pathPrefix,
+	}
+}
+
+func (a *GCPImpersonationSecret) Flags(fs *flag.FlagSet) {}
