@@ -46,7 +46,11 @@ type BenchmarkBuilder interface {
 }
 
 var (
-	// TODO: targets with multiple actions (transit, gcpkms, totp) should use a single TestList entry with an action field in HCL (like identity's workload), not one entry per action. Breaking change to type keys; defer to a dedicated PR.
+	// TODO: targets with multiple actions (transit, gcpkms, totp) register one TestList entry per action,
+	// mirroring the identity workload pattern incorrectly. The correct fix is a single registration per engine
+	// with an action field in the HCL config block validated in ParseConfig — identical to how identity uses
+	// workload. This is a breaking change to user-facing HCL type keys (e.g. "transit_sign" → "transit") and
+	// requires a docs update and migration note. Defer to a dedicated PR.
 	TestList     = make(map[string]func() BenchmarkBuilder)
 	targetLogger hclog.Logger
 )
@@ -68,7 +72,7 @@ type TargetInfo struct {
 	pathPrefix string
 }
 
-// TODO: collapse GetTargetInfo into ConfigureTarget, removing TargetInfo and the interface method across all targets. Mechanical but broad; defer to a standalone cleanup PR.
+// TODO: collapse GetTargetInfo into ConfigureTarget, removing TargetInfo and the interface method for all 50+ targets
 func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Target = bt.Builder.Target
 	tInfo := bt.Builder.GetTargetInfo()
@@ -76,6 +80,7 @@ func (bt *BenchmarkTarget) ConfigureTarget(client *api.Client) {
 	bt.Method = tInfo.method
 }
 
+// TargetMulti chooses between various operations randomly following a specified distribution.
 type TargetMulti struct {
 	targets []BenchmarkTarget
 }

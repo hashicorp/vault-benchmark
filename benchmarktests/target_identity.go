@@ -30,7 +30,6 @@ const (
 	identityWorkloadGroupRead = "group_read"
 
 	identityNoWorkloadPath = "/v1/sys/health"
-
 )
 
 func init() {
