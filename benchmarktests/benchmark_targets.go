@@ -28,9 +28,7 @@ const (
 	VaultBenchmarkEnvVarPrefix = "VAULT_BENCHMARK_"
 
 	// cleanupNoOpThreshold is the wall-clock duration under which a Cleanup is
-	// considered a no-op (no real Vault I/O). Chosen to be well above any
-	// expected unmount RTT on a real cluster while staying below the fastest
-	// possible real cleanup (a single mount disable is typically 5–50ms on a
+	// considered a no-op (no real Vault I/O) (a single mount disable is typically 5–50ms on a
 	// local dev cluster).
 	// TODO: replace with per-target I/O detection if this heuristic misfires on heavily throttled CI runners.
 	cleanupNoOpThreshold = 100 * time.Millisecond

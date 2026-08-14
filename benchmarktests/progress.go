@@ -20,13 +20,13 @@ const (
 	ansiRed         = "\033[31m"
 	ansiBold        = "\033[1m"
 	ansiBrightBlack = "\033[90m" // gray — used for setup/cleanup stages (less prominent than attack)
-	ansiEOL         = "\033[K"  // erase from cursor to end of line — eliminates stale trailing chars
+	ansiEOL         = "\033[K"   // erase from cursor to end of line — eliminates stale trailing chars
 
 	barWidth    = 20
 	labelWidth  = 22
 	flavorWidth = 32 // fixed-width flavor column; truncated to keep line length stable
 
-	tickInterval    = 80 * time.Millisecond
+	tickInterval     = 80 * time.Millisecond
 	flavorUpdateRate = 19 // flavor text updates every 19 ticks (~1.5s); spinner animates every tick
 )
 
@@ -72,8 +72,6 @@ var cleanupPhrases = []string{
 	"pretending this never happened",
 }
 
-// isTTY uses only stdlib — no external dependency — so the progress display
-// never pulls in a terminal-detection library.
 func isTTY(f *os.File) bool {
 	fi, err := f.Stat()
 	if err != nil {
@@ -151,9 +149,9 @@ type stageProgress struct {
 	reqs     atomic.Int64
 	duration time.Duration // non-zero: attack stage uses time-based bar
 
-	haltOnce      sync.Once
-	stop          chan struct{}
-	stopped       chan struct{}
+	haltOnce       sync.Once
+	stop           chan struct{}
+	stopped        chan struct{}
 	lastFlavorText string
 
 	// tickCount is the monotone tick counter that drives phrase/name rotation.
