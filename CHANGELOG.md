@@ -6,12 +6,12 @@
 
 ### Features
 
-- Add benchmark for PKI secrets engine for generating keys
+- Add benchmark for PKI secrets engine for generating keys [\#274](https://github.com/hashicorp/vault-benchmark/pull/274)
 
 ### Improvements
 
 - Consolidate identity_group_read into identity as a workload option [\#268](https://github.com/hashicorp/vault-benchmark/pull/268)
-- Update benchmarks for PKI issue and PKI sign to support ML-DSA
+- Update benchmarks for PKI issue and PKI sign to support ML-DSA [\#274](https://github.com/hashicorp/vault-benchmark/pull/274)
 
 ## [v0.4.1](https://github.com/hashicorp/vault-benchmark/tree/v0.4.1) (Dec 29, 2025)
 
