@@ -10,7 +10,7 @@
 
 ### Bugs
 
-- Decode transit `batch_input` objects instead of panicking in gohcl
+- Decode transit `batch_input` objects instead of panicking in gohcl [\#276](https://github.com/hashicorp/vault-benchmark/pull/276)
 
 ## [v0.4.1](https://github.com/hashicorp/vault-benchmark/tree/v0.4.1) (Dec 29, 2025)
 
