@@ -8,6 +8,10 @@
 
 - Consolidate identity_group_read into identity as a workload option [\#268](https://github.com/hashicorp/vault-benchmark/pull/268)
 
+### Bugs
+
+- Decode transit `batch_input` objects instead of panicking in gohcl
+
 ## [v0.4.1](https://github.com/hashicorp/vault-benchmark/tree/v0.4.1) (Dec 29, 2025)
 
 ### Features
