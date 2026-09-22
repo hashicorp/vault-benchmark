@@ -27,6 +27,12 @@ const (
 	TransitSecretTestMethod      = "POST"
 )
 
+// transitBatchInput is the HCL shape of a Transit batch_input list.
+// Each item is an object whose attributes are strings, for example
+// { plaintext = "..." }. []any cannot be used: gohcl has no cty type for
+// interface{} and DecodeExpression panics.
+type transitBatchInput []map[string]string
+
 func init() {
 	TestList[TransitSignSecretTestType] = func() BenchmarkBuilder {
 		return &TransitSecret{action: "sign", typeKey: TransitSignSecretTestType}
@@ -82,60 +88,60 @@ type TransitKeysConfig struct {
 
 // /transit/sign/:name
 type TransitSignConfig struct {
-	Name                string `hcl:"name,optional"`
-	KeyVersion          int    `hcl:"key_version,optional"`
-	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
-	Input               string `hcl:"input,optional"`
-	Reference           string `hcl:"reference,optional"`
-	BatchInput          []any  `hcl:"batch_input,optional"`
-	Context             string `hcl:"context,optional"`
-	Prehashed           bool   `hcl:"prehashed,optional"`
-	SignatureAlgorithm  string `hcl:"signature_algorithm,optional"`
-	MarshalingAlgorithm string `hcl:"marshaling_algorithm,optional"`
-	SaltLength          string `hcl:"salt_length,optional"`
+	Name                string            `hcl:"name,optional"`
+	KeyVersion          int               `hcl:"key_version,optional"`
+	HashAlgorithm       string            `hcl:"hash_algorithm,optional"`
+	Input               string            `hcl:"input,optional"`
+	Reference           string            `hcl:"reference,optional"`
+	BatchInput          transitBatchInput `hcl:"batch_input,optional"`
+	Context             string            `hcl:"context,optional"`
+	Prehashed           bool              `hcl:"prehashed,optional"`
+	SignatureAlgorithm  string            `hcl:"signature_algorithm,optional"`
+	MarshalingAlgorithm string            `hcl:"marshaling_algorithm,optional"`
+	SaltLength          string            `hcl:"salt_length,optional"`
 }
 
 // /transit/verify/:name(/:hash_algorithm)
 type TransitVerifyConfig struct {
-	Name                string `hcl:"name,optional"`
-	HashAlgorithm       string `hcl:"hash_algorithm,optional"`
-	Input               string `hcl:"input,optional"`
-	Signature           string `hcl:"signature,optional"`
-	HMAC                string `hcl:"hmac,optional"`
-	Reference           string `hcl:"reference,optional"`
-	BatchInput          []any  `hcl:"batch_input,optional"`
-	Context             string `hcl:"context,optional"`
-	Prehashed           bool   `hcl:"prehashed,optional"`
-	SignatureAlgorithm  string `hcl:"signature_algorithm,optional"`
-	MarshalingAlgorithm string `hcl:"marshaling_algorithm,optional"`
-	SaltLength          string `hcl:"salt_length,optional"`
+	Name                string            `hcl:"name,optional"`
+	HashAlgorithm       string            `hcl:"hash_algorithm,optional"`
+	Input               string            `hcl:"input,optional"`
+	Signature           string            `hcl:"signature,optional"`
+	HMAC                string            `hcl:"hmac,optional"`
+	Reference           string            `hcl:"reference,optional"`
+	BatchInput          transitBatchInput `hcl:"batch_input,optional"`
+	Context             string            `hcl:"context,optional"`
+	Prehashed           bool              `hcl:"prehashed,optional"`
+	SignatureAlgorithm  string            `hcl:"signature_algorithm,optional"`
+	MarshalingAlgorithm string            `hcl:"marshaling_algorithm,optional"`
+	SaltLength          string            `hcl:"salt_length,optional"`
 }
 
 // /transit/encrypt/:name
 type TransitEncryptConfig struct {
-	Name                       string `hcl:"name,optional"`
-	Plaintext                  string `hcl:"plaintext,optional"`
-	AssociatedData             string `hcl:"associated_data,optional"`
-	Context                    string `hcl:"context,optional"`
-	KeyVersion                 int    `hcl:"key_version,optional"`
-	Nonce                      string `hcl:"nonce,optional"`
-	Reference                  string `hcl:"reference,optional"`
-	BatchInput                 []any  `hcl:"batch_input,optional"`
-	Type                       string `hcl:"type,optional"`
-	ConvergentEncryption       bool   `hcl:"convergent_encryption,optional"`
-	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
+	Name                       string            `hcl:"name,optional"`
+	Plaintext                  string            `hcl:"plaintext,optional"`
+	AssociatedData             string            `hcl:"associated_data,optional"`
+	Context                    string            `hcl:"context,optional"`
+	KeyVersion                 int               `hcl:"key_version,optional"`
+	Nonce                      string            `hcl:"nonce,optional"`
+	Reference                  string            `hcl:"reference,optional"`
+	BatchInput                 transitBatchInput `hcl:"batch_input,optional"`
+	Type                       string            `hcl:"type,optional"`
+	ConvergentEncryption       bool              `hcl:"convergent_encryption,optional"`
+	PartialFailureResponseCode int               `hcl:"partial_failure_response_code,optional"`
 }
 
 // /transit/decrypt/:name
 type TransitDecryptConfig struct {
-	Name                       string `hcl:"name,optional"`
-	Ciphertext                 string `hcl:"ciphertext,optional"`
-	AssociatedData             string `hcl:"associated_data,optional"`
-	Context                    string `hcl:"context,optional"`
-	Nonce                      string `hcl:"nonce,optional"`
-	Reference                  string `hcl:"reference,optional"`
-	BatchInput                 []any  `hcl:"batch_input,optional"`
-	PartialFailureResponseCode int    `hcl:"partial_failure_response_code,optional"`
+	Name                       string            `hcl:"name,optional"`
+	Ciphertext                 string            `hcl:"ciphertext,optional"`
+	AssociatedData             string            `hcl:"associated_data,optional"`
+	Context                    string            `hcl:"context,optional"`
+	Nonce                      string            `hcl:"nonce,optional"`
+	Reference                  string            `hcl:"reference,optional"`
+	BatchInput                 transitBatchInput `hcl:"batch_input,optional"`
+	PartialFailureResponseCode int               `hcl:"partial_failure_response_code,optional"`
 }
 
 func (t *TransitSecret) ParseConfig(body hcl.Body) error {
