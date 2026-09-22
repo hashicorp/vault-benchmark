@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
 func TestReportJSONRoundTrip(t *testing.T) {
@@ -50,5 +52,89 @@ func TestReportJSONRoundTrip(t *testing.T) {
 
 	if !reflect.DeepEqual(reports, reports2) {
 		t.Fatalf("expected reports to be unchanged after round trip: %v", reports2)
+	}
+}
+
+// TestSCIMSentinelAttribution verifies that the reporter's HasPrefix-based
+// attribution correctly routes SCIM results to distinct buckets when sentinel
+// query parameters are used to disambiguate same-method, same-path targets.
+//
+// The four cases exercised:
+//
+//	user_create  → URL .../Users?_w=create  → must land in scim_user_create, not scim_user_adopt
+//	user_adopt   → URL .../Users            → must land in scim_user_adopt, not scim_user_create
+//	group_create → URL .../Groups?_w=create → must land in scim_group_create, not scim_group_create_empty
+//	group_empty  → URL .../Groups?_w=empty  → must land in scim_group_create_empty, not scim_group_create
+func TestSCIMSentinelAttribution(t *testing.T) {
+	const addr = "http://127.0.0.1:8200"
+	const base = "/v1/identity/scim/v2"
+
+	cases := []struct {
+		name           string
+		resultURL      string
+		targets        []BenchmarkTarget // highest-weight first, matching BuildTargets sort order
+		expectBucket   string
+		expectZero     []string // buckets that must remain at 0
+	}{
+		{
+			name:      "user_create sentinel matches create, not adopt",
+			resultURL: addr + base + "/Users?_w=create",
+			targets: []BenchmarkTarget{
+				{Name: "scim_user_create", Method: "POST", PathPrefix: base + "/Users?_w=create", Weight: 21},
+				{Name: "scim_user_adopt", Method: "POST", PathPrefix: base + "/Users", Weight: 19},
+			},
+			expectBucket: "scim_user_create",
+			expectZero:   []string{"scim_user_adopt"},
+		},
+		{
+			name:      "user_adopt bare URL matches adopt, not create",
+			resultURL: addr + base + "/Users",
+			targets: []BenchmarkTarget{
+				{Name: "scim_user_create", Method: "POST", PathPrefix: base + "/Users?_w=create", Weight: 21},
+				{Name: "scim_user_adopt", Method: "POST", PathPrefix: base + "/Users", Weight: 19},
+			},
+			expectBucket: "scim_user_adopt",
+			expectZero:   []string{"scim_user_create"},
+		},
+		{
+			name:      "group_create sentinel matches create, not empty",
+			resultURL: addr + base + "/Groups?_w=create",
+			targets: []BenchmarkTarget{
+				{Name: "scim_group_create", Method: "POST", PathPrefix: base + "/Groups?_w=create", Weight: 20},
+				{Name: "scim_group_create_empty", Method: "POST", PathPrefix: base + "/Groups?_w=empty", Weight: 10},
+			},
+			expectBucket: "scim_group_create",
+			expectZero:   []string{"scim_group_create_empty"},
+		},
+		{
+			name:      "group_create_empty sentinel matches empty, not create",
+			resultURL: addr + base + "/Groups?_w=empty",
+			targets: []BenchmarkTarget{
+				{Name: "scim_group_create", Method: "POST", PathPrefix: base + "/Groups?_w=create", Weight: 20},
+				{Name: "scim_group_create_empty", Method: "POST", PathPrefix: base + "/Groups?_w=empty", Weight: 10},
+			},
+			expectBucket: "scim_group_create_empty",
+			expectZero:   []string{"scim_group_create"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tm := &TargetMulti{targets: tc.targets}
+			r := newReporter(tm, nil)
+			r.clientAddr = addr
+
+			r.Add(&vegeta.Result{Method: "POST", URL: tc.resultURL})
+
+			if r.metrics[tc.expectBucket].Requests != 1 {
+				t.Errorf("bucket %q: want 1 request, got %d", tc.expectBucket, r.metrics[tc.expectBucket].Requests)
+			}
+			for _, other := range tc.expectZero {
+				if r.metrics[other].Requests != 0 {
+					t.Errorf("bucket %q: want 0 requests (no attribution bleed), got %d",
+						other, r.metrics[other].Requests)
+				}
+			}
+		})
 	}
 }
