@@ -6,6 +6,7 @@ package benchmarktests
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,6 +32,14 @@ const (
 	// scimUserSchemaCore is the SCIM 2.0 User schema ID.
 	scimUserSchemaCore  = "urn:ietf:params:scim:schemas:core:2.0:User"
 	scimGroupSchemaCore = "urn:ietf:params:scim:schemas:core:2.0:Group"
+
+	// scimFilterSeedUserToken and scimFilterSeedGroupToken may appear inside a
+	// user_list/group_list filter string. Setup() substitutes them with the
+	// actual name of a pre-seeded resource (seed_user_count/seed_group_count)
+	// so a "point lookup" filter is guaranteed to match real, runID-scoped data
+	// instead of a hardcoded literal that can never match.
+	scimFilterSeedUserToken  = "$SEED_USERNAME"
+	scimFilterSeedGroupToken = "$SEED_GROUPNAME"
 )
 
 // scimClientPolicy is the minimum ACL policy a SCIM client token needs.
@@ -78,11 +87,18 @@ path "identity/scim/client/*" {
 
 // scimSharedClient holds the state shared across all test blocks in one run.
 type scimSharedClient struct {
-	runID               string
-	scimToken           string
-	aliasMountAccessor  string
-	namespace           string
-	refCount            int // number of test blocks currently holding this instance
+	runID              string
+	scimToken          string
+	aliasMountAccessor string
+	namespace          string
+	refCount           int // number of test blocks currently holding this instance
+
+	// adoptUserNames / adoptGroupIDs accumulate every name seeded by user_adopt /
+	// group_adopt blocks sharing this client. Only the subset actually adopted
+	// during the attack gets removed by delete-linked-resources; the last
+	// Cleanup() sweeps whatever remains in these lists (see scimReleaseSharedClient).
+	adoptUserNames []string
+	adoptGroupIDs  []string
 }
 
 var (
@@ -154,22 +170,60 @@ func scimReleaseSharedClient(client *api.Client) error {
 	key := scimSharedKey(client)
 
 	scimSharedMu.Lock()
-	defer scimSharedMu.Unlock()
-
 	sc, ok := scimSharedClients[key]
 	if !ok {
 		// Already cleaned up or never created — nothing to do.
+		scimSharedMu.Unlock()
 		return nil
 	}
 
 	sc.refCount--
 	if sc.refCount > 0 {
+		scimSharedMu.Unlock()
 		return nil
 	}
 
-	// Last holder — tear down.
+	// Last holder — tear down. Copy out what the sweep needs before unlocking;
+	// nothing else can reach this *scimSharedClient after the map delete.
 	delete(scimSharedClients, key)
-	return SCIMCleanup(client, sc.runID)
+	runID := sc.runID
+	adoptUserNames := sc.adoptUserNames
+	adoptGroupIDs := sc.adoptGroupIDs
+	scimSharedMu.Unlock()
+
+	var errs []error
+	if err := SCIMCleanup(client, runID); err != nil {
+		errs = append(errs, err)
+	}
+
+	// SCIMCleanup's delete-linked-resources=true already removed every entity/group
+	// that WAS adopted during the run. Anything from the seed pools still present
+	// at this point was never adopted, so it's safe to delete directly.
+	if err := sweepUnadoptedEntities(client, adoptUserNames); err != nil {
+		errs = append(errs, err)
+	}
+	if err := sweepUnadoptedGroups(client, adoptGroupIDs); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+// sweepUnadoptedEntities deletes any entity in names that Vault still has.
+// Deleting an already-gone entity by name is a documented no-op (no error), so
+// this is safe to call unconditionally against the full user_adopt seed pool.
+func sweepUnadoptedEntities(client *api.Client, names []string) error {
+	return deletePhase(targetLogger, "sweep unadopted seed entities", client, "identity/entity/name/", identityConcurrency, len(names), func(idx int) string {
+		return names[idx]
+	})
+}
+
+// sweepUnadoptedGroups deletes any group in ids that Vault still has.
+// Deleting an already-gone group by ID is a documented no-op (no error), so
+// this is safe to call unconditionally against the full group_adopt seed pool.
+func sweepUnadoptedGroups(client *api.Client, ids []string) error {
+	return deletePhase(targetLogger, "sweep unadopted seed groups", client, "identity/group/id/", identityConcurrency, len(ids), func(idx int) string {
+		return ids[idx]
+	})
 }
 
 // ── Name helpers ──────────────────────────────────────────────────────────────
@@ -501,3 +555,93 @@ func scimGroupAdoptBody(displayName string) []byte {
 	return b
 }
 
+// seedSCIMUsers creates SCIM-owned users via the SCIM API and returns their
+// Vault entity IDs. scope keeps name pools distinct across callers that share
+// a runID — e.g. "gm" for group members seeded by group_create, "lf" for
+// list-filter seed data seeded by user_list.
+func seedSCIMUsers(logger hclog.Logger, adminClient *api.Client, scimToken, runID, scope, namespace string, count int) ([]string, error) {
+	entityIDs := make([]string, count)
+	header := scimHeader(scimToken, namespace)
+
+	err := runPhase(logger, "seed scim users", identityConcurrency, count, func(i int) error {
+		userName := scimCreateUserName(runID, scope, i)
+		externalID := "seed-ext-" + userName
+		body := scimUserCreateBody(userName, externalID)
+
+		req, err := http.NewRequest(http.MethodPost,
+			adminClient.Address()+"/v1/identity/scim/v2/Users",
+			bytes.NewReader(body),
+		)
+		if err != nil {
+			return fmt.Errorf("building seed user request %d: %w", i, err)
+		}
+		for k, vals := range header {
+			for _, v := range vals {
+				req.Header.Set(k, v)
+			}
+		}
+
+		resp, err := adminClient.CloneConfig().HttpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("posting seed user %d: %w", i, err)
+		}
+		statusCode, respBody := debugLogSCIMResponse(resp)
+		logger.Debug("seed scim user response",
+			"index", i, "user_name", userName, "status", statusCode, "body", string(respBody),
+		)
+		if statusCode != http.StatusCreated {
+			return fmt.Errorf("seed user %d (%q): unexpected status %d, body: %s", i, userName, statusCode, respBody)
+		}
+
+		var parsed map[string]any
+		if err := json.Unmarshal(respBody, &parsed); err != nil {
+			return fmt.Errorf("parsing seed user response %d: %w", i, err)
+		}
+		id, ok := parsed["id"].(string)
+		if !ok || id == "" {
+			return fmt.Errorf("seed user response %d missing id field", i)
+		}
+		entityIDs[i] = id
+		return nil
+	}, "total", count)
+
+	return entityIDs, err
+}
+
+// seedSCIMGroups creates SCIM-owned groups (no members) via the SCIM API.
+// Used to give group_list filter tests real, findable data to query against.
+// scope keeps this pool distinct from other group name pools sharing the runID.
+func seedSCIMGroups(logger hclog.Logger, adminClient *api.Client, scimToken, runID, scope, namespace string, count int) error {
+	header := scimHeader(scimToken, namespace)
+
+	return runPhase(logger, "seed scim groups", identityConcurrency, count, func(i int) error {
+		displayName := scimCreateGroupDisplayName(runID, scope, i)
+		body := scimGroupCreateBody(displayName, nil)
+
+		req, err := http.NewRequest(http.MethodPost,
+			adminClient.Address()+"/v1/identity/scim/v2/Groups",
+			bytes.NewReader(body),
+		)
+		if err != nil {
+			return fmt.Errorf("building seed group request %d: %w", i, err)
+		}
+		for k, vals := range header {
+			for _, v := range vals {
+				req.Header.Set(k, v)
+			}
+		}
+
+		resp, err := adminClient.CloneConfig().HttpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("posting seed group %d: %w", i, err)
+		}
+		statusCode, respBody := debugLogSCIMResponse(resp)
+		logger.Debug("seed scim group response",
+			"index", i, "display_name", displayName, "status", statusCode, "body", string(respBody),
+		)
+		if statusCode != http.StatusCreated {
+			return fmt.Errorf("seed group %d (%q): unexpected status %d, body: %s", i, displayName, statusCode, respBody)
+		}
+		return nil
+	}, "total", count)
+}

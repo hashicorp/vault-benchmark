@@ -23,7 +23,7 @@
 #   export VAULT_NAMESPACE=admin   # if targeting the admin namespace
 #
 # Run:
-#   vault-benchmark run -config=test-fixtures/configs/scim_scale.hcl
+#   vault-benchmark run -config=test-fixtures/configs/scim/scim_scale.hcl
 #
 # Sizing formula (adjust rps and duration together):
 #   pool_size = 2 × rps × duration_seconds × (weight / 100)

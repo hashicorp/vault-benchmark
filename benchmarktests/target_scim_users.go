@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync/atomic"
 
 	"github.com/hashicorp/go-hclog"
@@ -86,8 +87,15 @@ type SCIMUsersConfig struct {
 	// Filters is the list of SCIM filter query-strings cycled for user_list.
 	// An empty string means "no filter" (returns all users).
 	// Example: ["", "userName eq \"alice@example.com\"", "meta.lastModified gt \"2020-01-01T00:00:00Z\""]
-	// Defaults to [""] (bare list, no filter) when omitted.
+	// Defaults to [""] (bare list, no filter) when omitted. A filter may contain
+	// the token $SEED_USERNAME, which is substituted with the userName of a
+	// pre-seeded user (see SeedUserCount) so a point-lookup filter is guaranteed
+	// to match real data.
 	Filters []string `hcl:"filters,optional"`
+
+	// SeedUserCount pre-seeds this many SCIM-owned users during setup, purely as
+	// queryable data for user_list filter tests. Ignored for other workloads.
+	SeedUserCount int `hcl:"seed_user_count,optional"`
 }
 
 func (s *SCIMUsers) ParseConfig(body hcl.Body) error {
@@ -117,6 +125,9 @@ func (s *SCIMUsers) ParseConfig(body hcl.Body) error {
 	case scimUserWorkloadList:
 		if len(c.Filters) == 0 {
 			c.Filters = []string{""}
+		}
+		if c.SeedUserCount < 0 {
+			return fmt.Errorf("scim_users: seed_user_count must be >= 0")
 		}
 	default:
 		return fmt.Errorf("scim_users: invalid workload %q; must be one of %q, %q, %q",
@@ -206,14 +217,25 @@ func (s *SCIMUsers) Setup(client *api.Client, mountName string, topLevelConfig *
 		s.logger.Info("scim_users setup: adoption targets seeded", "count", s.config.UserCount)
 
 	case scimUserWorkloadList:
-		// Nothing to seed; list URLs built below.
+		// Seed real, findable users so filter tests exercise an actual lookup
+		// instead of running against an empty namespace.
+		if s.config.SeedUserCount > 0 {
+			s.logger.Info("scim_users setup: seeding users for filter tests", "count", s.config.SeedUserCount)
+			if _, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, "lf", sc.namespace, s.config.SeedUserCount); err != nil {
+				return nil, fmt.Errorf("scim_users setup: seeding filter-test users: %w", err)
+			}
+		}
 	}
 
 	result.header = scimHeader(sc.scimToken, sc.namespace)
 
 	if s.config.Workload == scimUserWorkloadList {
+		// Deterministic — matches the name seedSCIMUsers assigned to index 0,
+		// with no need to inspect any HTTP response.
+		seedUserName := scimCreateUserName(sc.runID, "lf", 0)
 		result.listURLs = make([]string, len(s.config.Filters))
 		for i, f := range s.config.Filters {
+			f = strings.ReplaceAll(f, scimFilterSeedUserToken, seedUserName)
 			u := "/v1/identity/scim/v2/Users"
 			if f != "" {
 				u += "?filter=" + url.QueryEscape(f)
@@ -281,6 +303,25 @@ func (s *SCIMUsers) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SCIMUsers) Cleanup(client *api.Client) error {
+	// user_adopt: only the pool indices past the final atomicIdx were never sent
+	// as an adopt request at all, so they're guaranteed to still be plain
+	// unmanaged entities. Anything at or before that index may have been adopted
+	// (SCIM-owned) and must be left to delete-linked-resources' async cleanup
+	// worker instead — deleting it here directly would race that worker and
+	// return "SCIM-managed resources must be modified through SCIM".
+	if s.config.Workload == scimUserWorkloadAdopt {
+		touched := int(atomic.LoadInt64(&s.atomicIdx))
+		if touched < len(s.adoptUserNames) {
+			untouched := make([]string, 0, len(s.adoptUserNames)-touched)
+			for i := touched; i < len(s.adoptUserNames); i++ {
+				untouched = append(untouched, scimAdoptEntityName(s.sc.runID, i))
+			}
+			scimSharedMu.Lock()
+			s.sc.adoptUserNames = append(s.sc.adoptUserNames, untouched...)
+			scimSharedMu.Unlock()
+		}
+	}
+
 	s.logger.Info("scim_users cleanup: releasing shared SCIM client reference")
 	// scimReleaseSharedClient decrements the shared refcount. The last block
 	// to release triggers delete-linked-resources=true which removes all

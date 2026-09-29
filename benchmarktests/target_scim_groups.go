@@ -24,12 +24,11 @@ package benchmarktests
 // one Entra/Okta tenant has one credential, not one per operation type.
 
 import (
-	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync/atomic"
 
 	"github.com/hashicorp/go-hclog"
@@ -102,7 +101,14 @@ type SCIMGroupsConfig struct {
 
 	// Filters is the list of SCIM filter query-strings cycled for group_list.
 	// An empty string means "no filter". Defaults to [""] when omitted.
+	// A filter may contain the token $SEED_GROUPNAME, which is substituted with
+	// the displayName of a pre-seeded group (see SeedGroupCount) so a point-lookup
+	// filter is guaranteed to match real data.
 	Filters []string `hcl:"filters,optional"`
+
+	// SeedGroupCount pre-seeds this many SCIM-owned groups during setup, purely as
+	// queryable data for group_list filter tests. Ignored for other workloads.
+	SeedGroupCount int `hcl:"seed_group_count,optional"`
 }
 
 func (s *SCIMGroups) ParseConfig(body hcl.Body) error {
@@ -144,6 +150,9 @@ func (s *SCIMGroups) ParseConfig(body hcl.Body) error {
 	}
 	if c.UserSeedCount == 0 && c.MembersPerGroup > 0 {
 		c.UserSeedCount = c.MembersPerGroup
+	}
+	if c.SeedGroupCount < 0 {
+		return fmt.Errorf("scim_groups: seed_group_count must be >= 0")
 	}
 
 	return nil
@@ -191,7 +200,7 @@ func (s *SCIMGroups) Setup(client *api.Client, mountName string, topLevelConfig 
 				seedCount = s.config.MembersPerGroup
 			}
 			s.logger.Info("scim_groups setup: seeding SCIM-owned users for group membership", "count", seedCount)
-			entityIDs, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, sc.namespace, seedCount)
+			entityIDs, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, "gm", sc.namespace, seedCount)
 			if err != nil {
 				return nil, fmt.Errorf("scim_groups setup: seeding member users: %w", err)
 			}
@@ -232,14 +241,25 @@ func (s *SCIMGroups) Setup(client *api.Client, mountName string, topLevelConfig 
 		s.logger.Info("scim_groups setup: adoption groups seeded", "count", s.config.GroupCount)
 
 	case scimGroupWorkloadList:
-		// Nothing to seed.
+		// Seed real, findable groups so filter tests exercise an actual lookup
+		// instead of running against an empty namespace.
+		if s.config.SeedGroupCount > 0 {
+			s.logger.Info("scim_groups setup: seeding groups for filter tests", "count", s.config.SeedGroupCount)
+			if err := seedSCIMGroups(s.logger, client, sc.scimToken, sc.runID, "lg", sc.namespace, s.config.SeedGroupCount); err != nil {
+				return nil, fmt.Errorf("scim_groups setup: seeding filter-test groups: %w", err)
+			}
+		}
 	}
 
 	result.header = scimHeader(sc.scimToken, sc.namespace)
 
 	if s.config.Workload == scimGroupWorkloadList {
+		// Deterministic — matches the name seedSCIMGroups assigned to index 0,
+		// with no need to inspect any HTTP response.
+		seedGroupName := scimCreateGroupDisplayName(sc.runID, "lg", 0)
 		result.listURLs = make([]string, len(s.config.Filters))
 		for i, f := range s.config.Filters {
+			f = strings.ReplaceAll(f, scimFilterSeedGroupToken, seedGroupName)
 			u := "/v1/identity/scim/v2/Groups"
 			if f != "" {
 				u += "?filter=" + url.QueryEscape(f)
@@ -334,6 +354,21 @@ func (s *SCIMGroups) Target(client *api.Client) vegeta.Target {
 }
 
 func (s *SCIMGroups) Cleanup(client *api.Client) error {
+	// group_adopt: only the pool indices past the final atomicIdx were never
+	// sent as an adopt request at all, so they're guaranteed to still be plain
+	// unmanaged groups. Anything at or before that index may have been adopted
+	// (SCIM-owned) and must be left to delete-linked-resources' async cleanup
+	// worker instead — deleting it here directly would race that worker and
+	// return "SCIM-managed resources must be modified through SCIM".
+	if s.config.Workload == scimGroupWorkloadAdopt {
+		touched := int(atomic.LoadInt64(&s.atomicIdx))
+		if touched < len(s.adoptGroupIDs) {
+			scimSharedMu.Lock()
+			s.sc.adoptGroupIDs = append(s.sc.adoptGroupIDs, s.adoptGroupIDs[touched:]...)
+			scimSharedMu.Unlock()
+		}
+	}
+
 	s.logger.Info("scim_groups cleanup: releasing shared SCIM client reference")
 	// All SCIM-owned resources (created users, created groups, adopted users,
 	// adopted groups) belong to the single shared client. The last block to
@@ -357,56 +392,3 @@ func (s *SCIMGroups) GetTargetInfo() TargetInfo {
 }
 
 func (s *SCIMGroups) Flags(fs *flag.FlagSet) {}
-
-// seedSCIMUsers creates SCIM-owned users via the SCIM API and returns their
-// Vault entity IDs. Used as group members in group_create.
-func seedSCIMUsers(logger hclog.Logger, adminClient *api.Client, scimToken, runID, namespace string, count int) ([]string, error) {
-	entityIDs := make([]string, count)
-	header := scimHeader(scimToken, namespace)
-
-	err := runPhase(logger, "seed scim users for members", identityConcurrency, count, func(i int) error {
-		// Scope "gm" (group members) avoids collision with user_create's "uc" pool —
-		// both share the same runID within a benchmark run.
-		userName := scimCreateUserName(runID, "gm", i)
-		externalID := "member-ext-" + userName
-		body := scimUserCreateBody(userName, externalID)
-
-		req, err := http.NewRequest(http.MethodPost,
-			adminClient.Address()+"/v1/identity/scim/v2/Users",
-			bytes.NewReader(body),
-		)
-		if err != nil {
-			return fmt.Errorf("building seed user request %d: %w", i, err)
-		}
-		for k, vals := range header {
-			for _, v := range vals {
-				req.Header.Set(k, v)
-			}
-		}
-
-		resp, err := adminClient.CloneConfig().HttpClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("posting seed user %d: %w", i, err)
-		}
-		statusCode, respBody := debugLogSCIMResponse(resp)
-		logger.Debug("seed scim user response",
-			"index", i, "user_name", userName, "status", statusCode, "body", string(respBody),
-		)
-		if statusCode != http.StatusCreated {
-			return fmt.Errorf("seed user %d (%q): unexpected status %d, body: %s", i, userName, statusCode, respBody)
-		}
-
-		var parsed map[string]any
-		if err := json.Unmarshal(respBody, &parsed); err != nil {
-			return fmt.Errorf("parsing seed user response %d: %w", i, err)
-		}
-		id, ok := parsed["id"].(string)
-		if !ok || id == "" {
-			return fmt.Errorf("seed user response %d missing id field", i)
-		}
-		entityIDs[i] = id
-		return nil
-	}, "total", count)
-
-	return entityIDs, err
-}

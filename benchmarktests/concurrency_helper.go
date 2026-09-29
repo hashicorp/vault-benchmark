@@ -22,6 +22,12 @@ const (
 	// backend), while KV setup hits the secrets engine (may benefit from n>1 on
 	// integrated-storage clusters). Both default to 1 (serial). To experiment locally,
 	// raise the relevant constant; do not raise on production clusters without profiling.
+	//
+	// NOTE for SCIM benchmarks: the SCIM seeding helpers (scim_helper.go,
+	// target_scim_users.go, target_scim_groups.go) create large numbers of identity
+	// entities/groups during setup.  Raising identityConcurrency to ~16 cuts that
+	// setup time significantly.  Before running the SCIM benchmark suite, temporarily
+	// set identityConcurrency = 16 here, then restore it to 1 before committing.
 	identityConcurrency = 1
 	kvSeedConcurrency   = 1
 )

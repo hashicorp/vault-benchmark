@@ -12,7 +12,7 @@
 #   # Optionally: export VAULT_NAMESPACE=admin
 #
 # Run:
-#   vault-benchmark run -config=test-fixtures/configs/scim.hcl
+#   vault-benchmark run -config=test-fixtures/configs/scim/scim.hcl
 #
 # What each test block does:
 #
@@ -56,7 +56,9 @@
 # effect on load distribution at these scales.
 duration      = "30s"
 rps           = 50
-report_mode   = "terse"
+log_level     = "DEBUG"
+report_mode   = "verbose"
+# report_mode   = "terse"
 # vault-benchmark requires random_mounts = true when cleanup = true.
 # SCIM targets ignore random_mounts (they scope everything by runID internally),
 # so this flag has no effect on SCIM setup — it just satisfies the framework check.
