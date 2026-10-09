@@ -109,6 +109,11 @@ type SCIMGroupsConfig struct {
 	// SeedGroupCount pre-seeds this many SCIM-owned groups during setup, purely as
 	// queryable data for group_list filter tests. Ignored for other workloads.
 	SeedGroupCount int `hcl:"seed_group_count,optional"`
+
+	// SeedConcurrency is the number of parallel workers used for setup seeding
+	// (group_adopt groups, group member users, group_list seed groups) and for
+	// the teardown sweep. Defaults to 16. It does not affect the measured attack phase.
+	SeedConcurrency int `hcl:"seed_concurrency,optional"`
 }
 
 func (s *SCIMGroups) ParseConfig(body hcl.Body) error {
@@ -120,6 +125,7 @@ func (s *SCIMGroups) ParseConfig(body hcl.Body) error {
 			GroupCount:      100,
 			MembersPerGroup: 0,
 			Filters:         []string{""},
+			SeedConcurrency: scimDefaultSeedConcurrency,
 		},
 	}
 
@@ -130,6 +136,10 @@ func (s *SCIMGroups) ParseConfig(body hcl.Body) error {
 
 	c := testConfig.Config
 	s.config = c
+
+	if c.SeedConcurrency < 1 {
+		return fmt.Errorf("scim_groups: seed_concurrency must be >= 1")
+	}
 
 	switch c.Workload {
 	case scimGroupWorkloadCreate, scimGroupWorkloadCreateEmpty, scimGroupWorkloadAdopt:
@@ -163,7 +173,7 @@ func (s *SCIMGroups) Setup(client *api.Client, mountName string, topLevelConfig 
 
 	// Acquire the shared SCIM client.
 	s.logger.Info("scim_groups setup: acquiring shared SCIM client", "workload", s.config.Workload)
-	sc, err := scimAcquireSharedClient(client)
+	sc, err := scimAcquireSharedClient(client, s.config.SeedConcurrency)
 	if err != nil {
 		return nil, fmt.Errorf("scim_groups setup: %w", err)
 	}
@@ -200,7 +210,7 @@ func (s *SCIMGroups) Setup(client *api.Client, mountName string, topLevelConfig 
 				seedCount = s.config.MembersPerGroup
 			}
 			s.logger.Info("scim_groups setup: seeding SCIM-owned users for group membership", "count", seedCount)
-			entityIDs, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, "gm", sc.namespace, seedCount)
+			entityIDs, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, "gm", sc.namespace, s.config.SeedConcurrency, seedCount)
 			if err != nil {
 				return nil, fmt.Errorf("scim_groups setup: seeding member users: %w", err)
 			}
@@ -213,7 +223,7 @@ func (s *SCIMGroups) Setup(client *api.Client, mountName string, topLevelConfig 
 		groupIDs := make([]string, s.config.GroupCount)
 		groupNames := make([]string, s.config.GroupCount)
 
-		err = runPhase(s.logger, "seed adoption groups", identityConcurrency, s.config.GroupCount, func(i int) error {
+		err = runPhase(s.logger, "seed adoption groups", s.config.SeedConcurrency, s.config.GroupCount, func(i int) error {
 			name := scimAdoptGroupName(sc.runID, i)
 			resp, err := client.Logical().Write("identity/group", map[string]any{
 				"name": name,
@@ -245,7 +255,7 @@ func (s *SCIMGroups) Setup(client *api.Client, mountName string, topLevelConfig 
 		// instead of running against an empty namespace.
 		if s.config.SeedGroupCount > 0 {
 			s.logger.Info("scim_groups setup: seeding groups for filter tests", "count", s.config.SeedGroupCount)
-			if err := seedSCIMGroups(s.logger, client, sc.scimToken, sc.runID, "lg", sc.namespace, s.config.SeedGroupCount); err != nil {
+			if err := seedSCIMGroups(s.logger, client, sc.scimToken, sc.runID, "lg", sc.namespace, s.config.SeedConcurrency, s.config.SeedGroupCount); err != nil {
 				return nil, fmt.Errorf("scim_groups setup: seeding filter-test groups: %w", err)
 			}
 		}

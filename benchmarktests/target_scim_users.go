@@ -96,6 +96,11 @@ type SCIMUsersConfig struct {
 	// SeedUserCount pre-seeds this many SCIM-owned users during setup, purely as
 	// queryable data for user_list filter tests. Ignored for other workloads.
 	SeedUserCount int `hcl:"seed_user_count,optional"`
+
+	// SeedConcurrency is the number of parallel workers used for setup seeding
+	// (user_adopt entities, user_list seed users) and for the teardown sweep.
+	// Defaults to 16. It does not affect the measured attack phase.
+	SeedConcurrency int `hcl:"seed_concurrency,optional"`
 }
 
 func (s *SCIMUsers) ParseConfig(body hcl.Body) error {
@@ -103,9 +108,10 @@ func (s *SCIMUsers) ParseConfig(body hcl.Body) error {
 		Config *SCIMUsersConfig `hcl:"config,block"`
 	}{
 		Config: &SCIMUsersConfig{
-			Workload:  scimUserWorkloadCreate,
-			UserCount: 200,
-			Filters:   []string{""},
+			Workload:        scimUserWorkloadCreate,
+			UserCount:       200,
+			Filters:         []string{""},
+			SeedConcurrency: scimDefaultSeedConcurrency,
 		},
 	}
 
@@ -116,6 +122,10 @@ func (s *SCIMUsers) ParseConfig(body hcl.Body) error {
 
 	c := testConfig.Config
 	s.config = c
+
+	if c.SeedConcurrency < 1 {
+		return fmt.Errorf("scim_users: seed_concurrency must be >= 1")
+	}
 
 	switch c.Workload {
 	case scimUserWorkloadCreate, scimUserWorkloadAdopt:
@@ -143,7 +153,7 @@ func (s *SCIMUsers) Setup(client *api.Client, mountName string, topLevelConfig *
 	// Acquire the shared SCIM client — created once for the whole run,
 	// reused by every scim_users and scim_groups test block.
 	s.logger.Info("scim_users setup: acquiring shared SCIM client", "workload", s.config.Workload)
-	sc, err := scimAcquireSharedClient(client)
+	sc, err := scimAcquireSharedClient(client, s.config.SeedConcurrency)
 	if err != nil {
 		return nil, fmt.Errorf("scim_users setup: %w", err)
 	}
@@ -181,7 +191,7 @@ func (s *SCIMUsers) Setup(client *api.Client, mountName string, topLevelConfig *
 		s.logger.Info("scim_users setup: seeding unmanaged adoption targets", "count", s.config.UserCount)
 		aliasNames := make([]string, s.config.UserCount)
 
-		err = runPhase(s.logger, "seed adoption entities", identityConcurrency, s.config.UserCount, func(i int) error {
+		err = runPhase(s.logger, "seed adoption entities", s.config.SeedConcurrency, s.config.UserCount, func(i int) error {
 			entityName := scimAdoptEntityName(sc.runID, i)
 			aliasName := scimAdoptUserAliasName(sc.runID, i)
 
@@ -221,7 +231,7 @@ func (s *SCIMUsers) Setup(client *api.Client, mountName string, topLevelConfig *
 		// instead of running against an empty namespace.
 		if s.config.SeedUserCount > 0 {
 			s.logger.Info("scim_users setup: seeding users for filter tests", "count", s.config.SeedUserCount)
-			if _, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, "lf", sc.namespace, s.config.SeedUserCount); err != nil {
+			if _, err := seedSCIMUsers(s.logger, client, sc.scimToken, sc.runID, "lf", sc.namespace, s.config.SeedConcurrency, s.config.SeedUserCount); err != nil {
 				return nil, fmt.Errorf("scim_users setup: seeding filter-test users: %w", err)
 			}
 		}

@@ -25,6 +25,11 @@ func generateUUID() (string, error) {
 }
 
 const (
+	// scimDefaultSeedConcurrency is the default number of parallel workers used
+	// when seeding SCIM test data during setup/teardown. Override per test block
+	// with the seed_concurrency config option.
+	scimDefaultSeedConcurrency = 16
+
 	scimPolicyName   = "scim-bench-policy"
 	scimMountBase    = "userpass"
 	scimUserPassword = "scim-bench-pw"
@@ -93,6 +98,10 @@ type scimSharedClient struct {
 	namespace          string
 	refCount           int // number of test blocks currently holding this instance
 
+	// concurrency is the highest seed_concurrency requested by any block sharing
+	// this client. It is used for the teardown sweep, which runs once for all blocks.
+	concurrency int
+
 	// adoptUserNames / adoptGroupIDs accumulate every name seeded by user_adopt /
 	// group_adopt blocks sharing this client. Only the subset actually adopted
 	// during the attack gets removed by delete-linked-resources; the last
@@ -128,7 +137,7 @@ func scimSharedKey(client *api.Client) string {
 //     vs scimCreateUserName, etc.).
 //   - A new run always gets a new runID, so there are no name collisions with
 //     any state a previous run may have left behind on a persistent cluster.
-func scimAcquireSharedClient(client *api.Client) (*scimSharedClient, error) {
+func scimAcquireSharedClient(client *api.Client, concurrency int) (*scimSharedClient, error) {
 	key := scimSharedKey(client)
 
 	scimSharedMu.Lock()
@@ -136,6 +145,9 @@ func scimAcquireSharedClient(client *api.Client) (*scimSharedClient, error) {
 
 	if sc, ok := scimSharedClients[key]; ok {
 		sc.refCount++
+		if concurrency > sc.concurrency {
+			sc.concurrency = concurrency
+		}
 		return sc, nil
 	}
 
@@ -158,6 +170,7 @@ func scimAcquireSharedClient(client *api.Client) (*scimSharedClient, error) {
 		aliasMountAccessor: accessor,
 		namespace:          ns,
 		refCount:           1,
+		concurrency:        concurrency,
 	}
 	scimSharedClients[key] = sc
 	return sc, nil
@@ -189,6 +202,7 @@ func scimReleaseSharedClient(client *api.Client) error {
 	runID := sc.runID
 	adoptUserNames := sc.adoptUserNames
 	adoptGroupIDs := sc.adoptGroupIDs
+	concurrency := sc.concurrency
 	scimSharedMu.Unlock()
 
 	var errs []error
@@ -199,10 +213,10 @@ func scimReleaseSharedClient(client *api.Client) error {
 	// SCIMCleanup's delete-linked-resources=true already removed every entity/group
 	// that WAS adopted during the run. Anything from the seed pools still present
 	// at this point was never adopted, so it's safe to delete directly.
-	if err := sweepUnadoptedEntities(client, adoptUserNames); err != nil {
+	if err := sweepUnadoptedEntities(client, concurrency, adoptUserNames); err != nil {
 		errs = append(errs, err)
 	}
-	if err := sweepUnadoptedGroups(client, adoptGroupIDs); err != nil {
+	if err := sweepUnadoptedGroups(client, concurrency, adoptGroupIDs); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
@@ -211,8 +225,8 @@ func scimReleaseSharedClient(client *api.Client) error {
 // sweepUnadoptedEntities deletes any entity in names that Vault still has.
 // Deleting an already-gone entity by name is a documented no-op (no error), so
 // this is safe to call unconditionally against the full user_adopt seed pool.
-func sweepUnadoptedEntities(client *api.Client, names []string) error {
-	return deletePhase(targetLogger, "sweep unadopted seed entities", client, "identity/entity/name/", identityConcurrency, len(names), func(idx int) string {
+func sweepUnadoptedEntities(client *api.Client, concurrency int, names []string) error {
+	return deletePhase(targetLogger, "sweep unadopted seed entities", client, "identity/entity/name/", concurrency, len(names), func(idx int) string {
 		return names[idx]
 	})
 }
@@ -220,8 +234,8 @@ func sweepUnadoptedEntities(client *api.Client, names []string) error {
 // sweepUnadoptedGroups deletes any group in ids that Vault still has.
 // Deleting an already-gone group by ID is a documented no-op (no error), so
 // this is safe to call unconditionally against the full group_adopt seed pool.
-func sweepUnadoptedGroups(client *api.Client, ids []string) error {
-	return deletePhase(targetLogger, "sweep unadopted seed groups", client, "identity/group/id/", identityConcurrency, len(ids), func(idx int) string {
+func sweepUnadoptedGroups(client *api.Client, concurrency int, ids []string) error {
+	return deletePhase(targetLogger, "sweep unadopted seed groups", client, "identity/group/id/", concurrency, len(ids), func(idx int) string {
 		return ids[idx]
 	})
 }
@@ -474,8 +488,8 @@ func scimDeleteViaSCIMAPI(client *api.Client, scimToken, namespace, resourceType
 
 // scimDeletePhase bulk-deletes SCIM resources using the SCIM token (required
 // for SCIM-owned entities/groups that the admin identity API refuses to delete).
-func scimDeletePhase(logger hclog.Logger, phase, resourceType string, client *api.Client, scimToken, namespace string, ids []string) error {
-	return runPhase(logger, phase, identityConcurrency, len(ids), func(i int) error {
+func scimDeletePhase(logger hclog.Logger, phase, resourceType string, client *api.Client, scimToken, namespace string, concurrency int, ids []string) error {
+	return runPhase(logger, phase, concurrency, len(ids), func(i int) error {
 		return scimDeleteViaSCIMAPI(client, scimToken, namespace, resourceType, ids[i])
 	})
 }
@@ -559,11 +573,11 @@ func scimGroupAdoptBody(displayName string) []byte {
 // Vault entity IDs. scope keeps name pools distinct across callers that share
 // a runID — e.g. "gm" for group members seeded by group_create, "lf" for
 // list-filter seed data seeded by user_list.
-func seedSCIMUsers(logger hclog.Logger, adminClient *api.Client, scimToken, runID, scope, namespace string, count int) ([]string, error) {
+func seedSCIMUsers(logger hclog.Logger, adminClient *api.Client, scimToken, runID, scope, namespace string, concurrency, count int) ([]string, error) {
 	entityIDs := make([]string, count)
 	header := scimHeader(scimToken, namespace)
 
-	err := runPhase(logger, "seed scim users", identityConcurrency, count, func(i int) error {
+	err := runPhase(logger, "seed scim users", concurrency, count, func(i int) error {
 		userName := scimCreateUserName(runID, scope, i)
 		externalID := "seed-ext-" + userName
 		body := scimUserCreateBody(userName, externalID)
@@ -611,10 +625,10 @@ func seedSCIMUsers(logger hclog.Logger, adminClient *api.Client, scimToken, runI
 // seedSCIMGroups creates SCIM-owned groups (no members) via the SCIM API.
 // Used to give group_list filter tests real, findable data to query against.
 // scope keeps this pool distinct from other group name pools sharing the runID.
-func seedSCIMGroups(logger hclog.Logger, adminClient *api.Client, scimToken, runID, scope, namespace string, count int) error {
+func seedSCIMGroups(logger hclog.Logger, adminClient *api.Client, scimToken, runID, scope, namespace string, concurrency, count int) error {
 	header := scimHeader(scimToken, namespace)
 
-	return runPhase(logger, "seed scim groups", identityConcurrency, count, func(i int) error {
+	return runPhase(logger, "seed scim groups", concurrency, count, func(i int) error {
 		displayName := scimCreateGroupDisplayName(runID, scope, i)
 		body := scimGroupCreateBody(displayName, nil)
 
