@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/hashicorp/go-hclog"
@@ -29,7 +30,6 @@ const (
 	identityWorkloadGroupRead = "group_read"
 
 	identityNoWorkloadPath = "/v1/sys/health"
-
 )
 
 func init() {
@@ -263,8 +263,8 @@ func (i *Identity) Target(client *api.Client) vegeta.Target {
 
 func (i *Identity) Cleanup(client *api.Client) error {
 	if i.config.Workload == identityWorkloadPopulate {
-		// TODO: populate intentionally skips cleanup; seeded objects persist for follow-on inspection.
-		i.logger.Info("populate workload; leaving seeded identity objects in place")
+		fmt.Fprintf(os.Stderr, "%sINFO: populate workload left seeded identity objects in place%s\n",
+			ansiYellow, ansiReset)
 		return nil
 	}
 

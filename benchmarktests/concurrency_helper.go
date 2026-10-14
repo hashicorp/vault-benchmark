@@ -7,16 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
 )
 
 const (
-	progressDivisions = 5
-
 	// identityConcurrency and kvSeedConcurrency are independent tuning axes: identity
 	// setup hits the identity store (always serialized by Vault regardless of storage
 	// backend), while KV setup hits the secrets engine (may benefit from n>1 on
@@ -76,27 +72,13 @@ func runPhase(logger hclog.Logger, phase string, n, total int, fn func(idx int) 
 		return nil
 	}
 
-	start := time.Now()
-	logger.Info(phase+" start", append([]any{"total", total}, startFields...)...)
+	logger.Trace(phase, append([]any{"total", total}, startFields...)...)
 
-	progressInterval := ceilDiv(total, progressDivisions)
-	var done atomic.Int64
-
-	err := runConcurrent(n, total, func(idx int) error {
-		if err := fn(idx); err != nil {
-			return err
-		}
-		d := done.Add(1)
-		if d%int64(progressInterval) == 0 || int(d) == total {
-			logger.Info(phase, "progress", fmt.Sprintf("%d/%d", d, total))
-		}
-		return nil
-	})
+	err := runConcurrent(n, total, fn)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(phase+" complete", "total", total, "elapsed", time.Since(start).String())
 	return nil
 }
 

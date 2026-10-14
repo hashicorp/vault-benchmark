@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -27,6 +26,12 @@ type TopLevelTargetConfig struct {
 
 const (
 	VaultBenchmarkEnvVarPrefix = "VAULT_BENCHMARK_"
+
+	// cleanupNoOpThreshold is the wall-clock duration under which a Cleanup is
+	// considered a no-op (no real Vault I/O) (a single mount disable is typically 5–50ms on a
+	// local dev cluster).
+	// TODO: replace with per-target I/O detection if this heuristic misfires on heavily throttled CI runners.
+	cleanupNoOpThreshold = 100 * time.Millisecond
 )
 
 type BenchmarkBuilder interface {
@@ -100,16 +105,13 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		targetName string
 	}
 
-	wg := new(sync.WaitGroup)
-	errch := make(chan CleanupMsg)
-	var errs []error
+	prog := newStageProgress(os.Stderr, "cleaning up targets", cleanupPhrases, targetNames(tm.targets), 0)
+	cleanupStarted := time.Now()
 
+	errch := make(chan CleanupMsg, len(tm.targets))
 	for _, target := range tm.targets {
 		target := target
-		wg.Add(1)
-		targetLogger.Debug("cleaning up", "target", target.Name)
 		go func() {
-			defer wg.Done()
 			errch <- CleanupMsg{
 				err:        target.Builder.Cleanup(client),
 				targetName: target.Name,
@@ -117,16 +119,27 @@ func (tm TargetMulti) Cleanup(client *api.Client) error {
 		}()
 	}
 
+	var errs []error
 	for range tm.targets {
-		cleanupMsg := <-errch
-		if cleanupMsg.err != nil {
-			errs = append(errs, cleanupMsg.err)
-			targetLogger.Error("error cleaning up", "target", cleanupMsg.targetName, "error", cleanupMsg.err.Error())
-		} else {
-			targetLogger.Trace("done cleaning up", "target", cleanupMsg.targetName)
+		msg := <-errch
+		if msg.err != nil {
+			errs = append(errs, msg.err)
+			targetLogger.Error("error cleaning up", "target", msg.targetName, "error", msg.err.Error())
 		}
 	}
-	return errors.Join(errs...)
+
+	joined := errors.Join(errs...)
+	if joined != nil {
+		prog.Fail(joined)
+	} else if time.Since(cleanupStarted) < cleanupNoOpThreshold {
+		// Targets whose Cleanup returns in under cleanupNoOpThreshold performed no
+		// real Vault I/O (e.g. populate workload). Skip the spinner line rather
+		// than printing a 0s cleanup for something that was a no-op.
+		prog.Skip()
+	} else {
+		prog.Complete()
+	}
+	return joined
 }
 
 func (tm TargetMulti) Targeter(client *api.Client) (vegeta.Targeter, error) {
@@ -187,24 +200,25 @@ func BuildTargets(client *api.Client, tests []*BenchmarkTarget, logger *hclog.Lo
 		return nil, err
 	}
 
+	prog := newStageProgress(os.Stderr, "setting up targets", setupPhrases, targetNames(tests), 0)
+
 	for _, bvTest := range tests {
-		targetLogger.Debug("setting up target", "target", hclog.Fmt("%v", bvTest.Name))
 		mountName := bvTest.Name
 		if bvTest.MountName != "" {
 			mountName = bvTest.MountName
 		}
 		bvTest.Builder, err = bvTest.Builder.Setup(client, mountName, config)
 		if err != nil {
-			// TODO:
-			// We should look to implement some mechanism to clean up the mount if we
-			// fail to configure some aspect of it (config, role, etc.)
+			prog.Fail(err)
+			// TODO: clean up already-provisioned targets on partial failure; deferred until Cleanup error handling is hardened.
 			return nil, err
 		}
 		bvTest.ConfigureTarget(client)
 		tm.targets = append(tm.targets, *bvTest)
 	}
 
-	// Put the biggest fractions first as an optimization
+	prog.Complete()
+
 	sort.Slice(tm.targets, func(i, j int) bool {
 		return tm.targets[j].Weight < tm.targets[i].Weight
 	})

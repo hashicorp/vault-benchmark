@@ -427,7 +427,6 @@ func (r *RunCommand) Run(args []string) int {
 	}
 
 	testRunning.WithLabelValues(annoValues...).Set(1)
-	benchmarkLogger.Info("setting up targets")
 
 	topLevelConfig := benchmarktests.TopLevelTargetConfig{
 		Duration:     parsedDuration,
@@ -442,7 +441,7 @@ func (r *RunCommand) Run(args []string) int {
 
 	var l sync.Mutex
 	results := make(map[string]*benchmarktests.Reporter)
-	benchmarkLogger.Info("starting benchmarks", "duration", hclog.Fmt("%v", parsedDuration.String()))
+
 	for _, client := range clients {
 		wg.Add(1)
 		go func(client *vaultapi.Client) {
@@ -471,7 +470,6 @@ func (r *RunCommand) Run(args []string) int {
 			l.Unlock()
 
 			if conf.Cleanup {
-				benchmarkLogger.Info("cleaning up targets")
 				err := tm.Cleanup(client)
 				if err != nil {
 					benchmarkLogger.Error("cleanup error", "err", hclog.Fmt("%v", err))
@@ -489,7 +487,7 @@ func (r *RunCommand) Run(args []string) int {
 	wg.Wait()
 
 	testRunning.WithLabelValues(annoValues...).Set(0)
-	benchmarkLogger.Info("benchmark complete")
+
 	for _, client := range clients {
 		addr := client.Address()
 		rpt := results[addr]
