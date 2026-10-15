@@ -87,6 +87,7 @@ type PKIIssueRootConfig struct {
 	PrivateKeyFormat    string `hcl:"private_key_format,optional"`
 	KeyType             string `hcl:"key_type,optional"`
 	KeyBits             int    `hcl:"key_bits,optional"`
+	ParameterSet        string `hcl:"parameter_set,optional"`
 	MaxPathLength       int    `hcl:"max_path_length,optional"`
 	ExcludeCNFromSANS   bool   `hcl:"exclude_cn_from_sans,optional"`
 	PermittedDNSDomains string `hcl:"permitted_dns_domains,optional"`
@@ -120,6 +121,7 @@ type PKIIssueIntCSRConfig struct {
 	PrivateKeyFormat    string `hcl:"private_key_format,optional"`
 	KeyType             string `hcl:"key_type,optional"`
 	KeyBits             int    `hcl:"key_bits,optional"`
+	ParameterSet        string `hcl:"parameter_set,optional"`
 	KeyName             string `hcl:"key_name,optional"`
 	KeyRef              string `hcl:"key_ref,optional"`
 	SignatureBits       int    `hcl:"signature_bits,optional"`
@@ -197,6 +199,7 @@ type PKIIssueRoleConfig struct {
 	EmailProtectionFlag          bool     `hcl:"email_protection_flag,optional"`
 	KeyType                      string   `hcl:"key_type,optional"`
 	KeyBits                      int      `hcl:"key_bits,optional"`
+	ParameterSet                 string   `hcl:"parameter_set,optional"`
 	SignatureBits                int      `hcl:"signature_bits,optional"`
 	UsePSS                       bool     `hcl:"use_pss,optional"`
 	KeyUsage                     []string `hcl:"key_usage,optional"`

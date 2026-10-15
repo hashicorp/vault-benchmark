@@ -68,7 +68,7 @@ This benchmark tests the performance of PKI issue operations.
   field if `format=pem_bundle` parameter is specified.
 
 - `key_type` `(string: "rsa")` - Specifies the desired key type; must be `rsa`, `ed25519`
-  or `ec`.
+  `ec`, or `ml-dsa`.
 
 ~> **Note**: In FIPS 140-2 mode, the following algorithms are not certified
    and thus should not be used: `ed25519`.
@@ -78,6 +78,9 @@ This benchmark tests the performance of PKI issue operations.
   `key_type=rsa`, allowed values are: 2048 (default), 3072, or
   4096; with `key_type=ec`, allowed values are: 224, 256 (default),
   384, or 521; ignored with `key_type=ed25519`.
+
+- `parameter_set` `(string: "")` - An ML-DSA key parameter set. Required when
+  `key_type=ml-dsa`. Allowed values are `"44"`, `"65"`, and `"87"`.
 
 - `max_path_length` `(int: -1)` - Specifies the maximum path length to encode in
   the generated certificate. `-1` means no limit. Unless the signing certificate
@@ -195,7 +198,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   field if `format=pem_bundle` parameter is specified.
 
 - `key_type` `(string: "rsa")` - Specifies the desired key type; must be `rsa`, `ed25519`
-  or `ec`. Not suitable for `type=existing` requests.
+  `ec` or `ml-dsa`. Not suitable for `type=existing` requests.
 
 ~> **Note**: In FIPS 140-2 mode, the following algorithms are not certified
    and thus should not be used: `ed25519`.
@@ -209,6 +212,9 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   4096; with `key_type=ec`, allowed values are: 224, 256 (default),
   384, or 521; ignored with `key_type=ed25519`. Not suitable for
   `type=existing` requests.
+
+- `parameter_set` `(string: "")` - An ML-DSA key parameter set. Required when
+  `key_type=ml-dsa`. Allowed values are `"44"`, `"65"`, and `"87"`.
 
 - `key_name` `(string: "")` - When a new key is created with this request,
   optionally specifies the name for this. The global ref `default` may not
@@ -566,7 +572,7 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
 
 - `key_type` `(string: "rsa")` - Specifies the type of key to generate for
   generated private keys and the type of key expected for submitted CSRs.
-  Currently, `rsa`, `ec`, and `ed25519` are supported, or when signing
+  Currently, `rsa`, `ec`, `ed25519`, or `ml-dsa` are supported, or when signing
   existing CSRs, `any` can be specified to allow keys of either type
   and with any bit size (subject to >=2048 bits for RSA keys or >= 224 for EC keys).
   When `any` is used, this role cannot generate certificates and can only
@@ -581,6 +587,9 @@ See [Managed Keys](https://developer.hashicorp.com/vault/api-docs/secret/pki#man
   4096; with `key_type=ec`, allowed values are: 224, 256 (default),
   384, or 521; ignored with `key_type=ed25519` or in signing operations
   when `key_type=any`.
+
+- `parameter_set` `(string: "")` - An ML-DSA key parameter set. Required when
+  `key_type=ml-dsa`. Allowed values are `"44"`, `"65"`, and `"87"`.
 
 - `signature_bits` `(int: 0)` - Specifies the number of bits to use in
   the signature algorithm; accepts 256 for SHA-2-256, 384 for SHA-2-384,
