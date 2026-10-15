@@ -36,6 +36,7 @@ type ApproleAuth struct {
 type ApproleAuthConfig struct {
 	RoleConfig     *RoleConfig     `hcl:"role,block"`
 	SecretIDConfig *SecretIDConfig `hcl:"secret_id,block"`
+	SecretIDCount  int             `hcl:"secret_id_count,optional"`
 }
 
 type RoleConfig struct {
@@ -82,6 +83,12 @@ func (a *ApproleAuth) ParseConfig(body hcl.Body) error {
 		return fmt.Errorf("error decoding to struct: %v", diags)
 	}
 	a.config = testConfig.Config
+	c := a.config
+
+	if c.SecretIDCount < 0 {
+		return fmt.Errorf("secret_id_count must be >= 0")
+	}
+
 	return nil
 }
 
@@ -130,6 +137,15 @@ func (a *ApproleAuth) Setup(client *api.Client, mountName string, topLevelConfig
 
 	roleID := roleIDSecret.Data["role_id"].(string)
 	secretID := secretId.Data["secret_id"].(string)
+
+	setupLogger.Debug("generating remaining secret-ids")
+	for remainingSecretIDs := a.config.SecretIDCount - 1; remainingSecretIDs > 0; remainingSecretIDs-- {
+		secretIDData, err := structToMap(a.config.SecretIDConfig)
+		_, err = client.Logical().Write(rolePath+"/secret-id", secretIDData)
+		if err != nil {
+			return nil, fmt.Errorf("error generating approle secret-id: %v", err)
+		}
+	}
 
 	return &ApproleAuth{
 		header:     generateHeader(client),
