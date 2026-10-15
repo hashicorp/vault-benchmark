@@ -42,13 +42,13 @@ This benchmark tests the performance of the transit operations.
   corresponding `batch_results` item in the response, to assist in understanding
   which result corresponds to a particular input. Only valid on batch requests
   when using ‘batch_input’ below.
-- `batch_input` _([]interface{}: nil)_ – Specifies a list of items for processing.
+- `batch_input` _([]map[string]string: nil)_ – Specifies a list of items for processing.
   When this parameter is set, any supplied 'input' or 'context' parameters will be
   ignored. Responses are returned in the 'batch_results' array component of the
   'data' element of the response. Any batch output will preserve the order of the
   batch input. If the input data value of an item is invalid, the
   corresponding item in the 'batch_results' will have the key 'error' with a value
-  describing the error.
+  describing the error. Each item is an object whose attributes are strings.
 - `context` _(string: "")_ - Base64 encoded context for key derivation.
   Required if key derivation is enabled; currently only available with ed25519
   keys.
@@ -82,7 +82,7 @@ This benchmark tests the performance of the transit operations.
   corresponding `batch_results` item in the response, to assist in understanding
   which result corresponds to a particular input. Only valid on batch requests
   when using ‘batch_input’ below.
-- `batch_input` _([]interface{}: nil)_ – Specifies a list of items for processing.
+- `batch_input` _([]map[string]string: nil)_ – Specifies a list of items for processing.
   When this parameter is set, any supplied 'input', 'hmac' or 'signature' parameters
   will be ignored. 'batch_input' items should contain an 'input' parameter and
   either an 'hmac' or 'signature' parameter. All items in the batch must consistently
@@ -91,7 +91,7 @@ This benchmark tests the performance of the transit operations.
   'batch_results' array component of the 'data' element of the response. Any batch
   output will preserve the order of the batch input. If the input data value of an
   item is invalid, the corresponding item in the 'batch_results' will have the key
-  'error' with a value describing the error.
+  'error' with a value describing the error. Each item is an object whose attributes are strings.
 - `context` _(string: "")_ - Base64 encoded context for key derivation.
   Required if key derivation is enabled; currently only available with ed25519
   keys.
@@ -131,10 +131,11 @@ This benchmark tests the performance of the transit operations.
   corresponding `batch_results` item in the response, to assist in understanding
   which result corresponds to a particular input. Only valid on batch requests
   when using ‘batch_input’ below.
-- `batch_input` _([]interface{}: nil)_ – Specifies a list of items to be
+- `batch_input` _([]map[string]string: nil)_ – Specifies a list of items to be
   encrypted in a single batch. When this parameter is set, if the parameters
   'plaintext', 'context' and 'nonce' are also set, they will be ignored.
-  Any batch output will preserve the order of the batch input.
+  Any batch output will preserve the order of the batch input. Each item is an
+  object whose attributes are strings.
 - `type` _(string: "aes256-gcm96")_ –This parameter is required when encryption
   key is expected to be created. When performing an upsert operation, the type
   of key to create.
@@ -175,10 +176,11 @@ This benchmark tests the performance of the transit operations.
   corresponding `batch_results` item in the response, to assist in understanding
   which result corresponds to a particular input. Only valid on batch requests
   when using ‘batch_input’ below.
-- `batch_input` _([]interface{}: nil)_ – Specifies a list of items to be
+- `batch_input` _([]map[string]string: nil)_ – Specifies a list of items to be
   decrypted in a single batch. When this parameter is set, if the parameters
   'ciphertext', 'context' and 'nonce' are also set, they will be ignored.
-  Any batch output will preserve the order of the batch input.
+  Any batch output will preserve the order of the batch input. Each item is an
+  object whose attributes are strings.
 - `partial_failure_response_code` _(int: 400)_ Ordinarily, if a batch item fails
   to encrypt due to a bad input, but other batch items succeed, the HTTP response
   code is 400 (Bad Request).  Some applications may want to treat partial failures
