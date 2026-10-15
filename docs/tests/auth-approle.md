@@ -4,6 +4,10 @@ This benchmark tests the performance of logins using the AppRole auth method.
 
 ## Benchmark Configuration Parameters
 
+- `secret_id_count` `(integer: 0)` - Number of secret IDs to create during the
+  setup phase.  These secret IDs are not used for the login, just populate
+  under the mount generated per test.
+
 ### Role Configuration (`role`)
 
 - `role_name` `(string: "benchmark-role")` - Name of the AppRole. Must be less than 4096 bytes, accepted characters
